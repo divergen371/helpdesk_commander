@@ -156,29 +156,27 @@ jobs:
           elixir-version: ${{ env.ELIXIR_VERSION }}
           otp-version: ${{ env.OTP_VERSION }}
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
       - name: Cache dependencies
         uses: actions/cache@v4
         with:
           path: |
             deps
             _build
-            assets/node_modules
-          key: ${{ runner.os }}-mix-assets-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('**/mix.lock') }}-${{ hashFiles('**/package-lock.json') }}
+          key: ${{ runner.os }}-mix-assets-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('**/mix.lock') }}
           restore-keys: |
             ${{ runner.os }}-mix-assets-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-
 
       - name: Install Elixir dependencies
         run: mix deps.get
-
-      - name: Install Node.js dependencies
+      - name: Install asset toolchains
+        run: |
+          mix tailwind.install --if-missing
+          mix esbuild.install --if-missing
         run: npm install --prefix assets
 
       - name: Build assets
+        env:
+          SECRET_KEY_BASE: "0000000000000000000000000000000000000000000000000000000000000000"
         run: mix assets.deploy
 
       - name: Verify asset compilation
