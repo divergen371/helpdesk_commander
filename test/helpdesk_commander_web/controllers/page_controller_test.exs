@@ -1,5 +1,5 @@
 defmodule HelpdeskCommanderWeb.PageControllerTest do
-  use HelpdeskCommanderWeb.ConnCase
+  use HelpdeskCommanderWeb.ConnCase, async: true
 
   test "GET /", %{conn: conn} do
     conn = get(conn, ~p"/")
