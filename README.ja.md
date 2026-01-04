@@ -1,5 +1,7 @@
 # Helpdesk Commander
 
+[![CI](https://github.com/divergen371/helpdesk_commander/actions/workflows/ci.yml/badge.svg)](https://github.com/divergen371/helpdesk_commander/actions/workflows/ci.yml)
+
 Phoenix LiveView と Ash Framework を使用した **タスク管理 & ヘルプデスク統合システム**
 
 ## 📋 概要
@@ -31,7 +33,8 @@ Helpdesk Commanderは、社内のタスク管理とヘルプデスク業務を1�
 
 ## 🛠 技術スタック
 
-- **Elixir**: 1.18.4
+- **Elixir**: 1.19.4
+- **Erlang/OTP**: 28.3
 - **Phoenix**: 1.8.3
 - **Phoenix LiveView**: 1.1.0
 - **Ash Framework**: 3.0
