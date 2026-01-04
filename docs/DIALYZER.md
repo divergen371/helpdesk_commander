@@ -331,6 +331,39 @@ rm -rf priv/plts/
 make dialyzer-plt
 ```
 
+### 5. `repo.ex` で `no_return`（`all_tenants/0`）が出る
+
+**症状**（例）:
+
+- `lib/helpdesk_commander/repo.ex:2:no_return`
+- `Function all_tenants/0 only terminates with explicit exception.`
+
+**原因**:
+
+`HelpdeskCommander.Repo` は `use AshPostgres.Repo` を使っています。
+AshPostgres 側は schema-based multitenancy 用に `all_tenants/0` のコールバックを持っていて、
+未実装の場合は **デフォルト実装が `raise` する**ため、Dialyzer では `no_return` 扱いになります。
+
+**対処（今回の対応）**:
+
+`lib/helpdesk_commander/repo.ex` に `all_tenants/0` を明示的に実装して、例外終了しないようにしました。
+現時点では schema-based multitenancy を使っていない前提で `[]` を返しています。
+
+また、この警告を一時的に抑えるために置いていた `.dialyzer_ignore.exs` のフィルタは不要になったため削除しました。
+
+#### 将来的に schema-based multitenancy を使う場合の注意点
+
+`all_tenants/0` を `[]` のままにすると、AshPostgres のタスクやマイグレーション（特に tenants 対応）で
+「テナント一覧が空」として扱われ、期待通りに動かない可能性があります。
+
+schema-based multitenancy を使うことになったら、次を満たす実装に差し替えてください:
+
+- **全テナントのスキーマ名（prefix）** を `String.t()` のリストで返す
+- テナントが増減しても正しく追従できる（例: DB から organizations を取得して `org.schema` を返す、など）
+- テナントマイグレーションを回す運用をするなら、テナントのマイグレーションパスや実行手順も合わせて整備する
+
+（参考: AshPostgres 側で `repo.all_tenants()` を使って tenant migration を走らせる箇所があります）
+
 ## 📈 推奨ワークフロー
 
 ### 開発中
