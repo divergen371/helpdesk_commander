@@ -46,10 +46,12 @@ helpdesk_commander/
 ### 3. Docker環境
 
 PostgreSQLがDocker上で稼働中：
-- **ポート**: 5432
+- **ポート**: 5432（ホスト側は `127.0.0.1` にのみバインド）
 - **ユーザー**: postgres
 - **パスワード**: postgres
 - **データベース**: helpdesk_commander_dev
+
+※ ユーザー/パスワード等は `.env`（例: `.env.example`）で上書きできます。
 
 ## 🎯 次のステップ
 

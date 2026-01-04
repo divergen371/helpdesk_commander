@@ -1,14 +1,44 @@
 import Config
 
 # Configure your database
-config :helpdesk_commander, HelpdeskCommander.Repo,
-  username: "postgres",
-  password: "postgres",
-  hostname: "localhost",
-  database: "helpdesk_commander_dev",
-  stacktrace: true,
-  show_sensitive_data_on_connection_error: true,
-  pool_size: 10
+#
+# Prefer DATABASE_URL when provided (e.g. via `.env` + direnv), otherwise fall back
+# to individual connection settings.
+#
+# Example:
+#   export DATABASE_URL=postgres://postgres:postgres@localhost:5432/helpdesk_commander_dev
+#
+# NOTE: These defaults are intended for local development only.
+database_url = System.get_env("DATABASE_URL")
+
+dev_database = System.get_env("DATABASE_NAME", "helpdesk_commander_dev")
+
+repo_base =
+  if database_url do
+    [url: database_url]
+  else
+    username = System.get_env("POSTGRES_USER", "postgres")
+    password = System.get_env("POSTGRES_PASSWORD", "postgres")
+    hostname = System.get_env("POSTGRES_HOST", "localhost")
+    port = String.to_integer(System.get_env("POSTGRES_PORT", "5432"))
+
+    [
+      username: username,
+      password: password,
+      hostname: hostname,
+      port: port,
+      database: dev_database
+    ]
+  end
+
+config :helpdesk_commander,
+       HelpdeskCommander.Repo,
+       repo_base ++
+         [
+           stacktrace: true,
+           show_sensitive_data_on_connection_error: true,
+           pool_size: String.to_integer(System.get_env("POOL_SIZE", "10"))
+         ]
 
 # For development, we disable any cache and enable
 # debugging and code reloading.
