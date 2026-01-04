@@ -138,6 +138,7 @@ defmodule HelpdeskCommander.MixProject do
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
       "assets.build": ["compile", "tailwind helpdesk_commander", "esbuild helpdesk_commander"],
       "assets.deploy": [
+        "compile",
         "tailwind helpdesk_commander --minify",
         "esbuild helpdesk_commander --minify",
         "phx.digest"

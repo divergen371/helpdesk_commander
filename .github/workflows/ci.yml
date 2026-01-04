@@ -181,11 +181,11 @@ jobs:
 
       - name: Verify asset compilation
         run: |
-          if [ ! -f "priv/static/assets/app.js" ]; then
-            echo "Error: app.js not found"
+          if [ ! -f "priv/static/assets/js/app.js" ]; then
+            echo "Error: priv/static/assets/js/app.js not found"
             exit 1
           fi
-          if [ ! -f "priv/static/assets/app.css" ]; then
-            echo "Error: app.css not found"
+          if [ ! -f "priv/static/assets/css/app.css" ]; then
+            echo "Error: priv/static/assets/css/app.css not found"
             exit 1
           fi
