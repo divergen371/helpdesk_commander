@@ -5,7 +5,8 @@ defmodule HelpdeskCommander.Application do
 
   use Application
 
-  @impl true
+  @impl Application
+  @spec start(Application.start_type(), term()) :: Supervisor.on_start()
   def start(_type, _args) do
     children = [
       HelpdeskCommanderWeb.Telemetry,
@@ -26,7 +27,8 @@ defmodule HelpdeskCommander.Application do
 
   # Tell Phoenix to update the endpoint configuration
   # whenever the application is updated.
-  @impl true
+  @impl Application
+  @spec config_change(keyword(), keyword(), [atom()]) :: :ok
   def config_change(changed, _new, removed) do
     HelpdeskCommanderWeb.Endpoint.config_change(changed, removed)
     :ok
