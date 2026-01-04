@@ -10,8 +10,7 @@ defmodule HelpdeskCommander.Application do
     children = [
       HelpdeskCommanderWeb.Telemetry,
       HelpdeskCommander.Repo,
-      {DNSCluster,
-       query: Application.get_env(:helpdesk_commander, :dns_cluster_query) || :ignore},
+      {DNSCluster, query: Application.get_env(:helpdesk_commander, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: HelpdeskCommander.PubSub},
       # Start a worker by calling: HelpdeskCommander.Worker.start_link(arg)
       # {HelpdeskCommander.Worker, arg},
