@@ -45,12 +45,13 @@ npm-debug.log
 .env.local
 .env.*.local
 
-# Editor and IDE files
+# Editor files
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.specstory/
 .DS_Store
 
 # Elixir LS (Language Server)

@@ -2,15 +2,17 @@ defmodule HelpdeskCommander.MixProject do
   use Mix.Project
 
   def project do
+    env = mix_env()
+
     [
       app: :helpdesk_commander,
       version: "0.1.0",
       elixir: "~> 1.15",
-      elixirc_paths: elixirc_paths(Mix.env()),
-      start_permanent: Mix.env() == :prod,
+      elixirc_paths: elixirc_paths(env),
+      start_permanent: env == :prod,
       aliases: aliases(),
       deps: deps(),
-      compilers: [:phoenix_live_view] ++ Mix.compilers(),
+      compilers: [:phoenix_live_view] ++ mix_compilers(),
       listeners: [Phoenix.CodeReloader],
       dialyzer: dialyzer()
     ]
@@ -56,6 +58,8 @@ defmodule HelpdeskCommander.MixProject do
   #
   # Type `mix help deps` for examples and options.
   defp deps do
+    env = mix_env()
+
     [
       {:ash_phoenix, "~> 2.0"},
       {:ash_postgres, "~> 2.0"},
@@ -69,8 +73,8 @@ defmodule HelpdeskCommander.MixProject do
       {:phoenix_live_view, "~> 1.1.0"},
       {:lazy_html, ">= 0.1.0", only: :test},
       {:phoenix_live_dashboard, "~> 0.8.3"},
-      {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
-      {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
+      {:esbuild, "~> 0.10", runtime: env == :dev},
+      {:tailwind, "~> 0.3", runtime: env == :dev},
       {:heroicons,
        github: "tailwindlabs/heroicons", tag: "v2.2.0", sparse: "optimized", app: false, compile: false, depth: 1},
       {:swoosh, "~> 1.16"},
@@ -85,6 +89,38 @@ defmodule HelpdeskCommander.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
     ]
+  end
+
+  defp mix_env do
+    if Code.ensure_loaded?(Mix) and function_exported?(Mix, :env, 0) do
+      try do
+        Mix.env()
+      rescue
+        ArgumentError -> env_from_system()
+      end
+    else
+      env_from_system()
+    end
+  end
+
+  defp mix_compilers do
+    if Code.ensure_loaded?(Mix) and function_exported?(Mix, :compilers, 0) do
+      try do
+        Mix.compilers()
+      rescue
+        ArgumentError -> [:yecc, :leex, :erlang, :elixir, :app]
+      end
+    else
+      [:yecc, :leex, :erlang, :elixir, :app]
+    end
+  end
+
+  defp env_from_system do
+    case System.get_env("MIX_ENV", "dev") do
+      "prod" -> :prod
+      "test" -> :test
+      _ -> :dev
+    end
   end
 
   # Aliases are shortcuts or tasks specific to the current project.
