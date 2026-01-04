@@ -239,23 +239,22 @@ make help
 
 ### データベース接続
 
-`config/dev.exs` でデータベース接続情報を設定：
+開発/テスト用のDB接続は **環境変数で上書き可能** です（デフォルトはローカル開発向けの `postgres/postgres`）。
 
-```elixir
-config :helpdesk_commander, HelpdeskCommander.Repo,
-  username: "postgres",
-  password: "postgres",
-  hostname: "localhost",
-  database: "helpdesk_commander_dev",
-  stacktrace: true,
-  show_sensitive_data_on_connection_error: true,
-  pool_size: 10
-```
-
-環境変数で上書きも可能：
+推奨（URLで指定）:
 
 ```bash
 export DATABASE_URL=postgres://postgres:postgres@localhost:5432/helpdesk_commander_dev
+export TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/helpdesk_commander_test
+```
+
+URLを使わない場合（個別指定）:
+
+```bash
+export POSTGRES_HOST=localhost
+export POSTGRES_PORT=5432
+export POSTGRES_USER=postgres
+export POSTGRES_PASSWORD=postgres
 ```
 
 ## 📚 Ashフレームワークについて

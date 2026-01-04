@@ -6,13 +6,46 @@ config :ash, disable_async?: true
 # The MIX_TEST_PARTITION environment variable can be used
 # to provide built-in test partitioning in CI environment.
 # Run `mix help test` for more information.
-config :helpdesk_commander, HelpdeskCommander.Repo,
-  username: "postgres",
-  password: "postgres",
-  hostname: "localhost",
-  database: "helpdesk_commander_test#{System.get_env("MIX_TEST_PARTITION")}",
-  pool: Ecto.Adapters.SQL.Sandbox,
-  pool_size: System.schedulers_online() * 2
+#
+# Prefer TEST_DATABASE_URL when provided, but keep partition support by rewriting
+# the database name in the URL's path.
+#
+# Example:
+#   export TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/helpdesk_commander_test
+
+test_database_url = System.get_env("TEST_DATABASE_URL")
+
+test_database_base = System.get_env("TEST_DATABASE_NAME", "helpdesk_commander_test")
+test_database = test_database_base <> to_string(System.get_env("MIX_TEST_PARTITION", ""))
+
+repo_base =
+  if test_database_url do
+    uri = URI.parse(test_database_url)
+    uri = %{uri | path: "/" <> test_database}
+
+    [url: URI.to_string(uri)]
+  else
+    username = System.get_env("POSTGRES_USER", "postgres")
+    password = System.get_env("POSTGRES_PASSWORD", "postgres")
+    hostname = System.get_env("POSTGRES_HOST", "localhost")
+    port = String.to_integer(System.get_env("POSTGRES_PORT", "5432"))
+
+    [
+      username: username,
+      password: password,
+      hostname: hostname,
+      port: port,
+      database: test_database
+    ]
+  end
+
+config :helpdesk_commander,
+       HelpdeskCommander.Repo,
+       repo_base ++
+         [
+           pool: Ecto.Adapters.SQL.Sandbox,
+           pool_size: System.schedulers_online() * 2
+         ]
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
