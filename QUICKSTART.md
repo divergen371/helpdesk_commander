@@ -30,7 +30,7 @@ helpdesk_commander/
 │       └── init.sql                # DB初期化スクリプト
 ├── docker-compose.yml              # Docker Compose設定
 ├── Makefile                        # 開発用コマンド
-└── README.ja.md                    # 詳細ドキュメント
+└── README.md                       # 詳細ドキュメント
 ```
 
 ### 2. インストール済みの技術スタック
@@ -280,4 +280,4 @@ make db-reset
 
 ---
 
-詳細な情報は [README.ja.md](./README.ja.md) を参照してください。
+詳細な情報は [README.md](./README.md) を参照してください。
