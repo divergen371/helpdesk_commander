@@ -13,6 +13,8 @@ defmodule HelpdeskCommander.Application do
       HelpdeskCommander.Repo,
       {DNSCluster, query: Application.get_env(:helpdesk_commander, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: HelpdeskCommander.PubSub},
+      # Prototype-only in-memory store (remove once Ash resources/migrations are in place)
+      HelpdeskCommander.Prototype.TicketStore,
       # Start a worker by calling: HelpdeskCommander.Worker.start_link(arg)
       # {HelpdeskCommander.Worker, arg},
       # Start to serve requests, typically the last entry

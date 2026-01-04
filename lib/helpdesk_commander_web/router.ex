@@ -18,6 +18,9 @@ defmodule HelpdeskCommanderWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+
+    # LiveView prototype to validate UI/latency/memory assumptions before implementing Ash resources
+    live "/prototype/tickets/:id", Prototype.TicketShowLive, :show
   end
 
   # Other scopes may use custom stacks.
