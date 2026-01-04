@@ -35,3 +35,55 @@ helpdesk_commander-*.tar
 npm-debug.log
 /assets/node_modules/
 
+# Dialyzer PLT files
+/priv/plts/
+*.plt
+*.plt.hash
+
+# Environment variables (secrets)
+.env
+.env.local
+.env.*.local
+
+# Editor and IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Elixir LS (Language Server)
+/.elixir_ls/
+
+# Ignore local configuration override
+/config/*.secret.exs
+
+# Ignore database files (if using SQLite locally)
+*.db
+*.db-shm
+*.db-wal
+
+# Ignore log files
+*.log
+/log/
+
+# Ignore uploaded files (if any)
+/priv/static/uploads/
+
+# Docker volumes and local data
+/postgres_data/
+
+# Backup files
+*.bak
+*.backup
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
