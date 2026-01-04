@@ -452,8 +452,19 @@ defmodule HelpdeskCommanderWeb.CoreComponents do
 
   ## JS Commands
 
+  @spec show(String.t()) :: JS.t()
+  def show(selector) do
+    JS.show(
+      to: selector,
+      time: 300,
+      transition:
+        {"transition-all ease-out duration-300", "opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95",
+         "opacity-100 translate-y-0 sm:scale-100"}
+    )
+  end
+
   @spec show(JS.t(), String.t()) :: JS.t()
-  def show(js \\ %JS{}, selector) do
+  def show(js, selector) do
     JS.show(js,
       to: selector,
       time: 300,
@@ -463,8 +474,19 @@ defmodule HelpdeskCommanderWeb.CoreComponents do
     )
   end
 
+  @spec hide(String.t()) :: JS.t()
+  def hide(selector) do
+    JS.hide(
+      to: selector,
+      time: 200,
+      transition:
+        {"transition-all ease-in duration-200", "opacity-100 translate-y-0 sm:scale-100",
+         "opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"}
+    )
+  end
+
   @spec hide(JS.t(), String.t()) :: JS.t()
-  def hide(js \\ %JS{}, selector) do
+  def hide(js, selector) do
     JS.hide(js,
       to: selector,
       time: 200,
