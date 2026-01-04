@@ -168,11 +168,11 @@ jobs:
 
       - name: Install Elixir dependencies
         run: mix deps.get
+
       - name: Install asset toolchains
         run: |
           mix tailwind.install --if-missing
           mix esbuild.install --if-missing
-        run: npm install --prefix assets
 
       - name: Build assets
         env:
