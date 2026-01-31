@@ -151,7 +151,7 @@ jobs:
 
       - name: Run Dialyzer
         run: |
-          mix dialyzer --format github || (rm -f priv/plts/dialyzer.plt && mix dialyzer --plt && mix dialyzer --format github)
+          mix dialyzer --format github || (rm -f priv/plts/dialyzer.plt priv/plts/dialyzer.plt.hash && mix dialyzer --plt && mix dialyzer --format github)
 
   assets:
     name: Assets Build Check
