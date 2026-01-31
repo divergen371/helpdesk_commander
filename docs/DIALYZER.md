@@ -248,14 +248,15 @@ end
 
 ```yaml
 # .github/workflows/ci.yml
-- name: Cache Dialyzer PLT
-  uses: actions/cache@v3
+- name: Cache PLT
+  uses: actions/cache@v4
   with:
     path: priv/plts
-    key: ${{ runner.os }}-plt-${{ hashFiles('mix.lock') }}
+    key: ${{ runner.os }}-plt-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('**/mix.lock') }}
 
 - name: Run Dialyzer
-  run: mix dialyzer --format github
+  run: |
+    mix dialyzer --format github || (rm -f priv/plts/dialyzer.plt priv/plts/dialyzer.plt.hash && mix dialyzer --plt && mix dialyzer --format github)
 ```
 
 ### 4. 定期的にPLTを更新
@@ -326,8 +327,8 @@ end
 ### 4. PLT生成が失敗する
 
 ```bash
-# PLTファイルを削除して再生成
-rm -rf priv/plts/
+# PLTファイルとハッシュを削除して再生成
+rm -f priv/plts/dialyzer.plt priv/plts/dialyzer.plt.hash
 make dialyzer-plt
 ```
 

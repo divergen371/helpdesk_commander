@@ -152,13 +152,24 @@ make dialyzer
 
 ### CI/CDでの実行順序
 
-```yaml
-1. mix deps.get
-2. mix compile --warnings-as-errors
-3. mix format --check-formatted
-4. mix credo --strict
-5. mix dialyzer
-6. mix test
+現在の CI はジョブ分割されています（`docs/CI_CD.md`参照）。
+
+```text
+Test Job:
+  - mix deps.get
+  - mix deps.compile
+  - mix compile --warnings-as-errors
+  - mix format --check-formatted
+  - mix test
+
+Quality Job:
+  - mix credo --strict
+
+Dialyzer Job:
+  - mix dialyzer --format github
+
+Assets Job:
+  - mix assets.deploy
 ```
 
 ## 🐛 トラブルシューティング
