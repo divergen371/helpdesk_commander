@@ -57,10 +57,11 @@ sequenceDiagram
   participant DB as Postgres
 
   U->>B: チケット詳細へアクセス
-  B->>LV: mount(ticket_id)
+  note over U,B: URLは推測耐性のため public_id を使う
+  B->>LV: mount(ticket_public_id)
 
-  LV->>A: Ticket.read(ticket_id)
-  A->>DB: SELECT tickets
+  LV->>A: Ticket.get_by_public_id(ticket_public_id)
+  A->>DB: SELECT tickets WHERE public_id = ...
   DB-->>A: ticket
 
   LV->>A: Conversation.read_by_ticket(ticket_id)
