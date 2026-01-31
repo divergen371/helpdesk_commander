@@ -8,11 +8,19 @@
 import Config
 
 config :spark, formatter: ["Ash.Resource": [section_order: [:postgres]]]
-config :ash, known_types: [AshPostgres.Timestamptz, AshPostgres.TimestamptzUsec]
+
+config :ash,
+  known_types: [AshPostgres.Timestamptz, AshPostgres.TimestamptzUsec],
+  default_belongs_to_type: HelpdeskCommander.Types.BigInt
 
 config :helpdesk_commander,
   ecto_repos: [HelpdeskCommander.Repo],
-  generators: [timestamp_type: :utc_datetime]
+  generators: [timestamp_type: :utc_datetime],
+  ash_domains: [
+    HelpdeskCommander.Accounts,
+    HelpdeskCommander.Tasks,
+    HelpdeskCommander.Helpdesk
+  ]
 
 # Configure the endpoint
 config :helpdesk_commander, HelpdeskCommanderWeb.Endpoint,
