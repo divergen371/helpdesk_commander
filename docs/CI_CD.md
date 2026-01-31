@@ -12,7 +12,7 @@
 - **CI/CDプラットフォーム**: GitHub Actions
 - **Elixir**: 1.19.4
 - **Erlang/OTP**: 28.3
-- **PostgreSQL**: 16 (Alpine)
+- **PostgreSQL**: 18 (Alpine)
 - **Assets**: `mix tailwind.install` / `mix esbuild.install` → `mix assets.deploy`
 
 ## 🎯 ワークフロー構成
@@ -22,7 +22,7 @@
 **目的**: コンパイルとテストの健全性を確認
 
 **実行内容**:
-- PostgreSQL 16 の起動（Service）
+- PostgreSQL 18 の起動（Service）
 - `mix deps.get`
 - `mix deps.compile`
 - `mix compile --warnings-as-errors`

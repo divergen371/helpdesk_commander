@@ -1,4 +1,4 @@
-FROM postgres:16-alpine
+FROM postgres:18-alpine
 
 # PostgreSQL拡張機能のインストール
 RUN apk add --no-cache postgresql-contrib
