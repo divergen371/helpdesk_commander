@@ -150,7 +150,8 @@ jobs:
         run: mix deps.compile
 
       - name: Run Dialyzer
-        run: mix dialyzer --format github
+        run: |
+          mix dialyzer --format github || (rm -f priv/plts/dialyzer.plt && mix dialyzer --format github)
 
   assets:
     name: Assets Build Check
