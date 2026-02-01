@@ -18,6 +18,10 @@ defmodule HelpdeskCommanderWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+
+    live "/tickets", TicketLive.Index, :index
+    live "/tickets/new", TicketLive.New, :new
+    live "/tickets/:public_id", TicketLive.Show, :show
   end
 
   # Other scopes may use custom stacks.

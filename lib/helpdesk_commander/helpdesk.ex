@@ -5,5 +5,6 @@ defmodule HelpdeskCommander.Helpdesk do
 
   resources do
     resource HelpdeskCommander.Helpdesk.Ticket
+    resource HelpdeskCommander.Helpdesk.TicketMessage
   end
 end

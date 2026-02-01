@@ -55,6 +55,11 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
       allow_nil? true
       public? true
     end
+
+    has_many :messages, HelpdeskCommander.Helpdesk.TicketMessage do
+      destination_attribute :ticket_id
+      public? true
+    end
   end
 
   identities do
