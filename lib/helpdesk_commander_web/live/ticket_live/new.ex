@@ -69,9 +69,12 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
 
   defp user_options(users) do
     Enum.map(users, fn user ->
-      {"#{user.name} <#{user.email}>", user.id}
+      {user_label(user), user.id}
     end)
   end
+
+  defp user_label(%User{role: "system"}), do: "System"
+  defp user_label(%User{name: name, email: email}), do: "#{name} <#{email}>"
 
   defp status_options do
     [

@@ -128,16 +128,19 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
   defp sender_label(users_by_id, sender_id) do
     case Map.get(users_by_id, sender_id) do
-      %User{name: name, email: email} -> "#{name} <#{email}>"
+      %User{} = user -> user_label(user)
       _user -> "User #{sender_id}"
     end
   end
 
   defp user_options(users) do
     Enum.map(users, fn user ->
-      {"#{user.name} <#{user.email}>", user.id}
+      {user_label(user), user.id}
     end)
   end
+
+  defp user_label(%User{role: "system"}), do: "System"
+  defp user_label(%User{name: name, email: email}), do: "#{name} <#{email}>"
 
   @impl Phoenix.LiveView
   def render(assigns) do
