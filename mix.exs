@@ -9,6 +9,7 @@ defmodule HelpdeskCommander.MixProject do
       version: "0.1.0",
       elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(env),
+      erlc_paths: erlc_paths(env),
       start_permanent: env == :prod,
       aliases: aliases(),
       deps: deps(),
@@ -37,6 +38,9 @@ defmodule HelpdeskCommander.MixProject do
   # Specifies which paths to compile per environment.
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
+
+  defp erlc_paths(:test), do: ["src", "test/support"]
+  defp erlc_paths(_), do: ["src"]
 
   # Dialyzer configuration
   defp dialyzer do
@@ -72,6 +76,8 @@ defmodule HelpdeskCommander.MixProject do
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       {:phoenix_live_view, "~> 1.1.0"},
       {:lazy_html, ">= 0.1.0", only: :test},
+      {:proper, "~> 1.4", only: :test},
+      {:stream_data, "~> 1.1"},
       {:phoenix_live_dashboard, "~> 0.8.3"},
       {:esbuild, "~> 0.10", runtime: env == :dev},
       {:tailwind, "~> 0.3", runtime: env == :dev},

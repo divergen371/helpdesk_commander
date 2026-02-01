@@ -70,3 +70,32 @@ mix phx.server
 - コメント追加時に `tickets.latest_message_at` を更新
 - LiveView テストを拡張（コメント追加の検証）
 - `mix precommit` で検証（9 tests / 0 failures）
+
+---
+
+## 2026-02-01 04:20 UTC
+
+### プロパティベーステスト準備
+
+- `stream_data` を依存に追加（Ash依存の関係で `:only` 指定なし）
+- `HelpdeskCommander.PropertyCase` を追加（`ExUnitProperties` と `StreamData` を共通import）
+
+---
+
+## 2026-02-01 04:26 UTC
+
+### PropEr 導入
+
+- `proper` を `:test` 依存に追加
+
+---
+
+## 2026-02-01 04:28 UTC
+
+### PropEr プロパティテスト実行
+
+- `test/support/proper_public_id.erl` を追加（PropEr の property 定義）
+- `test/helpdesk_commander/support/public_id_proper_test.exs` で `:proper.quickcheck/2` を実行
+- `erlc_paths` を追加して `test/support` の `.erl` をテスト時にコンパイル
+- `mix test test/helpdesk_commander/support/public_id_proper_test.exs` 実行（PropEr 100ケース成功）
+- `mix precommit` 実行（PropEr 100ケース + 既存テスト通過）
