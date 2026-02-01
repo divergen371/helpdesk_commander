@@ -23,3 +23,20 @@ if users == [] do
 
   Logger.info("Seeded default user: admin@example.com")
 end
+
+system_email = "system@helpdesk.local"
+
+if Enum.any?(users, &(&1.email == system_email)) do
+  :ok
+else
+  _system =
+    User
+    |> Ash.Changeset.for_create(:create, %{
+      email: system_email,
+      name: "System",
+      role: "system"
+    })
+    |> Ash.create!(domain: Accounts)
+
+  Logger.info("Seeded system user: #{system_email}")
+end

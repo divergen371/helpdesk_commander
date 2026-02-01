@@ -58,5 +58,35 @@ defmodule HelpdeskCommander.Tasks.Task do
     update :update do
       accept [:title, :description, :status, :priority, :due_date, :assignee_id]
     end
+
+    update :set_priority do
+      require_atomic? false
+
+      argument :actor_id, HelpdeskCommander.Types.BigInt, allow_nil?: false
+      argument :priority, :string, allow_nil?: false
+
+      change set_attribute(:priority, arg(:priority))
+
+      change after_action(fn changeset, task, _context ->
+               previous = changeset.data
+               new_priority = task.priority
+
+               data = %{field: "priority", from: previous.priority, to: new_priority}
+
+               _event =
+                 HelpdeskCommander.Tasks.TaskEvent
+                 |> Ash.Changeset.for_create(:create, %{
+                   event_type: "priority_changed",
+                   data: data,
+                   task_id: task.id,
+                   actor_id: Ash.Changeset.get_argument(changeset, :actor_id)
+                 })
+                 |> Ash.create!(domain: HelpdeskCommander.Tasks)
+
+               {:ok, task}
+             end)
+
+      accept []
+    end
   end
 end
