@@ -139,6 +139,31 @@ Helpdesk Commander は、社内の「タスク管理」と「ヘルプデスク�
 - 期限
 - 担当者
 
+#### 5.6.1 タスク優先度の履歴（追記: 2026-02-01）
+- タスクの優先度は状況により変更され得るため、**優先度変更の履歴を保持**する。
+- 履歴には少なくとも以下を記録する。
+  - 変更前/変更後の優先度
+  - 変更者（actor。未ログイン操作は発生しない。システム操作の場合も system user を actor として記録し、null を許容しない）
+  - 変更日時
+- 将来的にタスクCRUD UIを実装する際、優先度変更は通常の update と分離されたアクション（例: `set_priority`）として扱い、履歴を必ず残す。
+
+#### 5.6.2 system/external actor の扱い（追記: 2026-02-01）
+- **監査性のため、イベントの actor は必ず埋める（null禁止）**。
+- システム操作は **system user**（例: `system@helpdesk.local` / `name="System"` / `role="system"`）を actor として記録する。
+- 外部サービス（例: 監視/チャット連携）からの操作も **必ず actor を持つ**。
+  - MVPでは system user に集約し、**外部サービス固有の識別は `data`（event payload）に記録**する。
+  - 将来的に必要になれば、`actor_type` + `actor_id` などの拡張で外部サービス主体を明示できる設計へ移行可能とする。
+
+#### 5.6.3 system user の表示名と外部操作の表記（追記: 2026-02-01）
+- UI上の actor 表示ルールを以下で統一する。
+  - `role="system"` のユーザーは **表示名を常に「System」** とする（本名/メールはUIに出さない）。
+  - 外部サービス由来の操作は **「System（source: <service>）」** の形式で表示する。
+- 外部サービス由来の操作は、event payload に最低限以下を記録する。
+  - `source`（例: `monitoring` / `slack` / `github`）
+  - `external_actor_id`（サービス内ユーザーID。無ければ null ではなく `external_actor_name` を必須にする）
+  - `external_actor_name`
+  - `external_ref`（チケット/通知/スレッドIDなどサービス内参照）
+
 ### 5.7 共通
 - ユーザー管理
 - ダッシュボード（段階導入）
