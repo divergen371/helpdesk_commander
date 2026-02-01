@@ -99,3 +99,53 @@ mix phx.server
 - `erlc_paths` を追加して `test/support` の `.erl` をテスト時にコンパイル
 - `mix test test/helpdesk_commander/support/public_id_proper_test.exs` 実行（PropEr 100ケース成功）
 - `mix precommit` 実行（PropEr 100ケース + 既存テスト通過）
+
+---
+
+## 2026-02-01 06:00 UTC
+
+### タスク優先度の履歴（task_events）下地追加
+
+- `Tasks.TaskEvent` リソースを追加（`task_events` テーブル）
+- `Tasks.Task` に `set_priority` アクションを追加し、優先度変更時に `task_events` を記録
+- DBへ反映するなら `mix ecto.migrate`
+- タスクCRUD UIを作るときに、優先度変更は `update :set_priority` を使う
+- `mix precommit` 実行（10 tests / 0 failures）
+
+---
+
+## 2026-02-01 06:13 UTC
+
+### task_events.actor_id の方針見直し（null禁止）
+
+- 監査性のため、`task_events.actor_id` は null を許容しない方針に変更
+- システム操作は system user（`system@helpdesk.local`）を actor として記録
+- 既存nullを backfill してから NOT NULL 制約を付与するマイグレーションを追加
+
+---
+
+## 2026-02-01 06:24 UTC
+
+### system/external actor 方針の明文化
+
+- 要件定義に system user と外部サービス操作の扱いを追記
+- 外部サービス操作は MVP では system user に集約し、識別子は event payload に記録する方針
+
+---
+
+## 2026-02-01 06:26 UTC
+
+### system user 表示名と外部操作の表記ルール
+
+- system user は UI 上「System」固定表示とするルールを追記
+- 外部サービス由来の操作は「System（source: <service>）」で表記するルールを追記
+- event payload に `source`/`external_actor_id`/`external_actor_name`/`external_ref` を記録する仕様を追記
+- チケット会話ログの送信者表示で system user を「System」表記に統一
+
+---
+
+## 2026-02-01 06:33 UTC
+
+### 依頼者セレクトの system user 表記
+
+- 新規チケット作成の依頼者セレクトで system user を「System」表記に統一
