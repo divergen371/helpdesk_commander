@@ -229,6 +229,15 @@ mix phx.server
 
 ---
 
+## 2026-02-08 09:38 UTC
+
+### カバレッジ閾値とHTMLレポート保存
+
+- `coveralls.json` で閾値（minimum_coverage）を設定
+- CI で `mix coveralls.html` を生成し成果物として保存
+
+---
+
 ## 2026-02-08 07:00 UTC
 
 ### Hammer / PlugAttack の導入

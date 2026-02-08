@@ -27,6 +27,7 @@
 - `mix deps.compile`
 - `mix compile --warnings-as-errors`
 - `mix format --check-formatted`
+- `mix coveralls.html`（HTMLレポート生成）
 - `mix coveralls.github`
 
 ### 2. Quality Job
@@ -107,6 +108,11 @@ mix compile --warnings-as-errors
 mix coveralls.html
 mix credo --strict
 mix dialyzer
+
+### カバレッジ閾値
+
+- `coveralls.json` の `coverage_options.minimum_coverage` で設定
+- CI では `cover/` のHTMLレポートを成果物として保存
 ```
 
 ## 🔍 トラブルシューティング
