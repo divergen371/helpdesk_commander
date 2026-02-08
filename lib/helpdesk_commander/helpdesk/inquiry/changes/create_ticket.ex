@@ -6,7 +6,7 @@ defmodule HelpdeskCommander.Helpdesk.Inquiry.Changes.CreateTicket do
 
   @impl Ash.Resource.Change
   def change(changeset, _opts, _context) do
-    Ash.Changeset.before_action(changeset, fn changeset, _context ->
+    Ash.Changeset.before_action(changeset, fn changeset ->
       subject = Ash.Changeset.get_attribute(changeset, :subject)
       body = Ash.Changeset.get_attribute(changeset, :body)
       requester_id = Ash.Changeset.get_attribute(changeset, :requester_id)
@@ -20,6 +20,9 @@ defmodule HelpdeskCommander.Helpdesk.Inquiry.Changes.CreateTicket do
 
       case Ash.create(ticket_changeset, domain: Helpdesk) do
         {:ok, ticket} ->
+          Ash.Changeset.force_change_attribute(changeset, :ticket_id, ticket.id)
+
+        {:ok, ticket, _notifications} ->
           Ash.Changeset.force_change_attribute(changeset, :ticket_id, ticket.id)
 
         {:error, error} ->

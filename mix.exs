@@ -153,13 +153,6 @@ defmodule HelpdeskCommander.MixProject do
         "tailwind helpdesk_commander --minify",
         "esbuild helpdesk_commander --minify",
         "phx.digest"
-      ],
-      precommit: [
-        "compile --warnings-as-errors",
-        "deps.unlock --unused",
-        "format",
-        "credo --strict",
-        "test"
       ]
     ]
   end

@@ -201,6 +201,24 @@ mix phx.server
 
 ---
 
+## 2026-02-08 08:47 UTC
+
+### mix precommit --all のエラー修正
+
+- `Mix.Tasks.Precommit` を追加して `--all` を Credo にだけ渡すように調整
+- `mix precommit` は従来通りの実行内容を維持
+
+---
+
+## 2026-02-08 08:54 UTC
+
+### Dialyzer 警告の対策（CreateTicket change/3）
+
+- `Ash.create/2` の 3 タプル戻り値（通知付き）を明示的に処理
+- `before_action` 内の `case` を網羅し、Dialyzer の警告回避
+
+---
+
 ## 2026-02-08 07:00 UTC
 
 ### Hammer / PlugAttack の導入
@@ -221,3 +239,11 @@ mix phx.server
 - `CreateTicket` 変更で Inquiry 作成時に Ticket を自動生成
 - `Helpdesk` ドメインに Inquiry を登録
 - `add_inquiries` マイグレーション/スナップショットを生成
+
+---
+
+## 2026-02-08 08:42 UTC
+
+### Dialyzer 修正（CreateTicket の before_action）
+
+- `Ash.Changeset.before_action/2` のコールバックを arity 1 に修正し、Dialyzer エラーを解消
