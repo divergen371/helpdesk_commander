@@ -46,7 +46,13 @@ Helpdesk Commanderは、社内のタスク管理とヘルプデスク業務を1�
 - **Ash Framework**: 3.0
 - **AshPostgres**: 2.0
 - **AshPhoenix**: 2.0
-- **PostgreSQL**: 16 (Docker)
+- **PostgreSQL**: 18 (Docker)
+- **Oban**: 2.x（ジョブ処理）
+- **Cachex**: 4.x（インメモリキャッシュ）
+- **Telemetry**: 1.x（計測）
+- **Hammer**: 7.x（レート制限）
+- **PlugAttack**: 0.4.x（不正アクセス対策）
+- **RemoteIp**: 1.x（プロキシ配下のIP補正）
 - **Tailwind CSS**: 4.1.12
 - **Credo**: 1.7 (コード品質チェック)
 - **Dialyxir**: 1.4 (静的型チェック)

@@ -43,6 +43,8 @@ defmodule HelpdeskCommanderWeb.Endpoint do
 
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
+  plug HelpdeskCommanderWeb.RemoteIp
+  plug HelpdeskCommanderWeb.PlugAttack
 
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],

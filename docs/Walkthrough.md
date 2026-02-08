@@ -184,3 +184,29 @@ mix phx.server
 
 - Urgency（申告）と Priority（トリアージ結果）を分離する方針を追記
 - 「全部P1」対策と通知条件/抑制ルールの案を追記
+
+---
+
+## 2026-02-08 06:50 UTC
+
+### Oban / Cachex / Telemetry の導入
+
+- **Oban** を追加（通知・外部連携の非同期基盤）
+  - `config/config.exs` に Oban 設定を追加
+  - `mix ecto.gen.migration add_oban` でマイグレーション作成し、`Oban.Migrations.up/0` を実行する形に修正
+  - `config/test.exs` は `testing: :manual`
+- **Cachex** を追加し `HelpdeskCommander.Cache` を新設（インメモリキャッシュ）
+- **Telemetry** に Oban ジョブの主要メトリクスを追加
+- Tech Stack の記載を更新（README）
+
+---
+
+## 2026-02-08 07:00 UTC
+
+### Hammer / PlugAttack の導入
+
+- **Hammer**（ETS）を追加して rate limiter の土台を用意
+- **PlugAttack** を追加し、IPベースのスロットルとログインの fail2ban を実装
+- `HelpdeskCommanderWeb.Endpoint` に Plug を追加
+- `conn.remote_ip` ベースなので、将来プロキシ配下で運用する場合は `Plug.RemoteIp` の導入を検討してください。
+- `REMOTE_IP_ENABLED=true` を設定すると `RemoteIp` を有効化（`x-forwarded-for` / `x-real-ip` を参照）

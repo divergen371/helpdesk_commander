@@ -76,6 +76,19 @@ defmodule HelpdeskCommanderWeb.Telemetry do
         unit: {:native, :millisecond},
         description: "The time the connection spent waiting before being checked out for the query"
       ),
+      # Oban Metrics
+      summary("oban.job.stop.duration",
+        unit: {:native, :millisecond}
+      ),
+      summary("oban.job.exception.duration",
+        unit: {:native, :millisecond}
+      ),
+      summary("oban.job.stop.queue_time",
+        unit: {:native, :millisecond}
+      ),
+      summary("oban.job.exception.queue_time",
+        unit: {:native, :millisecond}
+      ),
 
       # VM Metrics
       summary("vm.memory.total", unit: {:byte, :kilobyte}),

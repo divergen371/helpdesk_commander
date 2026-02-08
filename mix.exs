@@ -91,6 +91,11 @@ defmodule HelpdeskCommander.MixProject do
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
+      {:hammer, "~> 7.0"},
+      {:plug_attack, "~> 0.4.3"},
+      {:remote_ip, "~> 1.2"},
+      {:oban, "~> 2.20"},
+      {:cachex, "~> 4.1"},
       # Code quality
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}

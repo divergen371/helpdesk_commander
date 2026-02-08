@@ -22,6 +22,21 @@ config :helpdesk_commander,
     HelpdeskCommander.Helpdesk
   ]
 
+config :helpdesk_commander, Oban,
+  repo: HelpdeskCommander.Repo,
+  plugins: [
+    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7}
+  ],
+  queues: [default: 10, notifications: 10, integrations: 5]
+
+config :helpdesk_commander, :remote_ip,
+  enabled?: false,
+  opts: [headers: ["x-forwarded-for", "x-real-ip"]]
+
+config :helpdesk_commander, :remote_ip,
+  enabled?: false,
+  opts: [headers: ["x-forwarded-for", "x-real-ip"]]
+
 # Configure the endpoint
 config :helpdesk_commander, HelpdeskCommanderWeb.Endpoint,
   url: [host: "localhost"],

@@ -11,6 +11,10 @@ defmodule HelpdeskCommander.Application do
     children = [
       HelpdeskCommanderWeb.Telemetry,
       HelpdeskCommander.Repo,
+      HelpdeskCommander.Cache,
+      {HelpdeskCommander.RateLimiter, clean_period: :timer.minutes(1)},
+      {PlugAttack.Storage.Ets, name: HelpdeskCommanderWeb.PlugAttack.Storage, clean_period: :timer.minutes(1)},
+      {Oban, Application.fetch_env!(:helpdesk_commander, Oban)},
       {DNSCluster, query: Application.get_env(:helpdesk_commander, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: HelpdeskCommander.PubSub},
       # Start a worker by calling: HelpdeskCommander.Worker.start_link(arg)

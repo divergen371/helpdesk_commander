@@ -24,6 +24,15 @@ config :helpdesk_commander, HelpdeskCommanderWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
 if config_env() == :prod do
+  remote_ip_enabled =
+    System.get_env("REMOTE_IP_ENABLED") in ["1", "true", "TRUE", "yes", "YES"]
+
+  if remote_ip_enabled do
+    config :helpdesk_commander, :remote_ip,
+      enabled?: true,
+      opts: [headers: ["x-forwarded-for", "x-real-ip"]]
+  end
+
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """
