@@ -51,6 +51,31 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
     assert has_element?(show_view, "#ticket-status-form")
   end
 
+  test "new ticket validates and can create a sample user", %{conn: conn} do
+    HelpdeskCommander.Repo.delete_all(User)
+    assert [] == Ash.read!(User, domain: Accounts)
+
+    {:ok, view, _html} = live(conn, ~p"/tickets/new")
+
+    assert has_element?(view, "button[phx-click=\"create_sample_user\"]")
+
+    view
+    |> form("#ticket-form", form: %{"subject" => ""})
+    |> render_change()
+
+    view
+    |> form("#ticket-form", form: %{"subject" => ""})
+    |> render_submit()
+
+    assert has_element?(view, "#ticket-form")
+
+    view
+    |> element("button[phx-click=\"create_sample_user\"]")
+    |> render_click()
+
+    assert [_user | _rest] = Ash.read!(User, domain: Accounts)
+  end
+
   test "update ticket status", %{conn: conn} do
     user = create_user!()
     ticket = create_ticket!(user)

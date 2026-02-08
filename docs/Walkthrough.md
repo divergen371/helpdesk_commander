@@ -289,3 +289,14 @@ mix phx.server
 ### Dialyzer 修正（CreateTicket の before_action）
 
 - `Ash.Changeset.before_action/2` のコールバックを arity 1 に修正し、Dialyzer エラーを解消
+
+---
+
+## 2026-02-08 13:25 UTC
+
+### カバレッジ改善のためのテスト追加
+
+- `Tasks.Task#set_priority` のイベント記録をテストで検証
+- `PublicId.generate/1` の異常系（奇数長）をテスト追加
+- `PlugAttack` の `block_action` をテストし 429 を確認
+- `RemoteIp` の有効/無効切替をテストで検証
