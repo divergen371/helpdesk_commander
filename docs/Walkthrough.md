@@ -219,6 +219,16 @@ mix phx.server
 
 ---
 
+## 2026-02-08 09:22 UTC
+
+### ベンチ/デバッグ/カバレッジの導入（CI連携）
+
+- Benchee/observer_cli/ExCoveralls を追加
+- CI のテストジョブを `mix coveralls.github` に変更
+- `test_coverage` と `preferred_cli_env` を設定
+
+---
+
 ## 2026-02-08 07:00 UTC
 
 ### Hammer / PlugAttack の導入

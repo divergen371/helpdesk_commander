@@ -27,7 +27,7 @@
 - `mix deps.compile`
 - `mix compile --warnings-as-errors`
 - `mix format --check-formatted`
-- `mix test`
+- `mix coveralls.github`
 
 ### 2. Quality Job
 
@@ -104,7 +104,7 @@ mix precommit
 # CIと同等の個別実行
 mix format --check-formatted
 mix compile --warnings-as-errors
-mix test
+mix coveralls.html
 mix credo --strict
 mix dialyzer
 ```

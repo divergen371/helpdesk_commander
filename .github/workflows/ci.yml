@@ -75,8 +75,10 @@ jobs:
 
       - name: Run formatter check
         run: mix format --check-formatted
-
-      - name: Run tests
+      - name: Run tests with coverage
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: mix coveralls.github
         run: mix test
 
   quality:

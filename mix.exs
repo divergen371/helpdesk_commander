@@ -15,7 +15,15 @@ defmodule HelpdeskCommander.MixProject do
       deps: deps(),
       compilers: [:phoenix_live_view] ++ mix_compilers(),
       listeners: [Phoenix.CodeReloader],
-      dialyzer: dialyzer()
+      dialyzer: dialyzer(),
+      test_coverage: [tool: ExCoveralls],
+      preferred_cli_env: [
+        coveralls: :test,
+        "coveralls.detail": :test,
+        "coveralls.post": :test,
+        "coveralls.html": :test,
+        "coveralls.github": :test
+      ]
     ]
   end
 
@@ -96,6 +104,10 @@ defmodule HelpdeskCommander.MixProject do
       {:remote_ip, "~> 1.2"},
       {:oban, "~> 2.20"},
       {:cachex, "~> 4.1"},
+      # Tooling
+      {:benchee, "~> 1.5", only: :dev, runtime: false},
+      {:observer_cli, "~> 1.8", only: :dev, runtime: false},
+      {:excoveralls, "~> 0.18", only: :test, runtime: false},
       # Code quality
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
