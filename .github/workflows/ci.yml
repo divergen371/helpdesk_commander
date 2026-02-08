@@ -79,7 +79,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: mix coveralls.github
-        run: mix test
 
   quality:
     name: Code Quality
