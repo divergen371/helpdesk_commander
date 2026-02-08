@@ -210,3 +210,14 @@ mix phx.server
 - `HelpdeskCommanderWeb.Endpoint` に Plug を追加
 - `conn.remote_ip` ベースなので、将来プロキシ配下で運用する場合は `Plug.RemoteIp` の導入を検討してください。
 - `REMOTE_IP_ENABLED=true` を設定すると `RemoteIp` を有効化（`x-forwarded-for` / `x-real-ip` を参照）
+
+---
+
+## 2026-02-08 08:30 UTC
+
+### Inquiry → Ticket 自動生成（Phase 1）
+
+- `Helpdesk.Inquiry` を追加（subject/body/source/requester/ticket の関係）
+- `CreateTicket` 変更で Inquiry 作成時に Ticket を自動生成
+- `Helpdesk` ドメインに Inquiry を登録
+- `add_inquiries` マイグレーション/スナップショットを生成

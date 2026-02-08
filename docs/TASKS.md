@@ -3,7 +3,6 @@
 作業状況に合わせて随時更新する。
 
 ## 現在
-- 問い合わせ受付（Inquiry）→ Ticket 自動生成の実装
 - Ticket 詳細のイベントログ・会話ログの永続化（append-only）とページング基盤
 - Ticket 状態遷移の整合性（楽観ロック/専用アクション化）の設計・実装
 
@@ -21,3 +20,4 @@
 - コアリソース（Users/Tickets/Tasks）と public_id 方針の実装
 - Oban/Cachex/Telemetry の導入
 - Hammer/PlugAttack/RemoteIp による基本的な攻撃耐性の導入
+- 問い合わせ受付（Inquiry）→ Ticket 自動生成の実装（リソース/変更/マイグレーション生成）

@@ -10,7 +10,8 @@
 ## 現状
 - コアリソース（Users/Tickets/Tasks）と `public_id` 方針は実装済み
 - Oban / Cachex / Telemetry / Hammer / PlugAttack / RemoteIp を導入済み
-- Inquiry / Conversation / Event 系のリソースは未実装
+- Inquiry は実装済み（自動 Ticket 生成まで）
+- Conversation / Event 系のリソースは未実装
 
 ## 設計方針
 - 重要操作はイベントログ化し、append-only を基本にする
@@ -28,4 +29,6 @@
 - メッセージ量: LiveView streams + ページングで負荷を検証
 - 通知/外部連携: Oban の失敗リトライと可視化（Telemetry）で監視
 ## 実装後メモ（結果・未達・懸念）
-- （未記入）
+- Inquiry リソースと `CreateTicket` 変更を追加し、Inquiry 作成時に Ticket を自動生成する流れを実装
+- `add_inquiries` マイグレーション/スナップショットを生成
+- Inquiry の UI/テスト/運用フローは未着手
