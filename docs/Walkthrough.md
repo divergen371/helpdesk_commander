@@ -238,6 +238,16 @@ mix phx.server
 
 ---
 
+## 2026-02-08 09:58 UTC
+
+### カバレッジ向上のためのテスト追加
+
+- Inquiry 作成時に Ticket が生成されることを検証
+- Cache / Repo / BigInt / DataCase / PropertyCase の補助テストを追加
+- カバレッジ 80.1% を確認
+
+---
+
 ## 2026-02-08 07:00 UTC
 
 ### Hammer / PlugAttack の導入
