@@ -6,8 +6,13 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   alias HelpdeskCommander.Accounts
   alias HelpdeskCommander.Accounts.User
   alias HelpdeskCommander.Helpdesk
+  alias HelpdeskCommander.Helpdesk.Conversation
+  alias HelpdeskCommander.Helpdesk.ConversationMessage
   alias HelpdeskCommander.Helpdesk.Ticket
-  alias HelpdeskCommander.Helpdesk.TicketMessage
+  alias HelpdeskCommander.Helpdesk.TicketEvent
+
+  @messages_page_size 20
+  @events_page_size 20
 
   @impl Phoenix.LiveView
   def mount(%{"public_id" => public_id}, _session, socket) do
@@ -20,21 +25,30 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
     users_by_id = Map.new(users, &{&1.id, &1})
 
-    messages =
-      TicketMessage
-      |> filter(ticket_id == ^ticket.id)
-      |> Ash.read!(domain: Helpdesk)
-      |> Enum.sort_by(& &1.inserted_at, {:asc, DateTime})
+    {public_conversation, private_conversation} = ensure_conversations(ticket)
+
+    {public_messages, public_has_more?, public_oldest_id} =
+      fetch_messages(public_conversation.id)
+
+    {private_messages, private_has_more?, private_oldest_id} =
+      fetch_messages(private_conversation.id)
+
+    {events, events_has_more?, events_oldest_id} = fetch_events(ticket.id)
 
     update_form =
       ticket
       |> AshPhoenix.Form.for_update(:update, domain: Helpdesk)
       |> to_form()
 
-    message_form =
-      TicketMessage
+    public_message_form =
+      ConversationMessage
       |> AshPhoenix.Form.for_create(:create, domain: Helpdesk)
-      |> to_form()
+      |> to_form(as: "public_message")
+
+    private_message_form =
+      ConversationMessage
+      |> AshPhoenix.Form.for_create(:create, domain: Helpdesk)
+      |> to_form(as: "private_message")
 
     {:ok,
      socket
@@ -43,8 +57,46 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
      |> assign(:users, users)
      |> assign(:users_by_id, users_by_id)
      |> assign(:update_form, update_form)
-     |> assign(:message_form, message_form)
-     |> stream(:messages, messages)}
+     |> assign(:public_message_form, public_message_form)
+     |> assign(:private_message_form, private_message_form)
+     |> assign(:public_conversation, public_conversation)
+     |> assign(:private_conversation, private_conversation)
+     |> assign(:public_messages_has_more?, public_has_more?)
+     |> assign(:public_messages_oldest_id, public_oldest_id)
+     |> assign(:private_messages_has_more?, private_has_more?)
+     |> assign(:private_messages_oldest_id, private_oldest_id)
+     |> assign(:events_has_more?, events_has_more?)
+     |> assign(:events_oldest_id, events_oldest_id)
+     |> stream(:public_messages, public_messages)
+     |> stream(:private_messages, private_messages)
+     |> stream(:events, events)}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("load_older_messages", %{"kind" => kind}, socket) do
+    before_id = message_oldest_id(socket, kind)
+    conversation_id = conversation_id_for_kind(socket, kind)
+
+    {messages, has_more?, oldest_id} = fetch_messages(conversation_id, before_id)
+    next_oldest_id = oldest_id || before_id
+
+    {:noreply,
+     socket
+     |> assign(message_has_more_key(kind), has_more?)
+     |> assign(message_oldest_key(kind), next_oldest_id)
+     |> stream(message_stream_name(kind), messages, at: -1)}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("load_older_events", _params, socket) do
+    before_id = socket.assigns.events_oldest_id
+    {events, has_more?, oldest_id} = fetch_events(socket.assigns.ticket.id, before_id)
+
+    {:noreply,
+     socket
+     |> assign(:events_has_more?, has_more?)
+     |> assign(:events_oldest_id, oldest_id || before_id)
+     |> stream(:events, events, at: -1)}
   end
 
   @impl Phoenix.LiveView
@@ -77,42 +129,59 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   end
 
   @impl Phoenix.LiveView
-  def handle_event("validate_message", %{"form" => params}, socket) do
-    message_form = AshPhoenix.Form.validate(socket.assigns.message_form, params)
-    {:noreply, assign(socket, :message_form, message_form)}
+  def handle_event("validate_message", %{"kind" => kind} = params, socket) do
+    form_params = Map.get(params, message_form_key(kind), %{})
+    conversation_id = conversation_id_for_kind(socket, kind)
+
+    message_params =
+      form_params
+      |> Map.put("conversation_id", conversation_id)
+      |> Map.put_new("sender_id", socket.assigns.ticket.requester_id)
+
+    form =
+      socket
+      |> message_form_for_kind(kind)
+      |> AshPhoenix.Form.validate(message_params)
+
+    {:noreply, assign(socket, message_form_assign_key(kind), form)}
   end
 
   @impl Phoenix.LiveView
-  def handle_event("save_message", %{"form" => params}, socket) do
-    params =
-      params
-      |> Map.put("ticket_id", socket.assigns.ticket.id)
+  def handle_event("save_message", %{"kind" => kind} = params, socket) do
+    form_params = Map.get(params, message_form_key(kind), %{})
+    conversation_id = conversation_id_for_kind(socket, kind)
+
+    message_params =
+      form_params
+      |> Map.put("conversation_id", conversation_id)
       |> Map.put_new("sender_id", socket.assigns.ticket.requester_id)
 
-    case AshPhoenix.Form.submit(socket.assigns.message_form, params: params) do
-      {:ok, message} ->
-        ticket =
-          socket.assigns.ticket
-          |> Ash.Changeset.for_update(:update, %{latest_message_at: DateTime.utc_now()})
-          |> Ash.update!(domain: Helpdesk)
+    submission =
+      socket
+      |> message_form_for_kind(kind)
+      |> AshPhoenix.Form.submit(params: message_params)
 
-        message_form =
-          TicketMessage
+    case submission do
+      {:ok, message} ->
+        ticket = Ash.get!(Ticket, %{id: socket.assigns.ticket.id}, domain: Helpdesk)
+
+        form =
+          ConversationMessage
           |> AshPhoenix.Form.for_create(:create, domain: Helpdesk)
-          |> to_form()
+          |> to_form(as: message_form_key(kind))
 
         {:noreply,
          socket
          |> put_flash(:info, "メッセージを追加しました")
          |> assign(:ticket, ticket)
-         |> assign(:message_form, message_form)
-         |> stream_insert(:messages, message)}
+         |> assign(message_form_assign_key(kind), form)
+         |> stream_insert(message_stream_name(kind), message)}
 
       {:error, form} ->
         {:noreply,
          socket
          |> put_flash(:error, "メッセージの追加に失敗しました")
-         |> assign(:message_form, form)}
+         |> assign(message_form_assign_key(kind), form)}
     end
   end
 
@@ -141,6 +210,137 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
   defp user_label(%User{role: "system"}), do: "System"
   defp user_label(%User{name: name, email: email}), do: "#{name} <#{email}>"
+
+  defp ensure_conversations(%Ticket{} = ticket) do
+    {
+      get_or_create_conversation(ticket, "internal_public"),
+      get_or_create_conversation(ticket, "internal_private")
+    }
+  end
+
+  defp get_or_create_conversation(%Ticket{} = ticket, kind) do
+    conversation_result =
+      Conversation
+      |> filter(ticket_id == ^ticket.id and kind == ^kind)
+      |> Ash.read_one(domain: Helpdesk)
+
+    case conversation_result do
+      {:ok, %Conversation{} = conversation} ->
+        conversation
+
+      _result ->
+        Conversation
+        |> Ash.Changeset.for_create(:create, %{
+          ticket_id: ticket.id,
+          kind: kind,
+          created_by_id: ticket.requester_id
+        })
+        |> Ash.create!(domain: Helpdesk)
+    end
+  end
+
+  defp fetch_messages(conversation_id, before_id \\ nil) do
+    limit = @messages_page_size
+
+    query =
+      ConversationMessage
+      |> filter(conversation_id == ^conversation_id)
+      |> sort(id: :desc)
+      |> maybe_before_id(before_id)
+
+    raw_messages =
+      query
+      |> Ash.Query.limit(limit + 1)
+      |> Ash.read!(domain: Helpdesk)
+
+    {messages, has_more?} = trim_to_limit(raw_messages, limit)
+    ordered_messages = Enum.reverse(messages)
+    oldest_id = oldest_id_from_list(ordered_messages)
+
+    {ordered_messages, has_more?, oldest_id}
+  end
+
+  defp fetch_events(ticket_id, before_id \\ nil) do
+    limit = @events_page_size
+
+    query =
+      TicketEvent
+      |> filter(ticket_id == ^ticket_id)
+      |> sort(id: :desc)
+      |> maybe_before_id(before_id)
+
+    raw_events =
+      query
+      |> Ash.Query.limit(limit + 1)
+      |> Ash.read!(domain: Helpdesk)
+
+    {events, has_more?} = trim_to_limit(raw_events, limit)
+    ordered_events = Enum.reverse(events)
+    oldest_id = oldest_id_from_list(ordered_events)
+
+    {ordered_events, has_more?, oldest_id}
+  end
+
+  defp message_form_key("public"), do: "public_message"
+  defp message_form_key("private"), do: "private_message"
+
+  defp message_form_assign_key("public"), do: :public_message_form
+  defp message_form_assign_key("private"), do: :private_message_form
+
+  defp message_form_for_kind(socket, "public"), do: socket.assigns.public_message_form
+  defp message_form_for_kind(socket, "private"), do: socket.assigns.private_message_form
+
+  defp message_stream_name("public"), do: :public_messages
+  defp message_stream_name("private"), do: :private_messages
+
+  defp message_oldest_key("public"), do: :public_messages_oldest_id
+  defp message_oldest_key("private"), do: :private_messages_oldest_id
+
+  defp message_oldest_id(socket, kind), do: Map.get(socket.assigns, message_oldest_key(kind))
+
+  defp message_has_more_key("public"), do: :public_messages_has_more?
+  defp message_has_more_key("private"), do: :private_messages_has_more?
+
+  defp conversation_id_for_kind(socket, "public"), do: socket.assigns.public_conversation.id
+  defp conversation_id_for_kind(socket, "private"), do: socket.assigns.private_conversation.id
+
+  defp event_label(%TicketEvent{event_type: "ticket_created"}), do: "チケット作成"
+
+  defp event_label(%TicketEvent{event_type: "message_posted", data: data}) do
+    case event_conversation_kind(data) do
+      "internal_private" -> "内部メモ投稿"
+      "internal_public" -> "公開メッセージ投稿"
+      _kind -> "メッセージ投稿"
+    end
+  end
+
+  defp event_label(%TicketEvent{event_type: event_type}), do: event_type
+
+  defp event_data_label(%TicketEvent{data: data, event_type: event_type}) do
+    cond do
+      event_type == "message_posted" -> nil
+      data in [nil, %{}] -> nil
+      true -> inspect(data)
+    end
+  end
+
+  defp event_conversation_kind(data) when is_map(data) do
+    Map.get(data, "conversation_kind") || Map.get(data, :conversation_kind)
+  end
+
+  defp oldest_id_from_list([]), do: nil
+  defp oldest_id_from_list([first | _rest]), do: first.id
+
+  defp maybe_before_id(query, nil), do: query
+  defp maybe_before_id(query, before_id), do: filter(query, id < ^before_id)
+
+  defp trim_to_limit(items, limit) do
+    if length(items) > limit do
+      {Enum.take(items, limit), true}
+    else
+      {items, false}
+    end
+  end
 
   @impl Phoenix.LiveView
   def render(assigns) do
@@ -207,15 +407,26 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
         <div class="card bg-base-100 border border-base-200">
           <div class="card-body">
-            <h3 class="font-semibold">会話ログ</h3>
+            <div class="flex items-center justify-between">
+              <h3 class="font-semibold">公開会話ログ</h3>
+              <.button
+                :if={@public_messages_has_more?}
+                type="button"
+                class="btn btn-ghost btn-sm"
+                phx-click="load_older_messages"
+                phx-value-kind="public"
+              >
+                もっと読む
+              </.button>
+            </div>
 
-            <div id="ticket-messages" phx-update="stream" class="mt-4 space-y-4">
-              <div id="ticket-messages-empty" class="hidden only:block text-sm opacity-70">
+            <div id="ticket-messages-public" phx-update="stream" class="mt-4 space-y-4">
+              <div id="ticket-messages-public-empty" class="hidden only:block text-sm opacity-70">
                 まだメッセージがありません。
               </div>
 
               <div
-                :for={{id, message} <- @streams.messages}
+                :for={{id, message} <- @streams.public_messages}
                 id={id}
                 class="rounded-box border border-base-200 p-4"
               >
@@ -231,29 +442,144 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
         <div class="card bg-base-100 border border-base-200">
           <div class="card-body">
-            <h3 class="font-semibold">コメント追加</h3>
+            <div class="flex items-center justify-between">
+              <h3 class="font-semibold">内部メモ</h3>
+              <.button
+                :if={@private_messages_has_more?}
+                type="button"
+                class="btn btn-ghost btn-sm"
+                phx-click="load_older_messages"
+                phx-value-kind="private"
+              >
+                もっと読む
+              </.button>
+            </div>
 
-            <.form
-              for={@message_form}
-              id="ticket-message-form"
-              phx-change="validate_message"
-              phx-submit="save_message"
-            >
-              <.input field={@message_form[:body]} type="textarea" label="本文" />
-              <.input
-                field={@message_form[:sender_id]}
-                type="select"
-                label="投稿者"
-                prompt="選択してください"
-                options={user_options(@users)}
-                required
-              />
-              <.input field={@message_form[:ticket_id]} type="hidden" value={@ticket.id} />
-
-              <div class="mt-6 flex justify-end">
-                <.button type="submit" variant="primary">投稿</.button>
+            <div id="ticket-messages-private" phx-update="stream" class="mt-4 space-y-4">
+              <div id="ticket-messages-private-empty" class="hidden only:block text-sm opacity-70">
+                まだメモがありません。
               </div>
-            </.form>
+
+              <div
+                :for={{id, message} <- @streams.private_messages}
+                id={id}
+                class="rounded-box border border-base-200 p-4"
+              >
+                <div class="flex items-center justify-between text-xs text-base-content/60">
+                  <span>{sender_label(@users_by_id, message.sender_id)}</span>
+                  <span>{format_dt(message.inserted_at)}</span>
+                </div>
+                <p class="mt-3 whitespace-pre-wrap text-sm">{message.body}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card bg-base-100 border border-base-200">
+          <div class="card-body">
+            <div class="flex items-center justify-between">
+              <h3 class="font-semibold">イベントログ</h3>
+              <.button
+                :if={@events_has_more?}
+                type="button"
+                class="btn btn-ghost btn-sm"
+                phx-click="load_older_events"
+              >
+                もっと読む
+              </.button>
+            </div>
+
+            <div id="ticket-events" phx-update="stream" class="mt-4 space-y-3">
+              <div id="ticket-events-empty" class="hidden only:block text-sm opacity-70">
+                まだイベントがありません。
+              </div>
+
+              <div
+                :for={{id, event} <- @streams.events}
+                id={id}
+                class="rounded-box border border-base-200 p-3 text-sm"
+              >
+                <div class="flex items-center justify-between text-xs text-base-content/60">
+                  <span>{sender_label(@users_by_id, event.actor_id)}</span>
+                  <span>{format_dt(event.inserted_at)}</span>
+                </div>
+                <div class="mt-2 font-medium">{event_label(event)}</div>
+                <div :if={event_data_label(event)} class="mt-1 text-xs opacity-70">
+                  {event_data_label(event)}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card bg-base-100 border border-base-200">
+          <div class="card-body space-y-8">
+            <div>
+              <h3 class="font-semibold">公開コメント追加</h3>
+
+              <.form
+                for={@public_message_form}
+                id="ticket-message-form-public"
+                phx-change="validate_message"
+                phx-submit="save_message"
+                phx-value-kind="public"
+              >
+                <.input
+                  id="public_message_body"
+                  name="public_message[body]"
+                  field={@public_message_form[:body]}
+                  type="textarea"
+                  label="本文"
+                />
+                <.input
+                  id="public_message_sender_id"
+                  name="public_message[sender_id]"
+                  field={@public_message_form[:sender_id]}
+                  type="select"
+                  label="投稿者"
+                  prompt="選択してください"
+                  options={user_options(@users)}
+                  required
+                />
+
+                <div class="mt-6 flex justify-end">
+                  <.button type="submit" variant="primary">投稿</.button>
+                </div>
+              </.form>
+            </div>
+
+            <div>
+              <h3 class="font-semibold">内部メモ追加</h3>
+
+              <.form
+                for={@private_message_form}
+                id="ticket-message-form-private"
+                phx-change="validate_message"
+                phx-submit="save_message"
+                phx-value-kind="private"
+              >
+                <.input
+                  id="private_message_body"
+                  name="private_message[body]"
+                  field={@private_message_form[:body]}
+                  type="textarea"
+                  label="本文"
+                />
+                <.input
+                  id="private_message_sender_id"
+                  name="private_message[sender_id]"
+                  field={@private_message_form[:sender_id]}
+                  type="select"
+                  label="投稿者"
+                  prompt="選択してください"
+                  options={user_options(@users)}
+                  required
+                />
+
+                <div class="mt-6 flex justify-end">
+                  <.button type="submit" variant="primary">投稿</.button>
+                </div>
+              </.form>
+            </div>
           </div>
         </div>
       </div>

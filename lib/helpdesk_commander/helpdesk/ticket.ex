@@ -3,6 +3,10 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
     domain: HelpdeskCommander.Helpdesk,
     data_layer: AshPostgres.DataLayer
 
+  import Ash.Query
+
+  alias HelpdeskCommander.Helpdesk.Conversation
+  alias HelpdeskCommander.Helpdesk.TicketEvent
   alias HelpdeskCommander.Support.PublicId
 
   postgres do
@@ -60,6 +64,16 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
       destination_attribute :ticket_id
       public? true
     end
+
+    has_many :conversations, HelpdeskCommander.Helpdesk.Conversation do
+      destination_attribute :ticket_id
+      public? true
+    end
+
+    has_many :events, HelpdeskCommander.Helpdesk.TicketEvent do
+      destination_attribute :ticket_id
+      public? true
+    end
   end
 
   identities do
@@ -81,6 +95,26 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
         :requester_id,
         :assignee_id
       ]
+
+      change after_action(fn changeset, ticket, _context ->
+               actor_id =
+                 Ash.Changeset.get_attribute(changeset, :requester_id) || ticket.requester_id
+
+               _public = ensure_conversation(ticket, actor_id, "internal_public")
+               _private = ensure_conversation(ticket, actor_id, "internal_private")
+
+               _event =
+                 TicketEvent
+                 |> Ash.Changeset.for_create(:create, %{
+                   event_type: "ticket_created",
+                   data: %{},
+                   ticket_id: ticket.id,
+                   actor_id: actor_id
+                 })
+                 |> Ash.create!(domain: HelpdeskCommander.Helpdesk)
+
+               {:ok, ticket}
+             end)
     end
 
     update :update do
@@ -100,6 +134,27 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
         :requester_id,
         :assignee_id
       ]
+    end
+  end
+
+  defp ensure_conversation(ticket, actor_id, kind) do
+    conversation_result =
+      Conversation
+      |> filter(ticket_id == ^ticket.id and kind == ^kind)
+      |> Ash.read_one(domain: HelpdeskCommander.Helpdesk)
+
+    case conversation_result do
+      {:ok, %Conversation{} = conversation} ->
+        conversation
+
+      _result ->
+        Conversation
+        |> Ash.Changeset.for_create(:create, %{
+          ticket_id: ticket.id,
+          kind: kind,
+          created_by_id: actor_id
+        })
+        |> Ash.create!(domain: HelpdeskCommander.Helpdesk)
     end
   end
 end

@@ -7,8 +7,10 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
   alias HelpdeskCommander.Accounts
   alias HelpdeskCommander.Accounts.User
   alias HelpdeskCommander.Helpdesk
+  alias HelpdeskCommander.Helpdesk.Conversation
+  alias HelpdeskCommander.Helpdesk.ConversationMessage
   alias HelpdeskCommander.Helpdesk.Ticket
-  alias HelpdeskCommander.Helpdesk.TicketMessage
+  alias HelpdeskCommander.Helpdesk.TicketEvent
 
   test "tickets index renders", %{conn: conn} do
     user = create_user!()
@@ -70,23 +72,35 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
     {:ok, view, _html} = live(conn, ~p"/tickets/#{ticket.public_id}")
 
     view
-    |> form("#ticket-message-form",
-      form: %{
+    |> form("#ticket-message-form-public",
+      public_message: %{
         "body" => "First response",
         "sender_id" => to_string(user.id)
       }
     )
     |> render_submit()
 
+    conversation =
+      Conversation
+      |> filter(ticket_id == ^ticket.id and kind == "internal_public")
+      |> Ash.read_one!(domain: Helpdesk)
+
     messages =
-      TicketMessage
-      |> filter(ticket_id == ^ticket.id)
+      ConversationMessage
+      |> filter(conversation_id == ^conversation.id)
       |> Ash.read!(domain: Helpdesk)
 
     assert Enum.any?(messages, &(&1.body == "First response"))
 
     updated = Ash.get!(Ticket, %{public_id: ticket.public_id}, domain: Helpdesk)
     assert not is_nil(updated.latest_message_at)
+
+    events =
+      TicketEvent
+      |> filter(ticket_id == ^ticket.id)
+      |> Ash.read!(domain: Helpdesk)
+
+    assert Enum.any?(events, &(&1.event_type == "message_posted" && &1.actor_id == user.id))
   end
 
   defp create_user! do

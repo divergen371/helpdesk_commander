@@ -11,7 +11,7 @@
 - コアリソース（Users/Tickets/Tasks）と `public_id` 方針は実装済み
 - Oban / Cachex / Telemetry / Hammer / PlugAttack / RemoteIp を導入済み
 - Inquiry は実装済み（自動 Ticket 生成まで）
-- Conversation / Event 系のリソースは未実装
+- Conversation / Event 系のリソースを実装済み（ページング基盤含む）
 
 ## 設計方針
 - 重要操作はイベントログ化し、append-only を基本にする

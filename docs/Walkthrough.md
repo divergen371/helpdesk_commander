@@ -260,6 +260,19 @@ mix phx.server
 
 ---
 
+## 2026-02-08 12:45 UTC
+
+### Ticket 会話/イベントログの基盤化（append-only + ページング）
+
+- `Conversation` / `ConversationMessage` / `TicketEvent` を追加
+- `ticket_messages` → `conversation_messages` への移行を含むマイグレーションを追加
+- Ticket 作成時に公開/非公開 Conversation と `ticket_created` イベントを作成
+- メッセージ投稿で `latest_message_at` 更新 + `message_posted` イベント記録
+- Ticket 詳細 UI を公開/内部/イベントログの3セクションに分割しページング対応
+- LiveView テストを更新
+
+---
+
 ## 2026-02-08 08:30 UTC
 
 ### Inquiry → Ticket 自動生成（Phase 1）
