@@ -16,7 +16,7 @@ defmodule HelpdeskCommander.Cache do
     Cachex.get(__MODULE__, key)
   end
 
-  @spec put(term(), term(), keyword()) :: {:ok, boolean()} | {:error, term()}
+  @spec put(term(), term(), keyword()) :: {:ok, boolean()}
   def put(key, value, opts \\ []) do
     Cachex.put(__MODULE__, key, value, opts)
   end
