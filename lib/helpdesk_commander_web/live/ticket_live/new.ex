@@ -5,13 +5,21 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
   alias HelpdeskCommander.Accounts.User
   alias HelpdeskCommander.Helpdesk
   alias HelpdeskCommander.Helpdesk.Ticket
+  alias HelpdeskCommanderWeb.CurrentUser
 
   @impl Phoenix.LiveView
-  def mount(_params, _session, socket) do
+  def mount(_params, session, socket) do
+    current_user = CurrentUser.fetch(session)
+    external_user? = CurrentUser.external?(current_user)
+
     users =
-      User
-      |> Ash.read!(domain: Accounts)
-      |> Enum.sort_by(& &1.inserted_at, {:asc, DateTime})
+      if external_user? and current_user do
+        [current_user]
+      else
+        User
+        |> Ash.read!(domain: Accounts)
+        |> Enum.sort_by(& &1.inserted_at, {:asc, DateTime})
+      end
 
     form =
       Ticket
@@ -21,18 +29,23 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
     {:ok,
      socket
      |> assign(:page_title, "New Ticket")
+     |> assign(:current_user, current_user)
+     |> assign(:current_user_external?, external_user?)
      |> assign(:users, users)
      |> assign(:form, form)}
   end
 
   @impl Phoenix.LiveView
   def handle_event("validate", %{"form" => params}, socket) do
+    params = maybe_put_requester_id(params, socket)
     form = AshPhoenix.Form.validate(socket.assigns.form, params)
     {:noreply, assign(socket, :form, form)}
   end
 
   @impl Phoenix.LiveView
   def handle_event("save", %{"form" => params}, socket) do
+    params = maybe_put_requester_id(params, socket)
+
     case AshPhoenix.Form.submit(socket.assigns.form, params: params) do
       {:ok, ticket} ->
         {:noreply,
@@ -75,6 +88,12 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
 
   defp user_label(%User{role: "system"}), do: "System"
   defp user_label(%User{name: name, email: email}), do: "#{name} <#{email}>"
+
+  defp maybe_put_requester_id(params, %{assigns: %{current_user_external?: true, current_user: %User{id: id}}}) do
+    Map.put(params, "requester_id", id)
+  end
+
+  defp maybe_put_requester_id(params, _socket), do: params
 
   defp status_options do
     [
@@ -141,14 +160,26 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
               <.input field={@form[:priority]} type="select" label="優先度" options={priority_options()} />
             </div>
 
-            <.input
-              field={@form[:requester_id]}
-              type="select"
-              label="依頼者"
-              prompt="選択してください"
-              options={user_options(@users)}
-              required
-            />
+            <%= if @current_user_external? do %>
+              <div class="rounded-box border border-base-200 p-4 text-sm">
+                <p class="text-xs uppercase tracking-wide opacity-60">依頼者</p>
+                <p class="mt-1 font-medium">{user_label(@current_user)}</p>
+              </div>
+              <.input
+                field={@form[:requester_id]}
+                type="hidden"
+                value={@current_user.id}
+              />
+            <% else %>
+              <.input
+                field={@form[:requester_id]}
+                type="select"
+                label="依頼者"
+                prompt="選択してください"
+                options={user_options(@users)}
+                required
+              />
+            <% end %>
 
             <div class="mt-6 flex justify-end">
               <.button type="submit" variant="primary" disabled={@users == []}>

@@ -128,11 +128,49 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
     assert Enum.any?(events, &(&1.event_type == "message_posted" && &1.actor_id == user.id))
   end
 
-  defp create_user! do
+  test "external user sees only own tickets in index", %{conn: conn} do
+    external_user = create_user!("customer")
+    internal_user = create_user!()
+
+    own_ticket = create_ticket!(external_user)
+    other_ticket = create_ticket!(internal_user)
+
+    conn = log_in(conn, external_user)
+    {:ok, view, _html} = live(conn, ~p"/tickets")
+
+    assert has_element?(view, "td", own_ticket.public_id)
+    refute has_element?(view, "td", other_ticket.public_id)
+  end
+
+  test "external user cannot view other ticket detail", %{conn: conn} do
+    external_user = create_user!("customer")
+    internal_user = create_user!()
+    other_ticket = create_ticket!(internal_user)
+
+    conn = log_in(conn, external_user)
+
+    assert {:error, {:live_redirect, %{to: "/tickets"}}} =
+             live(conn, ~p"/tickets/#{other_ticket.public_id}")
+  end
+
+  test "external user hides internal sections in ticket detail", %{conn: conn} do
+    external_user = create_user!("customer")
+    ticket = create_ticket!(external_user)
+
+    conn = log_in(conn, external_user)
+    {:ok, view, _html} = live(conn, ~p"/tickets/#{ticket.public_id}")
+
+    refute has_element?(view, "#ticket-status-form")
+    refute has_element?(view, "#ticket-messages-private")
+    refute has_element?(view, "#ticket-message-form-private")
+    refute has_element?(view, "#ticket-events")
+  end
+
+  defp create_user!(role \\ "user") do
     email = "test+#{System.unique_integer([:positive])}@example.com"
 
     User
-    |> Ash.Changeset.for_create(:create, %{email: email, name: "Test User"})
+    |> Ash.Changeset.for_create(:create, %{email: email, name: "Test User", role: role})
     |> Ash.create!(domain: Accounts)
   end
 
@@ -144,5 +182,9 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
       requester_id: user.id
     })
     |> Ash.create!(domain: Helpdesk)
+  end
+
+  defp log_in(conn, %User{id: id}) do
+    Plug.Test.init_test_session(conn, %{user_id: id})
   end
 end

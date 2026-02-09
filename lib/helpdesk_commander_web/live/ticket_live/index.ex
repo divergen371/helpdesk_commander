@@ -1,21 +1,37 @@
 defmodule HelpdeskCommanderWeb.TicketLive.Index do
   use HelpdeskCommanderWeb, :live_view
+  import Ash.Query
+
+  alias HelpdeskCommander.Accounts.User
 
   alias HelpdeskCommander.Helpdesk
   alias HelpdeskCommander.Helpdesk.Ticket
+  alias HelpdeskCommanderWeb.CurrentUser
 
   @impl Phoenix.LiveView
-  def mount(_params, _session, socket) do
+  def mount(_params, session, socket) do
+    current_user = CurrentUser.fetch(session)
+    external_user? = CurrentUser.external?(current_user)
+
     tickets =
       Ticket
+      |> maybe_filter_by_requester(current_user, external_user?)
       |> Ash.read!(domain: Helpdesk)
       |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
 
     {:ok,
      socket
      |> assign(:page_title, "Tickets")
+     |> assign(:current_user, current_user)
+     |> assign(:current_user_external?, external_user?)
      |> stream(:tickets, tickets)}
   end
+
+  defp maybe_filter_by_requester(query, %User{id: requester_id}, true) do
+    filter(query, requester_id == ^requester_id)
+  end
+
+  defp maybe_filter_by_requester(query, _user, _external), do: query
 
   @impl Phoenix.LiveView
   def render(assigns) do

@@ -10,178 +10,223 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   alias HelpdeskCommander.Helpdesk.ConversationMessage
   alias HelpdeskCommander.Helpdesk.Ticket
   alias HelpdeskCommander.Helpdesk.TicketEvent
+  alias HelpdeskCommanderWeb.CurrentUser
 
   @messages_page_size 20
   @events_page_size 20
 
   @impl Phoenix.LiveView
-  def mount(%{"public_id" => public_id}, _session, socket) do
+  def mount(%{"public_id" => public_id}, session, socket) do
     ticket = Ash.get!(Ticket, %{public_id: public_id}, domain: Helpdesk)
+    current_user = CurrentUser.fetch(session)
+    external_user? = CurrentUser.external?(current_user)
 
-    users =
-      User
-      |> Ash.read!(domain: Accounts)
-      |> Enum.sort_by(& &1.inserted_at, {:asc, DateTime})
+    if (external_user? and current_user) && ticket.requester_id != current_user.id do
+      {:ok,
+       socket
+       |> put_flash(:error, "アクセス権限がありません")
+       |> push_navigate(to: ~p"/tickets")}
+    else
+      users =
+        User
+        |> Ash.read!(domain: Accounts)
+        |> Enum.sort_by(& &1.inserted_at, {:asc, DateTime})
 
-    users_by_id = Map.new(users, &{&1.id, &1})
+      users_by_id = Map.new(users, &{&1.id, &1})
 
-    {public_conversation, private_conversation} = ensure_conversations(ticket)
+      {public_conversation, private_conversation} = ensure_conversations(ticket)
 
-    {public_messages, public_has_more?, public_oldest_id} =
-      fetch_messages(public_conversation.id)
+      {public_messages, public_has_more?, public_oldest_id} =
+        fetch_messages(public_conversation.id)
 
-    {private_messages, private_has_more?, private_oldest_id} =
-      fetch_messages(private_conversation.id)
+      {private_messages, private_has_more?, private_oldest_id} =
+        if external_user? do
+          {[], false, nil}
+        else
+          fetch_messages(private_conversation.id)
+        end
 
-    {events, events_has_more?, events_oldest_id} = fetch_events(ticket.id)
+      {events, events_has_more?, events_oldest_id} =
+        if external_user? do
+          {[], false, nil}
+        else
+          fetch_events(ticket.id)
+        end
 
-    update_form =
-      ticket
-      |> AshPhoenix.Form.for_update(:update, domain: Helpdesk)
-      |> to_form()
+      update_form =
+        ticket
+        |> AshPhoenix.Form.for_update(:update, domain: Helpdesk)
+        |> to_form()
 
-    public_message_form =
-      ConversationMessage
-      |> AshPhoenix.Form.for_create(:create, domain: Helpdesk)
-      |> to_form(as: "public_message")
+      public_message_form =
+        ConversationMessage
+        |> AshPhoenix.Form.for_create(:create, domain: Helpdesk)
+        |> to_form(as: "public_message")
 
-    private_message_form =
-      ConversationMessage
-      |> AshPhoenix.Form.for_create(:create, domain: Helpdesk)
-      |> to_form(as: "private_message")
+      private_message_form =
+        ConversationMessage
+        |> AshPhoenix.Form.for_create(:create, domain: Helpdesk)
+        |> to_form(as: "private_message")
 
-    {:ok,
-     socket
-     |> assign(:page_title, "Ticket #{ticket.public_id}")
-     |> assign(:ticket, ticket)
-     |> assign(:users, users)
-     |> assign(:users_by_id, users_by_id)
-     |> assign(:update_form, update_form)
-     |> assign(:public_message_form, public_message_form)
-     |> assign(:private_message_form, private_message_form)
-     |> assign(:public_conversation, public_conversation)
-     |> assign(:private_conversation, private_conversation)
-     |> assign(:public_messages_has_more?, public_has_more?)
-     |> assign(:public_messages_oldest_id, public_oldest_id)
-     |> assign(:private_messages_has_more?, private_has_more?)
-     |> assign(:private_messages_oldest_id, private_oldest_id)
-     |> assign(:events_has_more?, events_has_more?)
-     |> assign(:events_oldest_id, events_oldest_id)
-     |> stream(:public_messages, public_messages)
-     |> stream(:private_messages, private_messages)
-     |> stream(:events, events)}
+      {:ok,
+       socket
+       |> assign(:page_title, "Ticket #{ticket.public_id}")
+       |> assign(:ticket, ticket)
+       |> assign(:users, users)
+       |> assign(:users_by_id, users_by_id)
+       |> assign(:current_user, current_user)
+       |> assign(:current_user_external?, external_user?)
+       |> assign(:update_form, update_form)
+       |> assign(:public_message_form, public_message_form)
+       |> assign(:private_message_form, private_message_form)
+       |> assign(:public_conversation, public_conversation)
+       |> assign(:private_conversation, private_conversation)
+       |> assign(:public_messages_has_more?, public_has_more?)
+       |> assign(:public_messages_oldest_id, public_oldest_id)
+       |> assign(:private_messages_has_more?, private_has_more?)
+       |> assign(:private_messages_oldest_id, private_oldest_id)
+       |> assign(:events_has_more?, events_has_more?)
+       |> assign(:events_oldest_id, events_oldest_id)
+       |> stream(:public_messages, public_messages)
+       |> stream(:private_messages, private_messages)
+       |> stream(:events, events)}
+    end
   end
 
   @impl Phoenix.LiveView
   def handle_event("load_older_messages", %{"kind" => kind}, socket) do
-    before_id = message_oldest_id(socket, kind)
-    conversation_id = conversation_id_for_kind(socket, kind)
+    if forbidden_private?(socket, kind) do
+      {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
+    else
+      before_id = message_oldest_id(socket, kind)
+      conversation_id = conversation_id_for_kind(socket, kind)
 
-    {messages, has_more?, oldest_id} = fetch_messages(conversation_id, before_id)
-    next_oldest_id = oldest_id || before_id
+      {messages, has_more?, oldest_id} = fetch_messages(conversation_id, before_id)
+      next_oldest_id = oldest_id || before_id
 
-    {:noreply,
-     socket
-     |> assign(message_has_more_key(kind), has_more?)
-     |> assign(message_oldest_key(kind), next_oldest_id)
-     |> stream(message_stream_name(kind), messages, at: -1)}
+      {:noreply,
+       socket
+       |> assign(message_has_more_key(kind), has_more?)
+       |> assign(message_oldest_key(kind), next_oldest_id)
+       |> stream(message_stream_name(kind), messages, at: -1)}
+    end
   end
 
   @impl Phoenix.LiveView
   def handle_event("load_older_events", _params, socket) do
-    before_id = socket.assigns.events_oldest_id
-    {events, has_more?, oldest_id} = fetch_events(socket.assigns.ticket.id, before_id)
+    if socket.assigns.current_user_external? do
+      {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
+    else
+      before_id = socket.assigns.events_oldest_id
+      {events, has_more?, oldest_id} = fetch_events(socket.assigns.ticket.id, before_id)
 
-    {:noreply,
-     socket
-     |> assign(:events_has_more?, has_more?)
-     |> assign(:events_oldest_id, oldest_id || before_id)
-     |> stream(:events, events, at: -1)}
+      {:noreply,
+       socket
+       |> assign(:events_has_more?, has_more?)
+       |> assign(:events_oldest_id, oldest_id || before_id)
+       |> stream(:events, events, at: -1)}
+    end
   end
 
   @impl Phoenix.LiveView
   def handle_event("validate_update", %{"form" => params}, socket) do
-    update_form = AshPhoenix.Form.validate(socket.assigns.update_form, params)
-    {:noreply, assign(socket, :update_form, update_form)}
+    if socket.assigns.current_user_external? do
+      {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
+    else
+      update_form = AshPhoenix.Form.validate(socket.assigns.update_form, params)
+      {:noreply, assign(socket, :update_form, update_form)}
+    end
   end
 
   @impl Phoenix.LiveView
   def handle_event("save_update", %{"form" => params}, socket) do
-    case AshPhoenix.Form.submit(socket.assigns.update_form, params: params) do
-      {:ok, ticket} ->
-        update_form =
-          ticket
-          |> AshPhoenix.Form.for_update(:update, domain: Helpdesk)
-          |> to_form()
+    if socket.assigns.current_user_external? do
+      {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
+    else
+      case AshPhoenix.Form.submit(socket.assigns.update_form, params: params) do
+        {:ok, ticket} ->
+          update_form =
+            ticket
+            |> AshPhoenix.Form.for_update(:update, domain: Helpdesk)
+            |> to_form()
 
-        {:noreply,
-         socket
-         |> put_flash(:info, "更新しました")
-         |> assign(:ticket, ticket)
-         |> assign(:update_form, update_form)}
+          {:noreply,
+           socket
+           |> put_flash(:info, "更新しました")
+           |> assign(:ticket, ticket)
+           |> assign(:update_form, update_form)}
 
-      {:error, form} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, "更新に失敗しました")
-         |> assign(:update_form, form)}
+        {:error, form} ->
+          {:noreply,
+           socket
+           |> put_flash(:error, "更新に失敗しました")
+           |> assign(:update_form, form)}
+      end
     end
   end
 
   @impl Phoenix.LiveView
   def handle_event("validate_message", %{"kind" => kind} = params, socket) do
-    form_params = Map.get(params, message_form_key(kind), %{})
-    conversation_id = conversation_id_for_kind(socket, kind)
+    if forbidden_private?(socket, kind) do
+      {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
+    else
+      form_params = Map.get(params, message_form_key(kind), %{})
+      conversation_id = conversation_id_for_kind(socket, kind)
 
-    message_params =
-      form_params
-      |> Map.put("conversation_id", conversation_id)
-      |> Map.put_new("sender_id", socket.assigns.ticket.requester_id)
+      message_params =
+        form_params
+        |> Map.put("conversation_id", conversation_id)
+        |> put_sender_id(socket)
 
-    form =
-      socket
-      |> message_form_for_kind(kind)
-      |> AshPhoenix.Form.validate(message_params)
+      form =
+        socket
+        |> message_form_for_kind(kind)
+        |> AshPhoenix.Form.validate(message_params)
 
-    {:noreply, assign(socket, message_form_assign_key(kind), form)}
+      {:noreply, assign(socket, message_form_assign_key(kind), form)}
+    end
   end
 
   @impl Phoenix.LiveView
   def handle_event("save_message", %{"kind" => kind} = params, socket) do
-    form_params = Map.get(params, message_form_key(kind), %{})
-    conversation_id = conversation_id_for_kind(socket, kind)
+    if forbidden_private?(socket, kind) do
+      {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
+    else
+      form_params = Map.get(params, message_form_key(kind), %{})
+      conversation_id = conversation_id_for_kind(socket, kind)
 
-    message_params =
-      form_params
-      |> Map.put("conversation_id", conversation_id)
-      |> Map.put_new("sender_id", socket.assigns.ticket.requester_id)
+      message_params =
+        form_params
+        |> Map.put("conversation_id", conversation_id)
+        |> put_sender_id(socket)
 
-    submission =
-      socket
-      |> message_form_for_kind(kind)
-      |> AshPhoenix.Form.submit(params: message_params)
+      submission =
+        socket
+        |> message_form_for_kind(kind)
+        |> AshPhoenix.Form.submit(params: message_params)
 
-    case submission do
-      {:ok, message} ->
-        ticket = Ash.get!(Ticket, %{id: socket.assigns.ticket.id}, domain: Helpdesk)
+      case submission do
+        {:ok, message} ->
+          ticket = Ash.get!(Ticket, %{id: socket.assigns.ticket.id}, domain: Helpdesk)
 
-        form =
-          ConversationMessage
-          |> AshPhoenix.Form.for_create(:create, domain: Helpdesk)
-          |> to_form(as: message_form_key(kind))
+          form =
+            ConversationMessage
+            |> AshPhoenix.Form.for_create(:create, domain: Helpdesk)
+            |> to_form(as: message_form_key(kind))
 
-        {:noreply,
-         socket
-         |> put_flash(:info, "メッセージを追加しました")
-         |> assign(:ticket, ticket)
-         |> assign(message_form_assign_key(kind), form)
-         |> stream_insert(message_stream_name(kind), message)}
+          {:noreply,
+           socket
+           |> put_flash(:info, "メッセージを追加しました")
+           |> assign(:ticket, ticket)
+           |> assign(message_form_assign_key(kind), form)
+           |> stream_insert(message_stream_name(kind), message)}
 
-      {:error, form} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, "メッセージの追加に失敗しました")
-         |> assign(message_form_assign_key(kind), form)}
+        {:error, form} ->
+          {:noreply,
+           socket
+           |> put_flash(:error, "メッセージの追加に失敗しました")
+           |> assign(message_form_assign_key(kind), form)}
+      end
     end
   end
 
@@ -304,6 +349,17 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   defp conversation_id_for_kind(socket, "public"), do: socket.assigns.public_conversation.id
   defp conversation_id_for_kind(socket, "private"), do: socket.assigns.private_conversation.id
 
+  defp forbidden_private?(socket, "private"), do: socket.assigns.current_user_external?
+  defp forbidden_private?(_socket, _kind), do: false
+
+  defp put_sender_id(params, %{assigns: %{current_user_external?: true, current_user: %User{id: id}}}) do
+    Map.put(params, "sender_id", id)
+  end
+
+  defp put_sender_id(params, socket) do
+    Map.put_new(params, "sender_id", socket.assigns.ticket.requester_id)
+  end
+
   defp event_label(%TicketEvent{event_type: "ticket_created"}), do: "チケット作成"
 
   defp event_label(%TicketEvent{event_type: "message_posted", data: data}) do
@@ -374,7 +430,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
           </div>
         </div>
 
-        <div class="card bg-base-100 border border-base-200">
+        <div :if={!@current_user_external?} class="card bg-base-100 border border-base-200">
           <div class="card-body">
             <h3 class="font-semibold">ステータス更新</h3>
             <.form
@@ -440,7 +496,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
           </div>
         </div>
 
-        <div class="card bg-base-100 border border-base-200">
+        <div :if={!@current_user_external?} class="card bg-base-100 border border-base-200">
           <div class="card-body">
             <div class="flex items-center justify-between">
               <h3 class="font-semibold">内部メモ</h3>
@@ -474,7 +530,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
             </div>
           </div>
         </div>
-        <div class="card bg-base-100 border border-base-200">
+        <div :if={!@current_user_external?} class="card bg-base-100 border border-base-200">
           <div class="card-body">
             <div class="flex items-center justify-between">
               <h3 class="font-semibold">イベントログ</h3>
@@ -530,16 +586,28 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
                   type="textarea"
                   label="本文"
                 />
-                <.input
-                  id="public_message_sender_id"
-                  name="public_message[sender_id]"
-                  field={@public_message_form[:sender_id]}
-                  type="select"
-                  label="投稿者"
-                  prompt="選択してください"
-                  options={user_options(@users)}
-                  required
-                />
+                <%= if @current_user_external? do %>
+                  <.input
+                    id="public_message_sender_id"
+                    name="public_message[sender_id]"
+                    field={@public_message_form[:sender_id]}
+                    type="hidden"
+                    value={@current_user.id}
+                  />
+                  <div class="mt-3 text-xs uppercase tracking-wide opacity-60">投稿者</div>
+                  <div class="mt-1 text-sm font-medium">{user_label(@current_user)}</div>
+                <% else %>
+                  <.input
+                    id="public_message_sender_id"
+                    name="public_message[sender_id]"
+                    field={@public_message_form[:sender_id]}
+                    type="select"
+                    label="投稿者"
+                    prompt="選択してください"
+                    options={user_options(@users)}
+                    required
+                  />
+                <% end %>
 
                 <div class="mt-6 flex justify-end">
                   <.button type="submit" variant="primary">投稿</.button>
@@ -547,7 +615,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
               </.form>
             </div>
 
-            <div>
+            <div :if={!@current_user_external?}>
               <h3 class="font-semibold">内部メモ追加</h3>
 
               <.form
