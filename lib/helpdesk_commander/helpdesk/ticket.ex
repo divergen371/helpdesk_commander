@@ -15,6 +15,17 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
     migration_types public_id: {:string, 32}
   end
 
+  defp create_conversation(ticket, actor_id, kind) do
+    Conversation
+    |> Ash.Changeset.for_create(:create, %{
+      ticket_id: ticket.id,
+      kind: kind,
+      created_by_id: actor_id,
+      company_id: ticket.company_id
+    })
+    |> Ash.create!(domain: HelpdeskCommander.Helpdesk)
+  end
+
   attributes do
     attribute :id, HelpdeskCommander.Types.BigInt,
       primary_key?: true,
@@ -35,6 +46,13 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
     attribute :type, :string, allow_nil?: false, default: "question"
     attribute :status, :string, allow_nil?: false, default: "new"
     attribute :priority, :string, allow_nil?: false, default: "p3"
+
+    attribute :visibility_scope, :string,
+      allow_nil?: false,
+      default: "company",
+      constraints: [match: ~r/^(company|global_pending|global)$/]
+
+    attribute :visibility_decided_at, :utc_datetime_usec
     attribute :impact, :string
     attribute :urgency, :string
     attribute :first_response_at, :utc_datetime_usec
@@ -48,6 +66,12 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
   end
 
   relationships do
+    belongs_to :company, HelpdeskCommander.Accounts.Company do
+      attribute_type HelpdeskCommander.Types.BigInt
+      allow_nil? false
+      public? true
+    end
+
     belongs_to :requester, HelpdeskCommander.Accounts.User do
       attribute_type HelpdeskCommander.Types.BigInt
       allow_nil? false
@@ -55,6 +79,12 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
     end
 
     belongs_to :assignee, HelpdeskCommander.Accounts.User do
+      attribute_type HelpdeskCommander.Types.BigInt
+      allow_nil? true
+      public? true
+    end
+
+    belongs_to :visibility_decided_by, HelpdeskCommander.Accounts.User do
       attribute_type HelpdeskCommander.Types.BigInt
       allow_nil? true
       public? true
@@ -85,16 +115,22 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
 
     create :create do
       accept [
+        :company_id,
         :subject,
         :description,
         :type,
         :status,
         :priority,
+        :visibility_scope,
+        :visibility_decided_by_id,
+        :visibility_decided_at,
         :impact,
         :urgency,
         :requester_id,
         :assignee_id
       ]
+
+      change HelpdeskCommander.Helpdesk.Changes.AssignCompanyFromRequester
 
       change after_action(fn changeset, ticket, _context ->
                actor_id =
@@ -109,7 +145,8 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
                    event_type: "ticket_created",
                    data: %{},
                    ticket_id: ticket.id,
-                   actor_id: actor_id
+                   actor_id: actor_id,
+                   company_id: ticket.company_id
                  })
                  |> Ash.create!(domain: HelpdeskCommander.Helpdesk)
 
@@ -119,11 +156,15 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
 
     update :update do
       accept [
+        :company_id,
         :subject,
         :description,
         :type,
         :status,
         :priority,
+        :visibility_scope,
+        :visibility_decided_by_id,
+        :visibility_decided_at,
         :impact,
         :urgency,
         :first_response_at,
@@ -144,17 +185,14 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
       |> Ash.read_one(domain: HelpdeskCommander.Helpdesk)
 
     case conversation_result do
-      {:ok, %Conversation{} = conversation} ->
+      {:ok, nil} ->
+        create_conversation(ticket, actor_id, kind)
+
+      {:ok, conversation} ->
         conversation
 
       _result ->
-        Conversation
-        |> Ash.Changeset.for_create(:create, %{
-          ticket_id: ticket.id,
-          kind: kind,
-          created_by_id: actor_id
-        })
-        |> Ash.create!(domain: HelpdeskCommander.Helpdesk)
+        create_conversation(ticket, actor_id, kind)
     end
   end
 end

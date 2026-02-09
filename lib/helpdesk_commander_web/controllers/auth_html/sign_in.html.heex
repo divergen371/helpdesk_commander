@@ -1,0 +1,42 @@
+<Layouts.app flash={@flash}>
+  <.header>
+    サインイン
+    <:subtitle>会社ID・ログインID（初回はメール）でログイン</:subtitle>
+  </.header>
+
+  <div class="card bg-base-100 border border-base-200">
+    <div class="card-body">
+      <.form for={@form} id="sign-in-form" action={~p"/sign-in"} method="post">
+        <.input
+          field={@form[:company_code]}
+          name="session[company_code]"
+          label="会社ID"
+          placeholder="A-123456"
+          required
+        />
+        <.input
+          field={@form[:login]}
+          name="session[login]"
+          label="ログインID / メールアドレス"
+          placeholder="login_id または email"
+          required
+        />
+        <.input
+          field={@form[:password]}
+          name="session[password]"
+          type="password"
+          label="パスワード"
+          required
+        />
+
+        <div class="mt-6 flex justify-end">
+          <.button type="submit" variant="primary">ログイン</.button>
+        </div>
+      </.form>
+    </div>
+  </div>
+
+  <div class="mt-6 text-sm">
+    アカウントがまだの場合は <.link href={~p"/sign-up"} class="link">初回登録</.link>
+  </div>
+</Layouts.app>

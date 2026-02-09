@@ -21,12 +21,15 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     current_user = CurrentUser.fetch(session)
     external_user? = CurrentUser.external?(current_user)
 
-    if (external_user? and current_user) && ticket.requester_id != current_user.id do
-      {:ok,
-       socket
-       |> put_flash(:error, "アクセス権限がありません")
-       |> push_navigate(to: ~p"/tickets")}
-    else
+    can_view? =
+      not external_user? or
+        (current_user &&
+           (ticket.requester_id == current_user.id || ticket.visibility_scope == "global"))
+
+    if can_view? do
+      can_post_public? =
+        not external_user? or (current_user && ticket.requester_id == current_user.id)
+
       users =
         User
         |> Ash.read!(domain: Accounts)
@@ -76,6 +79,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
        |> assign(:users_by_id, users_by_id)
        |> assign(:current_user, current_user)
        |> assign(:current_user_external?, external_user?)
+       |> assign(:can_post_public?, can_post_public?)
        |> assign(:update_form, update_form)
        |> assign(:public_message_form, public_message_form)
        |> assign(:private_message_form, private_message_form)
@@ -90,12 +94,17 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
        |> stream(:public_messages, public_messages)
        |> stream(:private_messages, private_messages)
        |> stream(:events, events)}
+    else
+      {:ok,
+       socket
+       |> put_flash(:error, "アクセス権限がありません")
+       |> push_navigate(to: ~p"/tickets")}
     end
   end
 
   @impl Phoenix.LiveView
   def handle_event("load_older_messages", %{"kind" => kind}, socket) do
-    if forbidden_private?(socket, kind) do
+    if forbidden_read?(socket, kind) do
       {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
     else
       before_id = message_oldest_id(socket, kind)
@@ -167,7 +176,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
   @impl Phoenix.LiveView
   def handle_event("validate_message", %{"kind" => kind} = params, socket) do
-    if forbidden_private?(socket, kind) do
+    if forbidden_post?(socket, kind) do
       {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
     else
       form_params = Map.get(params, message_form_key(kind), %{})
@@ -189,7 +198,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
   @impl Phoenix.LiveView
   def handle_event("save_message", %{"kind" => kind} = params, socket) do
-    if forbidden_private?(socket, kind) do
+    if forbidden_post?(socket, kind) do
       {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
     else
       form_params = Map.get(params, message_form_key(kind), %{})
@@ -254,7 +263,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   end
 
   defp user_label(%User{role: "system"}), do: "System"
-  defp user_label(%User{name: name, email: email}), do: "#{name} <#{email}>"
+  defp user_label(%User{display_name: name, email: email}), do: "#{name} <#{email}>"
 
   defp ensure_conversations(%Ticket{} = ticket) do
     {
@@ -349,8 +358,16 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   defp conversation_id_for_kind(socket, "public"), do: socket.assigns.public_conversation.id
   defp conversation_id_for_kind(socket, "private"), do: socket.assigns.private_conversation.id
 
-  defp forbidden_private?(socket, "private"), do: socket.assigns.current_user_external?
-  defp forbidden_private?(_socket, _kind), do: false
+  defp forbidden_read?(socket, "private"), do: socket.assigns.current_user_external?
+  defp forbidden_read?(_socket, _kind), do: false
+
+  defp forbidden_post?(socket, "private"), do: socket.assigns.current_user_external?
+
+  defp forbidden_post?(socket, "public") do
+    socket.assigns.current_user_external? and not socket.assigns.can_post_public?
+  end
+
+  defp forbidden_post?(_socket, _kind), do: false
 
   defp put_sender_id(params, %{assigns: %{current_user_external?: true, current_user: %User{id: id}}}) do
     Map.put(params, "sender_id", id)
@@ -573,6 +590,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
               <h3 class="font-semibold">公開コメント追加</h3>
 
               <.form
+                :if={@can_post_public?}
                 for={@public_message_form}
                 id="ticket-message-form-public"
                 phx-change="validate_message"
@@ -613,6 +631,9 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
                   <.button type="submit" variant="primary">投稿</.button>
                 </div>
               </.form>
+              <div :if={!@can_post_public?} class="mt-3 text-sm opacity-70">
+                このチケットへの投稿はできません。
+              </div>
             </div>
 
             <div :if={!@current_user_external?}>

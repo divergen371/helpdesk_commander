@@ -75,6 +75,7 @@ defmodule HelpdeskCommander.MixProject do
     [
       {:ash_phoenix, "~> 2.0"},
       {:ash_postgres, "~> 2.0"},
+      {:ash_authentication, "~> 4.0"},
       {:igniter, "~> 0.6", only: [:dev, :test]},
       {:phoenix, "~> 1.8.3"},
       {:phoenix_ecto, "~> 4.5"},
@@ -91,6 +92,7 @@ defmodule HelpdeskCommander.MixProject do
       {:tailwind, "~> 0.3", runtime: env == :dev},
       {:heroicons,
        github: "tailwindlabs/heroicons", tag: "v2.2.0", sparse: "optimized", app: false, compile: false, depth: 1},
+      {:bcrypt_elixir, "~> 3.0"},
       {:swoosh, "~> 1.16"},
       {:req, "~> 0.5"},
       {:telemetry_metrics, "~> 1.0"},

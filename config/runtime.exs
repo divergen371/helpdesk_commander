@@ -40,6 +40,14 @@ if config_env() == :prod do
       For example: ecto://USER:PASS@HOST/DATABASE
       """
 
+  company_code_secret =
+    System.get_env("COMPANY_CODE_HMAC_SECRET") ||
+      raise """
+      environment variable COMPANY_CODE_HMAC_SECRET is missing.
+      """
+
+  config :helpdesk_commander, :company_code_hmac_secret, company_code_secret
+
   maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
   config :helpdesk_commander, HelpdeskCommander.Repo,

@@ -201,6 +201,19 @@ mix phx.server
 
 ---
 
+## 2026-02-09
+
+### 認証/テナント周りの調整とprecommit完走
+
+- `visibility_scope` の制約を文字列の `match` に修正
+- `AshAuthentication` のパスワード戦略依存を外し、`HashPassword` 変更でハッシュ化
+- `LiveUserAuth` のガード/assign整備、循環依存を解消
+- `AssignCompanyFromRequester` / `AssignCompanyFromTicket` を共通化
+- サンプルユーザー表示条件の調整、管理者承認ボタンの属性修正
+- `mix precommit` を通過（100 tests / 0 failures）
+
+---
+
 ## 2026-02-08 08:47 UTC
 
 ### mix precommit --all のエラー修正
@@ -340,6 +353,28 @@ mix phx.server
 - public メッセージ投稿は sender を current_user に固定
 
 ---
+
+## 2026-02-09 14:49 UTC
+
+### サインアップ/ログイン/会社運用の方針決定
+
+- 会社作成は社内のみ、会社IDは `A-123456` 形式で入力しDBはHMAC-SHA256でハッシュ保存
+- 顧客メールで仮ユーザー作成（pending）→ 管理者承認で有効化
+- login_id と display_name を分離し、ログインは会社ID + login_id/email + パスワード
+- priority=P1 + incident_sev=P1 は全体公開候補として手動承認で公開
+
+---
+
+## 2026-02-09 15:50 UTC
+
+### 認証/会社テナント化の実装
+
+- `companies` を追加し、company_code はHMACでハッシュ保存
+- `users` を multi-tenant 仕様に拡張（company_id / login_id / display_name / password_hash / status）
+- 会社ID + login_id/email のサインインと初回メールログイン時の login_id 自動生成を実装
+- サインアップ/承認（pending→active）画面を追加
+- tickets/inquiries/conversations/messages/events を company_id でスコープ化し、global 共有を許可
+- テストと seeds を新スキーマに合わせて更新
 
 ## 2026-02-08 13:25 UTC
 

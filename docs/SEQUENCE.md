@@ -7,6 +7,103 @@
 - ドメイン/データ: Ash Resource（将来実装） + Postgres
 - リアルタイム: Phoenix PubSub
 - チャット: チケット紐づきの2系統（公開/非公開）
+## 0. 会社作成（社内のみ）
+```mermaid
+sequenceDiagram
+  autonumber
+  actor A as Admin/Leader
+  participant B as Browser
+  participant LV as LiveView(CompanyForm)
+  participant A2 as Ash Domain/Resource
+  participant DB as Postgres
+
+  A->>B: 会社作成フォーム入力
+  B->>LV: phx-submit(company.create)
+  LV->>A2: Company.create(name, company_code_plain)
+  A2->>A2: company_code を正規化して HMAC-SHA256
+  A2->>DB: INSERT companies
+  DB-->>A2: company
+  LV-->>B: 会社一覧/詳細に遷移
+```
+
+## 0.1 顧客ユーザー仮作成（承認待ち）
+```mermaid
+sequenceDiagram
+  autonumber
+  actor A as Admin/Leader
+  participant B as Browser
+  participant LV as LiveView(UserProvision)
+  participant A2 as Ash Domain/Resource
+  participant DB as Postgres
+
+  A->>B: 顧客のメールを登録
+  B->>LV: phx-submit(user.provision)
+  LV->>A2: User.create(company_id, email, display_name=email, status=pending)
+  A2->>DB: INSERT users
+  DB-->>A2: user(pending)
+  LV-->>B: 仮ユーザー作成完了
+```
+
+## 0.2 顧客サインアップ（会社ID + login_id/email + パスワード）
+```mermaid
+sequenceDiagram
+  autonumber
+  actor U as Customer
+  participant B as Browser
+  participant LV as LiveView(SignUp)
+  participant A2 as Ash Domain/Resource
+  participant DB as Postgres
+
+  U->>B: 会社ID + login_id/email + パスワード入力
+  B->>LV: phx-submit(signup)
+  LV->>A2: Company.lookup(company_code_plain -> hash)
+  A2->>DB: SELECT companies WHERE company_code_hash = ...
+  DB-->>A2: company
+  LV->>A2: User.set_password(user, password)
+  A2->>DB: UPDATE users SET password_hash=...
+  LV-->>B: 申請完了（承認待ち）
+```
+
+## 0.3 管理者承認 → 有効化
+```mermaid
+sequenceDiagram
+  autonumber
+  actor A as Admin/Leader
+  participant B as Browser
+  participant LV as LiveView(UserApproval)
+  participant A2 as Ash Domain/Resource
+  participant DB as Postgres
+
+  A->>B: 承認操作
+  B->>LV: phx-click(user.approve)
+  LV->>A2: User.update(status=active)
+  A2->>DB: UPDATE users SET status='active'
+  LV-->>B: 承認完了
+```
+
+## 0.4 ログイン/ログアウト
+```mermaid
+sequenceDiagram
+  autonumber
+  actor U as User
+  participant B as Browser
+  participant LV as LiveView(Login)
+  participant A2 as Ash Domain/Resource
+  participant DB as Postgres
+
+  U->>B: 会社ID + login_id/email + パスワード入力
+  B->>LV: phx-submit(login)
+  LV->>A2: Company.lookup(company_code_plain -> hash)
+  A2->>DB: SELECT company
+  LV->>A2: User.authenticate(company_id, login_id/email, password)
+  A2->>DB: SELECT users WHERE company_id=... AND (login_id or email)
+  A2-->>LV: auth result
+  LV-->>B: セッション作成
+
+  U->>B: ログアウト
+  B->>LV: phx-click(logout)
+  LV-->>B: セッション破棄
+```
 
 ## 1. 問い合わせ作成（ログイン必須）→ Ticket自動生成 → Conversation（公開/非公開）作成
 ```mermaid

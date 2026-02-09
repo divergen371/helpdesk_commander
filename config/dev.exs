@@ -1,5 +1,7 @@
 import Config
 
+config :helpdesk_commander, :company_code_hmac_secret, "dev-company-code-secret"
+
 # Configure your database
 #
 # Prefer DATABASE_URL when provided (e.g. via `.env` + direnv), otherwise fall back

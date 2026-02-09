@@ -23,6 +23,12 @@ defmodule HelpdeskCommander.Helpdesk.TicketEvent do
   end
 
   relationships do
+    belongs_to :company, HelpdeskCommander.Accounts.Company do
+      attribute_type HelpdeskCommander.Types.BigInt
+      allow_nil? false
+      public? true
+    end
+
     belongs_to :ticket, HelpdeskCommander.Helpdesk.Ticket do
       attribute_type HelpdeskCommander.Types.BigInt
       allow_nil? false
@@ -40,7 +46,9 @@ defmodule HelpdeskCommander.Helpdesk.TicketEvent do
     defaults [:read]
 
     create :create do
-      accept [:event_type, :data, :ticket_id, :actor_id]
+      accept [:event_type, :data, :ticket_id, :actor_id, :company_id]
+
+      change HelpdeskCommander.Helpdesk.Changes.AssignCompanyFromTicket
     end
   end
 end

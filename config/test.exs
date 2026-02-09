@@ -1,6 +1,8 @@
 import Config
 config :ash, disable_async?: true
 
+config :helpdesk_commander, :company_code_hmac_secret, "test-company-code-secret"
+
 # Configure your database
 #
 # The MIX_TEST_PARTITION environment variable can be used

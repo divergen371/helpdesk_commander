@@ -19,9 +19,23 @@ defmodule HelpdeskCommanderWeb.Router do
 
     get "/", PageController, :home
 
-    live "/tickets", TicketLive.Index, :index
-    live "/tickets/new", TicketLive.New, :new
-    live "/tickets/:public_id", TicketLive.Show, :show
+    get "/sign-in", AuthController, :new
+    post "/sign-in", AuthController, :create
+    get "/sign-up", AuthController, :new_registration
+    post "/sign-up", AuthController, :create_registration
+    delete "/sign-out", AuthController, :delete
+
+    live_session :user_required,
+      on_mount: {HelpdeskCommanderWeb.LiveUserAuth, :live_user_required} do
+      live "/tickets", TicketLive.Index, :index
+      live "/tickets/new", TicketLive.New, :new
+      live "/tickets/:public_id", TicketLive.Show, :show
+    end
+
+    live_session :admin_required,
+      on_mount: {HelpdeskCommanderWeb.LiveUserAuth, :admin_required} do
+      live "/admin/pending-users", AdminUserLive.Pending, :index
+    end
   end
 
   # Other scopes may use custom stacks.

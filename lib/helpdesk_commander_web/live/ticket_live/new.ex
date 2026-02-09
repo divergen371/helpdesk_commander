@@ -18,6 +18,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
       else
         User
         |> Ash.read!(domain: Accounts)
+        |> Enum.reject(&(&1.role == "system"))
         |> Enum.sort_by(& &1.inserted_at, {:asc, DateTime})
       end
 
@@ -26,12 +27,17 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
       |> AshPhoenix.Form.for_create(:create, domain: Helpdesk)
       |> to_form()
 
+    show_sample_user? =
+      not external_user? and
+        (users == [] or (current_user && length(users) == 1 && hd(users).id == current_user.id))
+
     {:ok,
      socket
      |> assign(:page_title, "New Ticket")
      |> assign(:current_user, current_user)
      |> assign(:current_user_external?, external_user?)
      |> assign(:users, users)
+     |> assign(:show_sample_user?, show_sample_user?)
      |> assign(:form, form)}
   end
 
@@ -64,8 +70,15 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
   @impl Phoenix.LiveView
   def handle_event("create_sample_user", _params, socket) do
     email = "user+#{System.unique_integer([:positive])}@example.com"
+    company = Accounts.Auth.default_company!()
 
-    changeset = Ash.Changeset.for_create(User, :create, %{email: email, name: "Sample User"})
+    changeset =
+      Ash.Changeset.for_create(User, :create, %{
+        email: email,
+        display_name: "Sample User",
+        company_id: company.id,
+        status: "active"
+      })
 
     _user = Ash.create!(changeset, domain: Accounts)
 
@@ -74,10 +87,17 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
       |> Ash.read!(domain: Accounts)
       |> Enum.sort_by(& &1.inserted_at, {:asc, DateTime})
 
+    show_sample_user? =
+      not socket.assigns.current_user_external? and
+        (users == [] or
+           (socket.assigns.current_user && length(users) == 1 &&
+              hd(users).id == socket.assigns.current_user.id))
+
     {:noreply,
      socket
      |> put_flash(:info, "サンプルユーザーを作成しました")
-     |> assign(:users, users)}
+     |> assign(:users, users)
+     |> assign(:show_sample_user?, show_sample_user?)}
   end
 
   defp user_options(users) do
@@ -87,7 +107,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
   end
 
   defp user_label(%User{role: "system"}), do: "System"
-  defp user_label(%User{name: name, email: email}), do: "#{name} <#{email}>"
+  defp user_label(%User{display_name: name, email: email}), do: "#{name} <#{email}>"
 
   defp maybe_put_requester_id(params, %{assigns: %{current_user_external?: true, current_user: %User{id: id}}}) do
     Map.put(params, "requester_id", id)
@@ -136,11 +156,11 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
         </:actions>
       </.header>
 
-      <div :if={@users == []} class="alert alert-warning">
+      <div :if={@show_sample_user?} class="alert alert-warning">
         <.icon name="hero-exclamation-triangle" class="size-5" />
         <div>
-          <p class="font-semibold">ユーザーがまだありません</p>
-          <p class="text-sm opacity-80">requester が必須なので、まずサンプルユーザーを作成してください。</p>
+          <p class="font-semibold">ユーザーが少ないためサンプル作成ができます</p>
+          <p class="text-sm opacity-80">requester が必須なので、必要ならサンプルユーザーを追加してください。</p>
         </div>
         <div class="flex-1" />
         <.button type="button" phx-click="create_sample_user">

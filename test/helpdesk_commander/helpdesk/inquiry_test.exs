@@ -28,9 +28,15 @@ defmodule HelpdeskCommander.Helpdesk.InquiryTest do
 
   defp create_user! do
     email = "test+#{System.unique_integer([:positive])}@example.com"
+    company = Accounts.Auth.default_company!()
 
     User
-    |> Ash.Changeset.for_create(:create, %{email: email, name: "Test User"})
+    |> Ash.Changeset.for_create(:create, %{
+      email: email,
+      display_name: "Test User",
+      company_id: company.id,
+      status: "active"
+    })
     |> Ash.create!(domain: Accounts)
   end
 end

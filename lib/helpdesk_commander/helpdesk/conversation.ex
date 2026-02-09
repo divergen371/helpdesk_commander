@@ -28,6 +28,12 @@ defmodule HelpdeskCommander.Helpdesk.Conversation do
   end
 
   relationships do
+    belongs_to :company, HelpdeskCommander.Accounts.Company do
+      attribute_type HelpdeskCommander.Types.BigInt
+      allow_nil? false
+      public? true
+    end
+
     belongs_to :ticket, HelpdeskCommander.Helpdesk.Ticket do
       attribute_type HelpdeskCommander.Types.BigInt
       allow_nil? false
@@ -49,7 +55,9 @@ defmodule HelpdeskCommander.Helpdesk.Conversation do
     defaults [:read]
 
     create :create do
-      accept [:ticket_id, :kind, :created_by_id, :external_provider, :external_ref]
+      accept [:ticket_id, :kind, :created_by_id, :external_provider, :external_ref, :company_id]
+
+      change HelpdeskCommander.Helpdesk.Changes.AssignCompanyFromTicket
     end
   end
 end

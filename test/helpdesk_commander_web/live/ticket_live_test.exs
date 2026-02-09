@@ -15,6 +15,7 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
   test "tickets index renders", %{conn: conn} do
     user = create_user!()
     _ticket = create_ticket!(user)
+    conn = log_in(conn, user)
 
     {:ok, view, _html} = live(conn, ~p"/tickets")
 
@@ -24,6 +25,7 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
 
   test "create ticket via new form", %{conn: conn} do
     user = create_user!()
+    conn = log_in(conn, user)
 
     {:ok, view, _html} = live(conn, ~p"/tickets/new")
 
@@ -52,8 +54,8 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
   end
 
   test "new ticket validates and can create a sample user", %{conn: conn} do
-    HelpdeskCommander.Repo.delete_all(User)
-    assert [] == Ash.read!(User, domain: Accounts)
+    user = create_user!()
+    conn = log_in(conn, user)
 
     {:ok, view, _html} = live(conn, ~p"/tickets/new")
 
@@ -79,6 +81,7 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
   test "update ticket status", %{conn: conn} do
     user = create_user!()
     ticket = create_ticket!(user)
+    conn = log_in(conn, user)
 
     {:ok, view, _html} = live(conn, ~p"/tickets/#{ticket.public_id}")
 
@@ -93,6 +96,7 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
   test "add message to ticket", %{conn: conn} do
     user = create_user!()
     ticket = create_ticket!(user)
+    conn = log_in(conn, user)
 
     {:ok, view, _html} = live(conn, ~p"/tickets/#{ticket.public_id}")
 
@@ -168,9 +172,16 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
 
   defp create_user!(role \\ "user") do
     email = "test+#{System.unique_integer([:positive])}@example.com"
+    company = Accounts.Auth.default_company!()
 
     User
-    |> Ash.Changeset.for_create(:create, %{email: email, name: "Test User", role: role})
+    |> Ash.Changeset.for_create(:create, %{
+      email: email,
+      display_name: "Test User",
+      role: role,
+      status: "active",
+      company_id: company.id
+    })
     |> Ash.create!(domain: Accounts)
   end
 

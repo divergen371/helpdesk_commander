@@ -15,7 +15,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Index do
 
     tickets =
       Ticket
-      |> maybe_filter_by_requester(current_user, external_user?)
+      |> maybe_filter_for_external(current_user, external_user?)
       |> Ash.read!(domain: Helpdesk)
       |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
 
@@ -27,11 +27,11 @@ defmodule HelpdeskCommanderWeb.TicketLive.Index do
      |> stream(:tickets, tickets)}
   end
 
-  defp maybe_filter_by_requester(query, %User{id: requester_id}, true) do
-    filter(query, requester_id == ^requester_id)
+  defp maybe_filter_for_external(query, %User{id: requester_id}, true) do
+    filter(query, requester_id == ^requester_id or visibility_scope == "global")
   end
 
-  defp maybe_filter_by_requester(query, _user, _external), do: query
+  defp maybe_filter_for_external(query, _user, _external), do: query
 
   @impl Phoenix.LiveView
   def render(assigns) do

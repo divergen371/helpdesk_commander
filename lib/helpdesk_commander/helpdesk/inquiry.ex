@@ -26,6 +26,12 @@ defmodule HelpdeskCommander.Helpdesk.Inquiry do
   end
 
   relationships do
+    belongs_to :company, HelpdeskCommander.Accounts.Company do
+      attribute_type HelpdeskCommander.Types.BigInt
+      allow_nil? false
+      public? true
+    end
+
     belongs_to :requester, HelpdeskCommander.Accounts.User do
       attribute_type HelpdeskCommander.Types.BigInt
       allow_nil? false
@@ -43,7 +49,10 @@ defmodule HelpdeskCommander.Helpdesk.Inquiry do
     defaults [:read]
 
     create :create do
-      accept [:subject, :body, :source, :requester_id]
+      accept [:subject, :body, :source, :requester_id, :company_id]
+
+      change HelpdeskCommander.Helpdesk.Changes.AssignCompanyFromRequester
+
       change CreateTicket
     end
   end

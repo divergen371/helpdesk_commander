@@ -31,6 +31,12 @@ defmodule HelpdeskCommander.Helpdesk.ConversationMessage do
   end
 
   relationships do
+    belongs_to :company, HelpdeskCommander.Accounts.Company do
+      attribute_type HelpdeskCommander.Types.BigInt
+      allow_nil? false
+      public? true
+    end
+
     belongs_to :conversation, HelpdeskCommander.Helpdesk.Conversation do
       attribute_type HelpdeskCommander.Types.BigInt
       allow_nil? false
@@ -48,7 +54,11 @@ defmodule HelpdeskCommander.Helpdesk.ConversationMessage do
     defaults [:read]
 
     create :create do
-      accept [:body, :conversation_id, :sender_id, :message_type, :body_format, :meta]
+      accept [:body, :conversation_id, :sender_id, :message_type, :body_format, :meta, :company_id]
+
+      change fn changeset, _context ->
+        assign_company_from_conversation(changeset)
+      end
 
       change after_action(fn _changeset, message, _context ->
                conversation =
@@ -69,12 +79,41 @@ defmodule HelpdeskCommander.Helpdesk.ConversationMessage do
                    event_type: "message_posted",
                    data: %{conversation_kind: conversation.kind},
                    ticket_id: ticket.id,
-                   actor_id: message.sender_id
+                   actor_id: message.sender_id,
+                   company_id: ticket.company_id
                  })
                  |> Ash.create!(domain: Helpdesk)
 
                {:ok, message}
              end)
+    end
+  end
+
+  defp assign_company_from_conversation(changeset) do
+    case Ash.Changeset.get_attribute(changeset, :company_id) do
+      nil ->
+        conversation_id = Ash.Changeset.get_attribute(changeset, :conversation_id)
+
+        case conversation_id &&
+               Ash.get(Conversation, %{id: conversation_id}, domain: Helpdesk) do
+          {:ok, nil} ->
+            Ash.Changeset.add_error(changeset,
+              field: :company_id,
+              message: "会話から会社情報を特定できません"
+            )
+
+          {:ok, conversation} ->
+            Ash.Changeset.change_attribute(changeset, :company_id, conversation.company_id)
+
+          _result ->
+            Ash.Changeset.add_error(changeset,
+              field: :company_id,
+              message: "会話から会社情報を特定できません"
+            )
+        end
+
+      _company_id ->
+        changeset
     end
   end
 end

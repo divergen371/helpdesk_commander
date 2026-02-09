@@ -1,0 +1,55 @@
+<Layouts.app flash={@flash}>
+  <.header>
+    初回登録
+    <:subtitle>仮ユーザーにパスワードを設定します</:subtitle>
+  </.header>
+
+  <div class="card bg-base-100 border border-base-200">
+    <div class="card-body">
+      <.form for={@form} id="sign-up-form" action={~p"/sign-up"} method="post">
+        <.input
+          field={@form[:company_code]}
+          name="registration[company_code]"
+          label="会社ID"
+          placeholder="A-123456"
+          required
+        />
+        <.input
+          field={@form[:email]}
+          name="registration[email]"
+          type="email"
+          label="メールアドレス"
+          required
+        />
+        <.input
+          field={@form[:display_name]}
+          name="registration[display_name]"
+          label="表示名（任意）"
+          placeholder="山田 太郎"
+        />
+        <.input
+          field={@form[:password]}
+          name="registration[password]"
+          type="password"
+          label="パスワード"
+          required
+        />
+        <.input
+          field={@form[:password_confirmation]}
+          name="registration[password_confirmation]"
+          type="password"
+          label="パスワード（確認）"
+          required
+        />
+
+        <div class="mt-6 flex justify-end">
+          <.button type="submit" variant="primary">登録する</.button>
+        </div>
+      </.form>
+    </div>
+  </div>
+
+  <div class="mt-6 text-sm">
+    すでに登録済みの場合は <.link href={~p"/sign-in"} class="link">ログイン</.link>
+  </div>
+</Layouts.app>

@@ -4,6 +4,7 @@ defmodule HelpdeskCommander.Accounts do
   use Ash.Domain
 
   resources do
+    resource HelpdeskCommander.Accounts.Company
     resource HelpdeskCommander.Accounts.User
   end
 end

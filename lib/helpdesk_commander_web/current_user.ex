@@ -5,6 +5,7 @@ defmodule HelpdeskCommanderWeb.CurrentUser do
   alias HelpdeskCommander.Accounts.User
 
   @external_roles ~w(customer external)
+  @admin_roles ~w(admin leader)
 
   @spec fetch(map()) :: User.t() | nil
   def fetch(session) when is_map(session) do
@@ -16,6 +17,14 @@ defmodule HelpdeskCommanderWeb.CurrentUser do
   @spec external?(User.t() | nil) :: boolean()
   def external?(%User{role: role}), do: role in @external_roles
   def external?(_user), do: false
+
+  @spec admin?(User.t() | nil) :: boolean()
+  def admin?(%User{role: role}), do: role in @admin_roles
+  def admin?(_user), do: false
+
+  @spec active?(User.t() | nil) :: boolean()
+  def active?(%User{status: "active"}), do: true
+  def active?(_user), do: false
 
   defp user_id_from_session(session) do
     Map.get(session, "user_id") || Map.get(session, :user_id)
