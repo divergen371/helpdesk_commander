@@ -1,3 +1,4 @@
+# credo:disable-for-this-file Credo.Check.Refactor.ModuleDependencies
 defmodule HelpdeskCommanderWeb.TicketLive.Show do
   use HelpdeskCommanderWeb, :live_view
 
@@ -113,6 +114,11 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
       |> AshPhoenix.Form.for_update(:update, domain: Helpdesk)
       |> to_form()
 
+    status_form =
+      ticket
+      |> AshPhoenix.Form.for_update(:set_status, domain: Helpdesk)
+      |> to_form()
+
     public_message_form =
       ConversationMessage
       |> AshPhoenix.Form.for_create(:create, domain: Helpdesk)
@@ -131,6 +137,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
        current_user: current_user,
        external_user?: external_user?,
        can_post_public?: can_post_public?,
+       status_form: status_form,
        update_form: update_form,
        public_message_form: public_message_form,
        private_message_form: private_message_form,
@@ -158,6 +165,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     |> assign(:current_user, data.current_user)
     |> assign(:current_user_external?, data.external_user?)
     |> assign(:can_post_public?, data.can_post_public?)
+    |> assign(:status_form, data.status_form)
     |> assign(:update_form, data.update_form)
     |> assign(:public_message_form, data.public_message_form)
     |> assign(:private_message_form, data.private_message_form)
@@ -218,6 +226,59 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   defp error_message(:load_ticket), do: "チケットの取得に失敗しました"
   defp error_message(:load_users), do: "ユーザー一覧の取得に失敗しました"
   defp error_message(:ensure_conversations), do: "会話の初期化に失敗しました"
+  @impl Phoenix.LiveView
+  def handle_event("validate_status", %{"form" => params}, socket) do
+    if socket.assigns.current_user_external? do
+      {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
+    else
+      status_form = AshPhoenix.Form.validate(socket.assigns.status_form, params)
+      {:noreply, assign(socket, :status_form, status_form)}
+    end
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("save_status", %{"form" => params}, socket) do
+    if socket.assigns.current_user_external? do
+      {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
+    else
+      params = Map.put_new(params, "actor_id", socket.assigns.current_user.id)
+
+      case AshPhoenix.Form.submit(socket.assigns.status_form, params: params) do
+        {:ok, ticket} ->
+          ticket = load_ticket_product(ticket)
+
+          status_form =
+            ticket
+            |> AshPhoenix.Form.for_update(:set_status, domain: Helpdesk)
+            |> to_form()
+
+          update_form =
+            ticket
+            |> AshPhoenix.Form.for_update(:update, domain: Helpdesk)
+            |> to_form()
+
+          {:noreply,
+           socket
+           |> put_flash(:info, "ステータスを更新しました")
+           |> assign(:ticket, ticket)
+           |> assign(:status_form, status_form)
+           |> assign(:update_form, update_form)}
+
+        {:error, form} ->
+          socket =
+            if stale_record_error?(form) do
+              refresh_ticket_forms(socket)
+            else
+              socket
+            end
+
+          {:noreply,
+           socket
+           |> put_flash(:error, stale_record_message(form))
+           |> assign(:status_form, form)}
+      end
+    end
+  end
 
   @impl Phoenix.LiveView
   def handle_event("load_older_messages", %{"kind" => kind}, socket) do
@@ -287,6 +348,11 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
         {:ok, ticket} ->
           ticket = load_ticket_product(ticket)
 
+          status_form =
+            ticket
+            |> AshPhoenix.Form.for_update(:set_status, domain: Helpdesk)
+            |> to_form()
+
           update_form =
             ticket
             |> AshPhoenix.Form.for_update(:update, domain: Helpdesk)
@@ -296,12 +362,20 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
            socket
            |> put_flash(:info, "更新しました")
            |> assign(:ticket, ticket)
+           |> assign(:status_form, status_form)
            |> assign(:update_form, update_form)}
 
         {:error, form} ->
+          socket =
+            if stale_record_error?(form) do
+              refresh_ticket_forms(socket)
+            else
+              socket
+            end
+
           {:noreply,
            socket
-           |> put_flash(:error, "更新に失敗しました")
+           |> put_flash(:error, stale_record_message(form))
            |> assign(:update_form, form)}
       end
     end
@@ -387,9 +461,11 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   defp status_options do
     [
       {"new", "new"},
-      {"open", "open"},
-      {"pending", "pending"},
+      {"triage", "triage"},
+      {"in_progress", "in_progress"},
+      {"waiting", "waiting"},
       {"resolved", "resolved"},
+      {"verified", "verified"},
       {"closed", "closed"}
     ]
   end
@@ -423,6 +499,59 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
         ticket
     end
   end
+
+  defp refresh_ticket_forms(socket) do
+    case Ash.get(Ticket, %{id: socket.assigns.ticket.id}, domain: Helpdesk) do
+      {:ok, %Ticket{} = ticket} ->
+        ticket = load_ticket_product(ticket)
+
+        status_form =
+          ticket
+          |> AshPhoenix.Form.for_update(:set_status, domain: Helpdesk)
+          |> to_form()
+
+        update_form =
+          ticket
+          |> AshPhoenix.Form.for_update(:update, domain: Helpdesk)
+          |> to_form()
+
+        socket
+        |> assign(:ticket, ticket)
+        |> assign(:status_form, status_form)
+        |> assign(:update_form, update_form)
+
+      _result ->
+        socket
+    end
+  end
+
+  defp stale_record_message(form) do
+    if stale_record_error?(form) do
+      "更新競合が発生しました。最新の内容を再読み込みしました。もう一度お試しください。"
+    else
+      "更新に失敗しました"
+    end
+  end
+
+  defp stale_record_error?(%AshPhoenix.Form{errors: errors}) when is_list(errors) do
+    Enum.any?(errors, &stale_error?/1)
+  end
+
+  defp stale_record_error?(_form), do: false
+
+  defp stale_error?(%Ash.Error.Changes.StaleRecord{}), do: true
+
+  defp stale_error?(%Ash.Error.Invalid{errors: errors}) do
+    Enum.any?(errors, &stale_error?/1)
+  end
+
+  defp stale_error?({_field, %Ash.Error.Changes.StaleRecord{}}), do: true
+
+  defp stale_error?({_field, %Ash.Error.Invalid{errors: errors}}) do
+    Enum.any?(errors, &stale_error?/1)
+  end
+
+  defp stale_error?(_error), do: false
 
   defp load_users do
     case Ash.read(User, domain: Accounts) do
@@ -561,6 +690,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   end
 
   defp event_label(%TicketEvent{event_type: "ticket_created"}), do: "チケット作成"
+  defp event_label(%TicketEvent{event_type: "status_changed"}), do: "ステータス変更"
 
   defp event_label(%TicketEvent{event_type: "message_posted", data: data}) do
     case event_conversation_kind(data) do
@@ -634,26 +764,50 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
         <div :if={!@current_user_external?} class="card bg-base-100 border border-base-200">
           <div class="card-body">
             <h3 class="font-semibold">ステータス更新</h3>
-            <.form
-              for={@update_form}
-              id="ticket-status-form"
-              phx-change="validate_update"
-              phx-submit="save_update"
-            >
-              <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <%= if @ticket.status in ["verified", "closed"] do %>
+              <p class="text-sm opacity-70">verified/closed のため変更できません。</p>
+            <% else %>
+              <.form
+                for={@status_form}
+                id="ticket-status-form"
+                phx-change="validate_status"
+                phx-submit="save_status"
+              >
                 <.input
-                  field={@update_form[:status]}
+                  field={@status_form[:status]}
                   type="select"
                   label="Status"
                   options={status_options()}
                 />
                 <.input
-                  field={@update_form[:priority]}
-                  type="select"
-                  label="Priority"
-                  options={[{"p1", "p1"}, {"p2", "p2"}, {"p3", "p3"}, {"p4", "p4"}]}
+                  field={@status_form[:actor_id]}
+                  type="hidden"
+                  value={@current_user.id}
                 />
-              </div>
+
+                <div class="mt-6 flex justify-end">
+                  <.button type="submit" variant="primary">更新</.button>
+                </div>
+              </.form>
+            <% end %>
+          </div>
+        </div>
+
+        <div :if={!@current_user_external?} class="card bg-base-100 border border-base-200">
+          <div class="card-body">
+            <h3 class="font-semibold">優先度更新</h3>
+            <.form
+              for={@update_form}
+              id="ticket-priority-form"
+              phx-change="validate_update"
+              phx-submit="save_update"
+            >
+              <.input
+                field={@update_form[:priority]}
+                type="select"
+                label="Priority"
+                options={[{"p1", "p1"}, {"p2", "p2"}, {"p3", "p3"}, {"p4", "p4"}]}
+              />
 
               <div class="mt-6 flex justify-end">
                 <.button type="submit" variant="primary">更新</.button>

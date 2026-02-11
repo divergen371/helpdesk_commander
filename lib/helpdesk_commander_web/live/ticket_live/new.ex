@@ -189,10 +189,9 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
   defp status_options do
     [
       {"new", "new"},
-      {"open", "open"},
-      {"pending", "pending"},
-      {"resolved", "resolved"},
-      {"closed", "closed"}
+      {"triage", "triage"},
+      {"in_progress", "in_progress"},
+      {"waiting", "waiting"}
     ]
   end
 

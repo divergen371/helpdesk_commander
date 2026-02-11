@@ -89,7 +89,7 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
     {:ok, view, _html} = live(conn, ~p"/tickets/#{ticket.public_id}")
 
     view
-    |> form("#ticket-status-form", form: %{"status" => "resolved", "priority" => ticket.priority})
+    |> form("#ticket-status-form", form: %{"status" => "resolved", "actor_id" => to_string(user.id)})
     |> render_submit()
 
     updated = Ash.get!(Ticket, %{public_id: ticket.public_id}, domain: Helpdesk)

@@ -9,6 +9,18 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
   alias HelpdeskCommander.Helpdesk.TicketEvent
   alias HelpdeskCommander.Support.PublicId
 
+  @status_regex ~r/^(new|triage|in_progress|waiting|resolved|verified|closed)$/
+
+  @status_transitions %{
+    "new" => ~w(triage in_progress waiting resolved),
+    "triage" => ~w(in_progress waiting resolved),
+    "in_progress" => ~w(waiting resolved),
+    "waiting" => ~w(in_progress resolved),
+    "resolved" => ~w(in_progress verified closed),
+    "verified" => [],
+    "closed" => []
+  }
+
   postgres do
     table "tickets"
     repo HelpdeskCommander.Repo
@@ -44,7 +56,12 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
     attribute :subject, :string, allow_nil?: false, public?: true
     attribute :description, :string
     attribute :type, :string, allow_nil?: false, default: "question"
-    attribute :status, :string, allow_nil?: false, default: "new"
+
+    attribute :status, :string,
+      allow_nil?: false,
+      default: "new",
+      constraints: [match: @status_regex]
+
     attribute :priority, :string, allow_nil?: false, default: "p3"
 
     attribute :visibility_scope, :string,
@@ -168,7 +185,6 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
         :subject,
         :description,
         :type,
-        :status,
         :priority,
         :visibility_scope,
         :visibility_decided_by_id,
@@ -183,6 +199,54 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
         :requester_id,
         :assignee_id
       ]
+
+      change optimistic_lock(:lock_version)
+    end
+
+    update :set_status do
+      require_atomic? false
+
+      argument :status, :string, allow_nil?: false
+      argument :actor_id, HelpdeskCommander.Types.BigInt, allow_nil?: false
+
+      change fn changeset, _context ->
+        apply_status_transition(changeset)
+      end
+
+      change optimistic_lock(:lock_version)
+
+      change after_action(fn changeset, ticket, _context ->
+               previous = changeset.data
+               from_status = previous.status
+               to_status = ticket.status
+
+               if from_status != to_status do
+                 data =
+                   maybe_add_rollback_data(
+                     %{
+                       from: from_status,
+                       to: to_status
+                     },
+                     from_status,
+                     to_status
+                   )
+
+                 _event =
+                   TicketEvent
+                   |> Ash.Changeset.for_create(:create, %{
+                     event_type: "status_changed",
+                     data: data,
+                     ticket_id: ticket.id,
+                     actor_id: Ash.Changeset.get_argument(changeset, :actor_id),
+                     company_id: ticket.company_id
+                   })
+                   |> Ash.create!(domain: HelpdeskCommander.Helpdesk)
+               end
+
+               {:ok, ticket}
+             end)
+
+      accept []
     end
   end
 
@@ -203,4 +267,64 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
         create_conversation(ticket, actor_id, kind)
     end
   end
+
+  defp apply_status_transition(changeset) do
+    from_status = changeset.data.status
+    to_status = Ash.Changeset.get_argument(changeset, :status)
+
+    cond do
+      is_nil(to_status) ->
+        changeset
+
+      from_status == to_status ->
+        changeset
+
+      allowed_status_transition?(from_status, to_status) ->
+        changeset
+        |> Ash.Changeset.change_attribute(:status, to_status)
+        |> maybe_set_status_timestamps(from_status, to_status)
+
+      true ->
+        Ash.Changeset.add_error(changeset,
+          field: :status,
+          message: "ステータス遷移が許可されていません"
+        )
+    end
+  end
+
+  defp allowed_status_transition?(from_status, to_status) do
+    allowed = Map.get(@status_transitions, from_status, [])
+    to_status in allowed
+  end
+
+  defp maybe_set_status_timestamps(changeset, _from_status, "in_progress") do
+    maybe_set_timestamp(changeset, :first_response_at)
+  end
+
+  defp maybe_set_status_timestamps(changeset, _from_status, "resolved") do
+    maybe_set_timestamp(changeset, :resolved_at)
+  end
+
+  defp maybe_set_status_timestamps(changeset, _from_status, "verified") do
+    maybe_set_timestamp(changeset, :verified_at)
+  end
+
+  defp maybe_set_status_timestamps(changeset, _from_status, "closed") do
+    maybe_set_timestamp(changeset, :closed_at)
+  end
+
+  defp maybe_set_status_timestamps(changeset, _from_status, _to_status), do: changeset
+
+  defp maybe_set_timestamp(changeset, field) do
+    case Ash.Changeset.get_attribute(changeset, field) do
+      nil -> Ash.Changeset.change_attribute(changeset, field, DateTime.utc_now())
+      _value -> changeset
+    end
+  end
+
+  defp maybe_add_rollback_data(data, "resolved", to_status) when to_status != "resolved" do
+    Map.put(data, :rolled_back_at, DateTime.utc_now())
+  end
+
+  defp maybe_add_rollback_data(data, _from_status, _to_status), do: data
 end

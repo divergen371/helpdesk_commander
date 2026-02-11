@@ -451,3 +451,15 @@ mix phx.server
 - `docs/DESIGN_API_MIGRATION.md` を新規作成
 - LiveView → React/Vue/Corex 等への UI 差し替えに備えた JSON API 段階移行の方針を整理
 - 選択肢（薄い Phoenix コントローラ / AshJsonApi / AshGraphql）、認証、エラー標準、セキュリティ、テスト方針、ロードマップ等を記載
+
+---
+
+## 2026-02-11 16:30 UTC
+
+### チケット状態遷移の整合性（専用アクション化 + 楽観ロック）
+
+- ステータス体系を仕様準拠（`new/triage/in_progress/waiting/resolved/verified/closed`）に統一
+- `Ticket.set_status` アクションを追加し、遷移検証・イベント記録・タイムスタンプ付与を集約
+- `update` から `status` を外し、`optimistic_lock(:lock_version)` を適用
+- LiveView をステータス更新フォームと優先度更新フォームに分離
+- 競合更新（StaleRecord）時は最新再読込 + エラーメッセージ表示
