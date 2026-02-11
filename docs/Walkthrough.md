@@ -463,3 +463,13 @@ mix phx.server
 - `update` から `status` を外し、`optimistic_lock(:lock_version)` を適用
 - LiveView をステータス更新フォームと優先度更新フォームに分離
 - 競合更新（StaleRecord）時は最新再読込 + エラーメッセージ表示
+
+---
+
+## 2026-02-11 16:45 UTC
+
+### 関連チケット（再起票リンク）とステータス移行
+
+- `ticket_links` を追加し、再起票・重複・依存関係などの関連付けを表現
+- 旧ステータス `open/pending` を `triage/waiting` に移行するデータマイグレーションを追加
+- 設計メモ `docs/DESIGN_TICKET_RELATIONS.md` に関連チケット/グラフ可視化の方針を追記

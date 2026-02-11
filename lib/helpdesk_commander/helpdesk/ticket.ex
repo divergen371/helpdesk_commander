@@ -16,7 +16,7 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
     "triage" => ~w(in_progress waiting resolved),
     "in_progress" => ~w(waiting resolved),
     "waiting" => ~w(in_progress resolved),
-    "resolved" => ~w(in_progress verified closed),
+    "resolved" => ~w(in_progress waiting verified closed),
     "verified" => [],
     "closed" => []
   }
@@ -125,6 +125,16 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
 
     has_many :events, HelpdeskCommander.Helpdesk.TicketEvent do
       destination_attribute :ticket_id
+      public? true
+    end
+
+    has_many :outgoing_links, HelpdeskCommander.Helpdesk.TicketLink do
+      destination_attribute :ticket_id
+      public? true
+    end
+
+    has_many :incoming_links, HelpdeskCommander.Helpdesk.TicketLink do
+      destination_attribute :related_ticket_id
       public? true
     end
   end
