@@ -18,6 +18,7 @@ defmodule HelpdeskCommander.Accounts.Auth do
           | :invalid_company_code
           | :user_not_found
           | :already_active
+          | :registration_failed
 
   @spec authenticate(String.t(), String.t(), String.t()) :: {:ok, User.t()} | {:error, auth_error()}
   def authenticate(company_code, login_or_email, password) do
@@ -176,7 +177,7 @@ defmodule HelpdeskCommander.Accounts.Auth do
 
       {:error, error} ->
         ErrorLog.log_error("accounts.auth.register_user", error, user_id: user.id)
-        {:error, error}
+        {:error, :registration_failed}
     end
   end
 

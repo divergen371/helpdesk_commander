@@ -13,7 +13,8 @@ defmodule HelpdeskCommanderWeb.AuthController do
     :company_not_found,
     :user_not_found,
     :already_active,
-    :inactive
+    :inactive,
+    :registration_failed
   ]
 
   @spec new(Plug.Conn.t(), map()) :: Plug.Conn.t()
@@ -102,9 +103,7 @@ defmodule HelpdeskCommanderWeb.AuthController do
         |> put_flash(:error, "既に登録済みです。ログインしてください。")
         |> redirect(to: ~p"/sign-in")
 
-      {:error, reason} ->
-        log_unexpected_auth_error("sign_up", reason)
-
+      {:error, :registration_failed} ->
         conn
         |> put_flash(:error, "登録に失敗しました。入力内容をご確認ください。")
         |> render(:sign_up, form: to_form(params, as: "registration"))
