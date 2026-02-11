@@ -6,6 +6,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Index do
 
   alias HelpdeskCommander.Helpdesk
   alias HelpdeskCommander.Helpdesk.Ticket
+  alias HelpdeskCommander.Support.Error, as: ErrorLog
   alias HelpdeskCommanderWeb.CurrentUser
 
   @impl Phoenix.LiveView
@@ -13,11 +14,16 @@ defmodule HelpdeskCommanderWeb.TicketLive.Index do
     current_user = CurrentUser.fetch(session)
     external_user? = CurrentUser.external?(current_user)
 
-    tickets =
-      Ticket
-      |> maybe_filter_for_external(current_user, external_user?)
-      |> Ash.read!(domain: Helpdesk)
-      |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
+    {tickets, socket} =
+      case load_tickets(current_user, external_user?) do
+        {:ok, tickets} ->
+          {tickets, socket}
+
+        {:error, error} ->
+          ErrorLog.log_error("ticket_live.index.load_tickets", error, user_id: current_user && current_user.id)
+
+          {[], put_flash(socket, :error, "チケットの取得に失敗しました")}
+      end
 
     {:ok,
      socket
@@ -25,6 +31,21 @@ defmodule HelpdeskCommanderWeb.TicketLive.Index do
      |> assign(:current_user, current_user)
      |> assign(:current_user_external?, external_user?)
      |> stream(:tickets, tickets)}
+  end
+
+  defp load_tickets(current_user, external_user?) do
+    query = maybe_filter_for_external(Ticket, current_user, external_user?)
+
+    case Ash.read(query, domain: Helpdesk) do
+      {:ok, tickets} ->
+        case Ash.load(tickets, [:product], domain: Helpdesk) do
+          {:ok, tickets} -> {:ok, Enum.sort_by(tickets, & &1.inserted_at, {:desc, DateTime})}
+          {:error, error} -> {:error, error}
+        end
+
+      {:error, error} ->
+        {:error, error}
+    end
   end
 
   defp maybe_filter_for_external(query, %User{id: requester_id}, true) do
@@ -56,6 +77,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Index do
           >
             <:col :let={ticket} label="ID">{ticket.public_id}</:col>
             <:col :let={ticket} label="Subject">{ticket.subject}</:col>
+            <:col :let={ticket} label="Product">{ticket.product && ticket.product.name}</:col>
             <:col :let={ticket} label="Status">{ticket.status}</:col>
             <:col :let={ticket} label="Priority">{ticket.priority}</:col>
             <:action :let={ticket}>

@@ -66,6 +66,7 @@ defmodule HelpdeskCommander.Accounts.User do
       argument :password_confirmation, :string, allow_nil?: false, sensitive?: true
 
       accept [:display_name]
+      change set_context(%{strategy_name: :password})
 
       change HelpdeskCommander.Accounts.User.Changes.NormalizeFields
       change HelpdeskCommander.Accounts.User.Changes.HashPassword
@@ -75,6 +76,7 @@ defmodule HelpdeskCommander.Accounts.User do
       require_atomic? false
       argument :password, :string, allow_nil?: false, sensitive?: true
       argument :password_confirmation, :string, allow_nil?: false, sensitive?: true
+      change set_context(%{strategy_name: :password})
       change HelpdeskCommander.Accounts.User.Changes.HashPassword
       change AshAuthentication.Strategy.Password.HashPasswordChange
     end

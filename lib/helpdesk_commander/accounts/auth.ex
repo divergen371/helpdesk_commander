@@ -7,6 +7,7 @@ defmodule HelpdeskCommander.Accounts.Auth do
   alias HelpdeskCommander.Accounts.Company
   alias HelpdeskCommander.Accounts.User
   alias HelpdeskCommander.Support.CompanyCode
+  alias HelpdeskCommander.Support.Error, as: ErrorLog
 
   @type auth_error ::
           :invalid_credentials
@@ -57,13 +58,17 @@ defmodule HelpdeskCommander.Accounts.Auth do
       {:ok, %Company{} = company} ->
         {:ok, company}
 
-      _result ->
+      {:ok, nil} ->
         Company
         |> Ash.Changeset.for_create(:create, %{
           name: default_company_name(),
           company_code: default_company_code()
         })
         |> Ash.create(domain: Accounts)
+
+      {:error, error} ->
+        ErrorLog.log_error("accounts.auth.default_company", error)
+        {:error, error}
     end
   end
 
@@ -89,8 +94,15 @@ defmodule HelpdeskCommander.Accounts.Auth do
         case Company
              |> filter(company_code_hash == ^hashed)
              |> Ash.read_one(domain: Accounts) do
-          {:ok, %Company{} = company} -> {:ok, company}
-          _result -> {:error, :company_not_found}
+          {:ok, %Company{} = company} ->
+            {:ok, company}
+
+          {:ok, nil} ->
+            {:error, :company_not_found}
+
+          {:error, error} ->
+            ErrorLog.log_error("accounts.auth.fetch_company", error)
+            {:error, :company_not_found}
         end
 
       {:error, :invalid_format} ->
@@ -110,8 +122,15 @@ defmodule HelpdeskCommander.Accounts.Auth do
       end
 
     case Ash.read_one(query, domain: Accounts) do
-      {:ok, %User{} = user} -> {:ok, user, used_email?}
-      _result -> {:error, :invalid_credentials}
+      {:ok, %User{} = user} ->
+        {:ok, user, used_email?}
+
+      {:ok, nil} ->
+        {:error, :invalid_credentials}
+
+      {:error, error} ->
+        ErrorLog.log_error("accounts.auth.fetch_user", error)
+        {:error, :invalid_credentials}
     end
   end
 
@@ -121,9 +140,18 @@ defmodule HelpdeskCommander.Accounts.Auth do
     query = filter(User, company_id == ^company_id and email == ^normalized)
 
     case Ash.read_one(query, domain: Accounts) do
-      {:ok, %User{status: "pending"} = user} -> {:ok, user}
-      {:ok, %User{}} -> {:error, :already_active}
-      _result -> {:error, :user_not_found}
+      {:ok, %User{status: "pending"} = user} ->
+        {:ok, user}
+
+      {:ok, %User{}} ->
+        {:error, :already_active}
+
+      {:ok, nil} ->
+        {:error, :user_not_found}
+
+      {:error, error} ->
+        ErrorLog.log_error("accounts.auth.fetch_pending_user", error)
+        {:error, :user_not_found}
     end
   end
 
@@ -140,9 +168,16 @@ defmodule HelpdeskCommander.Accounts.Auth do
         base_params
       end
 
-    user
-    |> Ash.Changeset.for_update(:register, params)
-    |> Ash.update(domain: Accounts)
+    changeset = Ash.Changeset.for_update(user, :register, params)
+
+    case Ash.update(changeset, domain: Accounts) do
+      {:ok, updated} ->
+        {:ok, updated}
+
+      {:error, error} ->
+        ErrorLog.log_error("accounts.auth.register_user", error, user_id: user.id)
+        {:error, error}
+    end
   end
 
   defp ensure_email_login_allowed(%User{login_id: nil}, true), do: :ok
@@ -166,9 +201,16 @@ defmodule HelpdeskCommander.Accounts.Auth do
   defp maybe_generate_login_id(%User{login_id: nil, company_id: company_id} = user, email, true) do
     login_id = generate_login_id(company_id, email)
 
-    user
-    |> Ash.Changeset.for_update(:set_login_id, %{login_id: login_id})
-    |> Ash.update(domain: Accounts)
+    changeset = Ash.Changeset.for_update(user, :set_login_id, %{login_id: login_id})
+
+    case Ash.update(changeset, domain: Accounts) do
+      {:ok, updated} ->
+        {:ok, updated}
+
+      {:error, error} ->
+        ErrorLog.log_error("accounts.auth.set_login_id", error, user_id: user.id)
+        {:error, error}
+    end
   end
 
   defp maybe_generate_login_id(user, _login_or_email, _used_email?), do: {:ok, user}

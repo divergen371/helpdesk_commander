@@ -8,8 +8,10 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   alias HelpdeskCommander.Helpdesk
   alias HelpdeskCommander.Helpdesk.Conversation
   alias HelpdeskCommander.Helpdesk.ConversationMessage
+  alias HelpdeskCommander.Helpdesk.Product
   alias HelpdeskCommander.Helpdesk.Ticket
   alias HelpdeskCommander.Helpdesk.TicketEvent
+  alias HelpdeskCommander.Support.Error, as: ErrorLog
   alias HelpdeskCommanderWeb.CurrentUser
 
   @messages_page_size 20
@@ -17,90 +19,206 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
   @impl Phoenix.LiveView
   def mount(%{"public_id" => public_id}, session, socket) do
-    ticket = Ash.get!(Ticket, %{public_id: public_id}, domain: Helpdesk)
     current_user = CurrentUser.fetch(session)
     external_user? = CurrentUser.external?(current_user)
 
-    can_view? =
-      not external_user? or
-        (current_user &&
-           (ticket.requester_id == current_user.id || ticket.visibility_scope == "global"))
+    case load_ticket_data(public_id, current_user, external_user?) do
+      {:ok, data} ->
+        {:ok, assign_ticket_socket(socket, data)}
 
-    if can_view? do
-      can_post_public? =
-        not external_user? or (current_user && ticket.requester_id == current_user.id)
+      {:error, :forbidden} ->
+        {:ok,
+         socket
+         |> put_flash(:error, "アクセス権限がありません")
+         |> push_navigate(to: ~p"/tickets")}
 
-      users =
-        User
-        |> Ash.read!(domain: Accounts)
-        |> Enum.sort_by(& &1.inserted_at, {:asc, DateTime})
+      {:error, :not_found} ->
+        {:ok,
+         socket
+         |> put_flash(:error, "チケットが見つかりません")
+         |> push_navigate(to: ~p"/tickets")}
 
-      users_by_id = Map.new(users, &{&1.id, &1})
+      {:error, {context, error}} ->
+        ErrorLog.log_error("ticket_live.show.#{context}", error, public_id: public_id)
 
-      {public_conversation, private_conversation} = ensure_conversations(ticket)
-
-      {public_messages, public_has_more?, public_oldest_id} =
-        fetch_messages(public_conversation.id)
-
-      {private_messages, private_has_more?, private_oldest_id} =
-        if external_user? do
-          {[], false, nil}
-        else
-          fetch_messages(private_conversation.id)
-        end
-
-      {events, events_has_more?, events_oldest_id} =
-        if external_user? do
-          {[], false, nil}
-        else
-          fetch_events(ticket.id)
-        end
-
-      update_form =
-        ticket
-        |> AshPhoenix.Form.for_update(:update, domain: Helpdesk)
-        |> to_form()
-
-      public_message_form =
-        ConversationMessage
-        |> AshPhoenix.Form.for_create(:create, domain: Helpdesk)
-        |> to_form(as: "public_message")
-
-      private_message_form =
-        ConversationMessage
-        |> AshPhoenix.Form.for_create(:create, domain: Helpdesk)
-        |> to_form(as: "private_message")
-
-      {:ok,
-       socket
-       |> assign(:page_title, "Ticket #{ticket.public_id}")
-       |> assign(:ticket, ticket)
-       |> assign(:users, users)
-       |> assign(:users_by_id, users_by_id)
-       |> assign(:current_user, current_user)
-       |> assign(:current_user_external?, external_user?)
-       |> assign(:can_post_public?, can_post_public?)
-       |> assign(:update_form, update_form)
-       |> assign(:public_message_form, public_message_form)
-       |> assign(:private_message_form, private_message_form)
-       |> assign(:public_conversation, public_conversation)
-       |> assign(:private_conversation, private_conversation)
-       |> assign(:public_messages_has_more?, public_has_more?)
-       |> assign(:public_messages_oldest_id, public_oldest_id)
-       |> assign(:private_messages_has_more?, private_has_more?)
-       |> assign(:private_messages_oldest_id, private_oldest_id)
-       |> assign(:events_has_more?, events_has_more?)
-       |> assign(:events_oldest_id, events_oldest_id)
-       |> stream(:public_messages, public_messages)
-       |> stream(:private_messages, private_messages)
-       |> stream(:events, events)}
-    else
-      {:ok,
-       socket
-       |> put_flash(:error, "アクセス権限がありません")
-       |> push_navigate(to: ~p"/tickets")}
+        {:ok,
+         socket
+         |> put_flash(:error, error_message(context))
+         |> push_navigate(to: ~p"/tickets")}
     end
   end
+
+  defp load_ticket_data(public_id, current_user, external_user?) do
+    with {:ok, ticket} <- load_ticket(public_id),
+         :ok <- authorize_ticket(ticket, current_user, external_user?),
+         {:ok, users, users_by_id} <- load_users(),
+         {:ok, conversations} <- ensure_conversations(ticket) do
+      build_ticket_data(ticket, current_user, external_user?, users, users_by_id, conversations)
+    else
+      {:error, _reason} = error -> error
+    end
+  end
+
+  defp load_ticket(public_id) do
+    case Ash.get(Ticket, %{public_id: public_id}, domain: Helpdesk) do
+      {:ok, %Ticket{} = ticket} ->
+        case Ash.load(ticket, [:product], domain: Helpdesk) do
+          {:ok, ticket} -> {:ok, ticket}
+          {:error, error} -> {:error, {:load_ticket, error}}
+        end
+
+      {:ok, nil} ->
+        {:error, :not_found}
+
+      {:error, error} ->
+        {:error, {:load_ticket, error}}
+    end
+  end
+
+  defp authorize_ticket(_ticket, _current_user, false), do: :ok
+
+  defp authorize_ticket(ticket, current_user, true) do
+    if current_user &&
+         (ticket.requester_id == current_user.id || ticket.visibility_scope == "global") do
+      :ok
+    else
+      {:error, :forbidden}
+    end
+  end
+
+  defp build_ticket_data(
+         ticket,
+         current_user,
+         external_user?,
+         users,
+         users_by_id,
+         {public_conversation, private_conversation}
+       ) do
+    can_post_public? =
+      not external_user? or (current_user && ticket.requester_id == current_user.id)
+
+    {public_messages, public_has_more?, public_oldest_id, public_warnings} =
+      load_messages(public_conversation.id, ticket.id, :public)
+
+    {private_messages, private_has_more?, private_oldest_id, private_warnings} =
+      load_private_messages(external_user?, private_conversation.id, ticket.id)
+
+    {events, events_has_more?, events_oldest_id, event_warnings} =
+      load_events(external_user?, ticket.id)
+
+    warnings = public_warnings ++ private_warnings ++ event_warnings
+
+    update_form =
+      ticket
+      |> AshPhoenix.Form.for_update(:update, domain: Helpdesk)
+      |> to_form()
+
+    public_message_form =
+      ConversationMessage
+      |> AshPhoenix.Form.for_create(:create, domain: Helpdesk)
+      |> to_form(as: "public_message")
+
+    private_message_form =
+      ConversationMessage
+      |> AshPhoenix.Form.for_create(:create, domain: Helpdesk)
+      |> to_form(as: "private_message")
+
+    {:ok,
+     %{
+       ticket: ticket,
+       users: users,
+       users_by_id: users_by_id,
+       current_user: current_user,
+       external_user?: external_user?,
+       can_post_public?: can_post_public?,
+       update_form: update_form,
+       public_message_form: public_message_form,
+       private_message_form: private_message_form,
+       public_conversation: public_conversation,
+       private_conversation: private_conversation,
+       public_messages: public_messages,
+       public_messages_has_more?: public_has_more?,
+       public_messages_oldest_id: public_oldest_id,
+       private_messages: private_messages,
+       private_messages_has_more?: private_has_more?,
+       private_messages_oldest_id: private_oldest_id,
+       events: events,
+       events_has_more?: events_has_more?,
+       events_oldest_id: events_oldest_id,
+       warnings: warnings
+     }}
+  end
+
+  defp assign_ticket_socket(socket, data) do
+    socket
+    |> assign(:page_title, "Ticket #{data.ticket.public_id}")
+    |> assign(:ticket, data.ticket)
+    |> assign(:users, data.users)
+    |> assign(:users_by_id, data.users_by_id)
+    |> assign(:current_user, data.current_user)
+    |> assign(:current_user_external?, data.external_user?)
+    |> assign(:can_post_public?, data.can_post_public?)
+    |> assign(:update_form, data.update_form)
+    |> assign(:public_message_form, data.public_message_form)
+    |> assign(:private_message_form, data.private_message_form)
+    |> assign(:public_conversation, data.public_conversation)
+    |> assign(:private_conversation, data.private_conversation)
+    |> assign(:public_messages_has_more?, data.public_messages_has_more?)
+    |> assign(:public_messages_oldest_id, data.public_messages_oldest_id)
+    |> assign(:private_messages_has_more?, data.private_messages_has_more?)
+    |> assign(:private_messages_oldest_id, data.private_messages_oldest_id)
+    |> assign(:events_has_more?, data.events_has_more?)
+    |> assign(:events_oldest_id, data.events_oldest_id)
+    |> stream(:public_messages, data.public_messages)
+    |> stream(:private_messages, data.private_messages)
+    |> stream(:events, data.events)
+    |> apply_flash_warnings(data.warnings)
+  end
+
+  defp apply_flash_warnings(socket, warnings) do
+    Enum.reduce(warnings, socket, fn message, socket ->
+      put_flash(socket, :error, message)
+    end)
+  end
+
+  defp load_messages(conversation_id, ticket_id, kind) do
+    case fetch_messages(conversation_id) do
+      {:ok, {messages, has_more?, oldest_id}} ->
+        {messages, has_more?, oldest_id, []}
+
+      {:error, error} ->
+        ErrorLog.log_error("ticket_live.show.fetch_#{kind}_messages", error,
+          ticket_id: ticket_id,
+          conversation_id: conversation_id
+        )
+
+        {[], false, nil, ["メッセージの取得に失敗しました"]}
+    end
+  end
+
+  defp load_private_messages(true, _conversation_id, _ticket_id), do: {[], false, nil, []}
+
+  defp load_private_messages(false, conversation_id, ticket_id) do
+    load_messages(conversation_id, ticket_id, :private)
+  end
+
+  defp load_events(true, _ticket_id), do: {[], false, nil, []}
+
+  defp load_events(false, ticket_id) do
+    case fetch_events(ticket_id) do
+      {:ok, {events, has_more?, oldest_id}} ->
+        {events, has_more?, oldest_id, []}
+
+      {:error, error} ->
+        ErrorLog.log_error("ticket_live.show.fetch_events", error, ticket_id: ticket_id)
+        {[], false, nil, ["イベントの取得に失敗しました"]}
+    end
+  end
+
+  defp error_message(:load_ticket), do: "チケットの取得に失敗しました"
+  defp error_message(:load_users), do: "ユーザー一覧の取得に失敗しました"
+  defp error_message(:ensure_conversations), do: "会話の初期化に失敗しました"
+  defp error_message(_context), do: "読み込みに失敗しました"
 
   @impl Phoenix.LiveView
   def handle_event("load_older_messages", %{"kind" => kind}, socket) do
@@ -110,14 +228,21 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
       before_id = message_oldest_id(socket, kind)
       conversation_id = conversation_id_for_kind(socket, kind)
 
-      {messages, has_more?, oldest_id} = fetch_messages(conversation_id, before_id)
-      next_oldest_id = oldest_id || before_id
+      case fetch_messages(conversation_id, before_id) do
+        {:ok, {messages, has_more?, oldest_id}} ->
+          next_oldest_id = oldest_id || before_id
 
-      {:noreply,
-       socket
-       |> assign(message_has_more_key(kind), has_more?)
-       |> assign(message_oldest_key(kind), next_oldest_id)
-       |> stream(message_stream_name(kind), messages, at: -1)}
+          {:noreply,
+           socket
+           |> assign(message_has_more_key(kind), has_more?)
+           |> assign(message_oldest_key(kind), next_oldest_id)
+           |> stream(message_stream_name(kind), messages, at: -1)}
+
+        {:error, error} ->
+          ErrorLog.log_error("ticket_live.show.load_older_messages", error, conversation_id: conversation_id)
+
+          {:noreply, put_flash(socket, :error, "メッセージの取得に失敗しました")}
+      end
     end
   end
 
@@ -127,13 +252,20 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
       {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
     else
       before_id = socket.assigns.events_oldest_id
-      {events, has_more?, oldest_id} = fetch_events(socket.assigns.ticket.id, before_id)
 
-      {:noreply,
-       socket
-       |> assign(:events_has_more?, has_more?)
-       |> assign(:events_oldest_id, oldest_id || before_id)
-       |> stream(:events, events, at: -1)}
+      case fetch_events(socket.assigns.ticket.id, before_id) do
+        {:ok, {events, has_more?, oldest_id}} ->
+          {:noreply,
+           socket
+           |> assign(:events_has_more?, has_more?)
+           |> assign(:events_oldest_id, oldest_id || before_id)
+           |> stream(:events, events, at: -1)}
+
+        {:error, error} ->
+          ErrorLog.log_error("ticket_live.show.load_older_events", error, ticket_id: socket.assigns.ticket.id)
+
+          {:noreply, put_flash(socket, :error, "イベントの取得に失敗しました")}
+      end
     end
   end
 
@@ -154,6 +286,8 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     else
       case AshPhoenix.Form.submit(socket.assigns.update_form, params: params) do
         {:ok, ticket} ->
+          ticket = load_ticket_product(ticket)
+
           update_form =
             ticket
             |> AshPhoenix.Form.for_update(:update, domain: Helpdesk)
@@ -216,7 +350,19 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
       case submission do
         {:ok, message} ->
-          ticket = Ash.get!(Ticket, %{id: socket.assigns.ticket.id}, domain: Helpdesk)
+          ticket =
+            case Ash.get(Ticket, %{id: socket.assigns.ticket.id}, domain: Helpdesk) do
+              {:ok, %Ticket{} = ticket} ->
+                load_ticket_product(ticket)
+
+              {:ok, nil} ->
+                socket.assigns.ticket
+
+              {:error, error} ->
+                ErrorLog.log_error("ticket_live.show.reload_ticket", error, ticket_id: socket.assigns.ticket.id)
+
+                socket.assigns.ticket
+            end
 
           form =
             ConversationMessage
@@ -265,11 +411,38 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   defp user_label(%User{role: "system"}), do: "System"
   defp user_label(%User{display_name: name, email: email}), do: "#{name} <#{email}>"
 
+  defp product_label(%Product{name: name}), do: name
+  defp product_label(_product), do: "-"
+
+  defp load_ticket_product(%Ticket{} = ticket) do
+    case Ash.load(ticket, [:product], domain: Helpdesk) do
+      {:ok, ticket} ->
+        ticket
+
+      {:error, error} ->
+        ErrorLog.log_error("ticket_live.show.load_product", error, ticket_id: ticket.id)
+        ticket
+    end
+  end
+
+  defp load_users do
+    case Ash.read(User, domain: Accounts) do
+      {:ok, users} ->
+        sorted = Enum.sort_by(users, & &1.inserted_at, {:asc, DateTime})
+        {:ok, sorted, Map.new(sorted, &{&1.id, &1})}
+
+      {:error, error} ->
+        {:error, {:load_users, error}}
+    end
+  end
+
   defp ensure_conversations(%Ticket{} = ticket) do
-    {
-      get_or_create_conversation(ticket, "internal_public"),
-      get_or_create_conversation(ticket, "internal_private")
-    }
+    with {:ok, public} <- get_or_create_conversation(ticket, "internal_public"),
+         {:ok, private} <- get_or_create_conversation(ticket, "internal_private") do
+      {:ok, {public, private}}
+    else
+      {:error, error} -> {:error, {:ensure_conversations, error}}
+    end
   end
 
   defp get_or_create_conversation(%Ticket{} = ticket, kind) do
@@ -280,59 +453,70 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
     case conversation_result do
       {:ok, %Conversation{} = conversation} ->
-        conversation
+        {:ok, conversation}
 
-      _result ->
-        Conversation
-        |> Ash.Changeset.for_create(:create, %{
-          ticket_id: ticket.id,
-          kind: kind,
-          created_by_id: ticket.requester_id
-        })
-        |> Ash.create!(domain: Helpdesk)
+      {:ok, nil} ->
+        create_conversation(ticket, kind)
+
+      {:error, error} ->
+        {:error, error}
     end
+  end
+
+  defp create_conversation(%Ticket{} = ticket, kind) do
+    Conversation
+    |> Ash.Changeset.for_create(:create, %{
+      ticket_id: ticket.id,
+      kind: kind,
+      created_by_id: ticket.requester_id
+    })
+    |> Ash.create(domain: Helpdesk)
   end
 
   defp fetch_messages(conversation_id, before_id \\ nil) do
     limit = @messages_page_size
 
-    query =
+    base_query =
       ConversationMessage
       |> filter(conversation_id == ^conversation_id)
       |> sort(id: :desc)
       |> maybe_before_id(before_id)
 
-    raw_messages =
-      query
-      |> Ash.Query.limit(limit + 1)
-      |> Ash.read!(domain: Helpdesk)
+    limited_query = Ash.Query.limit(base_query, limit + 1)
 
-    {messages, has_more?} = trim_to_limit(raw_messages, limit)
-    ordered_messages = Enum.reverse(messages)
-    oldest_id = oldest_id_from_list(ordered_messages)
+    case Ash.read(limited_query, domain: Helpdesk) do
+      {:ok, raw_messages} ->
+        {messages, has_more?} = trim_to_limit(raw_messages, limit)
+        ordered_messages = Enum.reverse(messages)
+        oldest_id = oldest_id_from_list(ordered_messages)
+        {:ok, {ordered_messages, has_more?, oldest_id}}
 
-    {ordered_messages, has_more?, oldest_id}
+      {:error, error} ->
+        {:error, error}
+    end
   end
 
   defp fetch_events(ticket_id, before_id \\ nil) do
     limit = @events_page_size
 
-    query =
+    base_query =
       TicketEvent
       |> filter(ticket_id == ^ticket_id)
       |> sort(id: :desc)
       |> maybe_before_id(before_id)
 
-    raw_events =
-      query
-      |> Ash.Query.limit(limit + 1)
-      |> Ash.read!(domain: Helpdesk)
+    limited_query = Ash.Query.limit(base_query, limit + 1)
 
-    {events, has_more?} = trim_to_limit(raw_events, limit)
-    ordered_events = Enum.reverse(events)
-    oldest_id = oldest_id_from_list(ordered_events)
+    case Ash.read(limited_query, domain: Helpdesk) do
+      {:ok, raw_events} ->
+        {events, has_more?} = trim_to_limit(raw_events, limit)
+        ordered_events = Enum.reverse(events)
+        oldest_id = oldest_id_from_list(ordered_events)
+        {:ok, {ordered_events, has_more?, oldest_id}}
 
-    {ordered_events, has_more?, oldest_id}
+      {:error, error} ->
+        {:error, error}
+    end
   end
 
   defp message_form_key("public"), do: "public_message"
@@ -437,6 +621,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
               <:item title="Status">{@ticket.status}</:item>
               <:item title="Priority">{@ticket.priority}</:item>
               <:item title="Type">{@ticket.type}</:item>
+              <:item title="Product">{product_label(@ticket.product)}</:item>
               <:item title="Inserted at">{format_dt(@ticket.inserted_at)}</:item>
             </.list>
 

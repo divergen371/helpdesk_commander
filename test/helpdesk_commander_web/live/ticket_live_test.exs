@@ -9,6 +9,7 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
   alias HelpdeskCommander.Helpdesk
   alias HelpdeskCommander.Helpdesk.Conversation
   alias HelpdeskCommander.Helpdesk.ConversationMessage
+  alias HelpdeskCommander.Helpdesk.Product
   alias HelpdeskCommander.Helpdesk.Ticket
   alias HelpdeskCommander.Helpdesk.TicketEvent
 
@@ -25,6 +26,7 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
 
   test "create ticket via new form", %{conn: conn} do
     user = create_user!()
+    product = create_product!(user.company_id)
     conn = log_in(conn, user)
 
     {:ok, view, _html} = live(conn, ~p"/tickets/new")
@@ -35,6 +37,7 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
       "type" => "incident",
       "status" => "new",
       "priority" => "p2",
+      "product_id" => to_string(product.id),
       "requester_id" => to_string(user.id)
     }
 
@@ -132,6 +135,87 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
     assert Enum.any?(events, &(&1.event_type == "message_posted" && &1.actor_id == user.id))
   end
 
+  test "load older messages and events", %{conn: conn} do
+    user = create_user!()
+    ticket = create_ticket!(user)
+    public_conversation = get_conversation!(ticket, "internal_public")
+
+    for index <- 1..21 do
+      _message = create_message!(public_conversation, user, "Message #{index}")
+    end
+
+    conn = log_in(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/tickets/#{ticket.public_id}")
+
+    assert has_element?(
+             view,
+             "button[phx-click=\"load_older_messages\"][phx-value-kind=\"public\"]"
+           )
+
+    assert has_element?(view, "button[phx-click=\"load_older_events\"]")
+
+    view
+    |> element("button[phx-click=\"load_older_messages\"][phx-value-kind=\"public\"]")
+    |> render_click()
+
+    view
+    |> element("button[phx-click=\"load_older_events\"]")
+    |> render_click()
+
+    assert has_element?(view, "#ticket-messages-public")
+  end
+
+  test "add private message to ticket", %{conn: conn} do
+    user = create_user!()
+    ticket = create_ticket!(user)
+    conn = log_in(conn, user)
+
+    {:ok, view, _html} = live(conn, ~p"/tickets/#{ticket.public_id}")
+
+    view
+    |> form("#ticket-message-form-private",
+      private_message: %{
+        "body" => "Internal note",
+        "sender_id" => to_string(user.id)
+      }
+    )
+    |> render_submit()
+
+    private_conversation = get_conversation!(ticket, "internal_private")
+
+    messages =
+      ConversationMessage
+      |> filter(conversation_id == ^private_conversation.id)
+      |> Ash.read!(domain: Helpdesk)
+
+    assert Enum.any?(messages, &(&1.body == "Internal note"))
+  end
+
+  test "external user posts public message", %{conn: conn} do
+    user = create_user!("customer")
+    ticket = create_ticket!(user)
+    conn = log_in(conn, user)
+
+    {:ok, view, _html} = live(conn, ~p"/tickets/#{ticket.public_id}")
+
+    view
+    |> form("#ticket-message-form-public",
+      public_message: %{
+        "body" => "Customer message"
+      }
+    )
+    |> render_submit()
+
+    public_conversation = get_conversation!(ticket, "internal_public")
+
+    messages =
+      ConversationMessage
+      |> filter(conversation_id == ^public_conversation.id)
+      |> Ash.read!(domain: Helpdesk)
+
+    assert Enum.any?(messages, &(&1.body == "Customer message" && &1.sender_id == user.id))
+  end
+
   test "external user sees only own tickets in index", %{conn: conn} do
     external_user = create_user!("customer")
     internal_user = create_user!()
@@ -186,11 +270,39 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
   end
 
   defp create_ticket!(%User{} = user) do
+    product = create_product!(user.company_id)
+
     Ticket
     |> Ash.Changeset.for_create(:create, %{
       subject: "Test ticket",
       description: "Test",
+      product_id: product.id,
       requester_id: user.id
+    })
+    |> Ash.create!(domain: Helpdesk)
+  end
+
+  defp create_product!(company_id) do
+    Product
+    |> Ash.Changeset.for_create(:create, %{
+      name: "Product #{System.unique_integer([:positive])}",
+      company_id: company_id
+    })
+    |> Ash.create!(domain: Helpdesk)
+  end
+
+  defp get_conversation!(%Ticket{} = ticket, kind) do
+    Conversation
+    |> filter(ticket_id == ^ticket.id and kind == ^kind)
+    |> Ash.read_one!(domain: Helpdesk)
+  end
+
+  defp create_message!(%Conversation{} = conversation, %User{} = sender, body) do
+    ConversationMessage
+    |> Ash.Changeset.for_create(:create, %{
+      body: body,
+      conversation_id: conversation.id,
+      sender_id: sender.id
     })
     |> Ash.create!(domain: Helpdesk)
   end

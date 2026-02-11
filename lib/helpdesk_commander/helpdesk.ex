@@ -7,6 +7,7 @@ defmodule HelpdeskCommander.Helpdesk do
     resource HelpdeskCommander.Helpdesk.Conversation
     resource HelpdeskCommander.Helpdesk.ConversationMessage
     resource HelpdeskCommander.Helpdesk.Inquiry
+    resource HelpdeskCommander.Helpdesk.Product
     resource HelpdeskCommander.Helpdesk.Ticket
     resource HelpdeskCommander.Helpdesk.TicketEvent
     resource HelpdeskCommander.Helpdesk.TicketMessage

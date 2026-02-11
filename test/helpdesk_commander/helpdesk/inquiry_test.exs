@@ -5,16 +5,19 @@ defmodule HelpdeskCommander.Helpdesk.InquiryTest do
   alias HelpdeskCommander.Accounts.User
   alias HelpdeskCommander.Helpdesk
   alias HelpdeskCommander.Helpdesk.Inquiry
+  alias HelpdeskCommander.Helpdesk.Product
   alias HelpdeskCommander.Helpdesk.Ticket
 
   test "creating inquiry creates a ticket and links requester" do
     user = create_user!()
+    product = create_product!(user.company_id)
 
     inquiry =
       Inquiry
       |> Ash.Changeset.for_create(:create, %{
         subject: "Need help",
         body: "Something broke",
+        product_id: product.id,
         requester_id: user.id
       })
       |> Ash.create!(domain: Helpdesk)
@@ -24,6 +27,7 @@ defmodule HelpdeskCommander.Helpdesk.InquiryTest do
     assert ticket.subject == "Need help"
     assert ticket.description == "Something broke"
     assert ticket.requester_id == user.id
+    assert ticket.product_id == product.id
   end
 
   defp create_user! do
@@ -38,5 +42,14 @@ defmodule HelpdeskCommander.Helpdesk.InquiryTest do
       status: "active"
     })
     |> Ash.create!(domain: Accounts)
+  end
+
+  defp create_product!(company_id) do
+    Product
+    |> Ash.Changeset.for_create(:create, %{
+      name: "Product #{System.unique_integer([:positive])}",
+      company_id: company_id
+    })
+    |> Ash.create!(domain: Helpdesk)
   end
 end

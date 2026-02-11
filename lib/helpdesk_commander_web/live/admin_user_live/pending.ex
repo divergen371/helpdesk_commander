@@ -7,11 +7,33 @@ defmodule HelpdeskCommanderWeb.AdminUserLive.Pending do
   alias HelpdeskCommander.Accounts.Auth
   alias HelpdeskCommander.Accounts.Company
   alias HelpdeskCommander.Accounts.User
+  alias HelpdeskCommander.Support.Error, as: ErrorLog
 
   @impl Phoenix.LiveView
   def mount(_params, _session, socket) do
-    users = pending_users()
-    companies = company_map()
+    {users, socket_after_users} =
+      case pending_users() do
+        {:ok, users} ->
+          {users, socket}
+
+        {:error, error} ->
+          ErrorLog.log_error("admin_user_live.pending.load_users", error)
+
+          {[], put_flash(socket, :error, "承認待ちユーザーの取得に失敗しました")}
+      end
+
+    {companies, socket_after_companies} =
+      case company_map() do
+        {:ok, companies} ->
+          {companies, socket_after_users}
+
+        {:error, error} ->
+          ErrorLog.log_error("admin_user_live.pending.load_companies", error)
+
+          {%{}, put_flash(socket_after_users, :error, "会社一覧の取得に失敗しました")}
+      end
+
+    socket = socket_after_companies
 
     {:ok,
      socket
@@ -24,29 +46,56 @@ defmodule HelpdeskCommanderWeb.AdminUserLive.Pending do
   def handle_event("approve", %{"id" => id}, socket) do
     user = Enum.find(socket.assigns.pending_users, fn user -> to_string(user.id) == id end)
 
-    case user && Auth.approve_user(user) do
-      {:ok, _user} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "承認しました")
-         |> assign(:pending_users, pending_users())}
+    case user do
+      nil ->
+        {:noreply, put_flash(socket, :error, "対象ユーザーが見つかりません")}
 
-      _result ->
-        {:noreply, put_flash(socket, :error, "承認に失敗しました")}
+      %User{} = user ->
+        case Auth.approve_user(user) do
+          {:ok, _user} ->
+            {users, socket} =
+              case pending_users() do
+                {:ok, users} ->
+                  {users, socket}
+
+                {:error, error} ->
+                  ErrorLog.log_error("admin_user_live.pending.reload_users", error)
+
+                  {socket.assigns.pending_users, put_flash(socket, :error, "承認待ちユーザーの取得に失敗しました")}
+              end
+
+            {:noreply,
+             socket
+             |> put_flash(:info, "承認しました")
+             |> assign(:pending_users, users)}
+
+          {:error, error} ->
+            ErrorLog.log_error("admin_user_live.pending.approve_user", error, user_id: user.id)
+            {:noreply, put_flash(socket, :error, "承認に失敗しました")}
+        end
     end
   end
 
   defp pending_users do
-    User
-    |> filter(status == "pending")
-    |> Ash.read!(domain: Accounts)
-    |> Enum.sort_by(& &1.inserted_at, {:asc, DateTime})
+    query = filter(User, status == "pending")
+
+    case Ash.read(query, domain: Accounts) do
+      {:ok, users} ->
+        {:ok, Enum.sort_by(users, & &1.inserted_at, {:asc, DateTime})}
+
+      {:error, error} ->
+        {:error, error}
+    end
   end
 
   defp company_map do
-    Company
-    |> Ash.read!(domain: Accounts)
-    |> Map.new(&{&1.id, &1})
+    case Ash.read(Company, domain: Accounts) do
+      {:ok, companies} ->
+        {:ok, Map.new(companies, &{&1.id, &1})}
+
+      {:error, error} ->
+        {:error, error}
+    end
   end
 
   defp company_name(companies, company_id) do

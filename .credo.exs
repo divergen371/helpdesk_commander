@@ -10,7 +10,6 @@
         # チェック対象のファイル
         included: [
           "lib/",
-          "test/",
           "priv/repo/seeds.exs"
         ],
         # チェック対象外のファイル
@@ -157,6 +156,52 @@
           {Credo.Check.Refactor.MapInto, []},
           {Credo.Check.Warning.LazyLogging, []}
         ]
+      }
+    },
+    %{
+      name: "test",
+      files: %{
+        included: [
+          "test/"
+        ],
+        excluded: [
+          ~r"/_build/",
+          ~r"/deps/",
+          ~r"/node_modules/",
+          ~r"/assets/",
+          ~r"/priv/static/"
+        ]
+      },
+      strict: true,
+      parse_timeout: 5000,
+      color: true,
+      checks: %{
+        enabled: [
+          # コンシステンシー（最低限）
+          {Credo.Check.Consistency.LineEndings, []},
+          {Credo.Check.Consistency.SpaceAroundOperators, []},
+          {Credo.Check.Consistency.SpaceInParentheses, []},
+          {Credo.Check.Consistency.TabsOrSpaces, []},
+          {Credo.Check.Consistency.UnusedVariableNames, []},
+
+          # テスト運用
+          {Credo.Check.Design.SkipTestWithoutComment, []},
+
+          # 可読性（最低限）
+          {Credo.Check.Readability.RedundantBlankLines, []},
+          {Credo.Check.Readability.Semicolons, []},
+          {Credo.Check.Readability.TrailingWhiteSpace, []},
+
+          # 警告（必須）
+          {Credo.Check.Warning.Dbg, []},
+          {Credo.Check.Warning.IExPry, []},
+          {Credo.Check.Warning.IoInspect, []},
+          {Credo.Check.Warning.LeakyEnvironment, []},
+          {Credo.Check.Warning.MixEnv, []},
+          {Credo.Check.Warning.UnsafeExec, []},
+          {Credo.Check.Warning.UnsafeToAtom, []}
+        ],
+        disabled: []
       }
     }
   ]

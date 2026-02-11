@@ -10,6 +10,7 @@ import Ash.Query
 
 alias HelpdeskCommander.Accounts
 alias HelpdeskCommander.Accounts.User
+alias HelpdeskCommander.Helpdesk.Product
 company = Accounts.Auth.default_company!()
 
 users = Ash.read!(User, domain: Accounts)
@@ -65,4 +66,19 @@ else
     |> Ash.create!(domain: Accounts)
 
   Logger.info("Seeded system user: #{system_email}")
+end
+
+products = Product |> filter(company_id == ^company.id) |> Ash.read!(domain: HelpdeskCommander.Helpdesk)
+
+if products == [] do
+  _product =
+    Product
+    |> Ash.Changeset.for_create(:create, %{
+      name: "Default Product",
+      description: "初期登録の製品",
+      company_id: company.id
+    })
+    |> Ash.create!(domain: HelpdeskCommander.Helpdesk)
+
+  Logger.info("Seeded default product: Default Product")
 end

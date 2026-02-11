@@ -72,6 +72,12 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
       public? true
     end
 
+    belongs_to :product, HelpdeskCommander.Helpdesk.Product do
+      attribute_type HelpdeskCommander.Types.BigInt
+      allow_nil? false
+      public? true
+    end
+
     belongs_to :requester, HelpdeskCommander.Accounts.User do
       attribute_type HelpdeskCommander.Types.BigInt
       allow_nil? false
@@ -116,6 +122,7 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
     create :create do
       accept [
         :company_id,
+        :product_id,
         :subject,
         :description,
         :type,
@@ -157,6 +164,7 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
     update :update do
       accept [
         :company_id,
+        :product_id,
         :subject,
         :description,
         :type,

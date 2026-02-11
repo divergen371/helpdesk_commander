@@ -10,12 +10,14 @@ defmodule HelpdeskCommander.Helpdesk.Inquiry.Changes.CreateTicket do
       subject = Ash.Changeset.get_attribute(changeset, :subject)
       body = Ash.Changeset.get_attribute(changeset, :body)
       requester_id = Ash.Changeset.get_attribute(changeset, :requester_id)
+      product_id = Ash.Changeset.get_attribute(changeset, :product_id)
 
       ticket_changeset =
         Ash.Changeset.for_create(Ticket, :create, %{
           subject: subject,
           description: body,
-          requester_id: requester_id
+          requester_id: requester_id,
+          product_id: product_id
         })
 
       case Ash.create(ticket_changeset, domain: Helpdesk) do

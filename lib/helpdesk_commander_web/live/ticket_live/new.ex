@@ -1,10 +1,13 @@
 defmodule HelpdeskCommanderWeb.TicketLive.New do
   use HelpdeskCommanderWeb, :live_view
+  import Ash.Query
 
   alias HelpdeskCommander.Accounts
   alias HelpdeskCommander.Accounts.User
   alias HelpdeskCommander.Helpdesk
+  alias HelpdeskCommander.Helpdesk.Product
   alias HelpdeskCommander.Helpdesk.Ticket
+  alias HelpdeskCommander.Support.Error, as: ErrorLog
   alias HelpdeskCommanderWeb.CurrentUser
 
   @impl Phoenix.LiveView
@@ -12,14 +15,26 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
     current_user = CurrentUser.fetch(session)
     external_user? = CurrentUser.external?(current_user)
 
-    users =
-      if external_user? and current_user do
-        [current_user]
-      else
-        User
-        |> Ash.read!(domain: Accounts)
-        |> Enum.reject(&(&1.role == "system"))
-        |> Enum.sort_by(& &1.inserted_at, {:asc, DateTime})
+    {users, socket_after_users, users_loaded?} =
+      case load_users(current_user, external_user?) do
+        {:ok, users} ->
+          {users, socket, true}
+
+        {:error, error} ->
+          ErrorLog.log_error("ticket_live.new.load_users", error, user_id: current_user && current_user.id)
+
+          {[], put_flash(socket, :error, "ユーザー一覧の取得に失敗しました"), false}
+      end
+
+    {products, socket_after_products, products_loaded?} =
+      case load_products(current_user) do
+        {:ok, products} ->
+          {products, socket_after_users, true}
+
+        {:error, error} ->
+          ErrorLog.log_error("ticket_live.new.load_products", error, user_id: current_user && current_user.id)
+
+          {[], put_flash(socket_after_users, :error, "製品一覧の取得に失敗しました"), false}
       end
 
     form =
@@ -28,15 +43,18 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
       |> to_form()
 
     show_sample_user? =
-      not external_user? and
+      users_loaded? and
+        not external_user? and
         (users == [] or (current_user && length(users) == 1 && hd(users).id == current_user.id))
 
     {:ok,
-     socket
+     socket_after_products
      |> assign(:page_title, "New Ticket")
      |> assign(:current_user, current_user)
      |> assign(:current_user_external?, external_user?)
      |> assign(:users, users)
+     |> assign(:products, products)
+     |> assign(:products_loaded?, products_loaded?)
      |> assign(:show_sample_user?, show_sample_user?)
      |> assign(:form, form)}
   end
@@ -70,39 +88,66 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
   @impl Phoenix.LiveView
   def handle_event("create_sample_user", _params, socket) do
     email = "user+#{System.unique_integer([:positive])}@example.com"
-    company = Accounts.Auth.default_company!()
+    company_result = Accounts.Auth.default_company()
 
-    changeset =
-      Ash.Changeset.for_create(User, :create, %{
-        email: email,
-        display_name: "Sample User",
-        company_id: company.id,
-        status: "active"
-      })
+    case company_result do
+      {:ok, company} ->
+        changeset =
+          Ash.Changeset.for_create(User, :create, %{
+            email: email,
+            display_name: "Sample User",
+            company_id: company.id,
+            status: "active"
+          })
 
-    _user = Ash.create!(changeset, domain: Accounts)
+        case Ash.create(changeset, domain: Accounts) do
+          {:ok, _user} ->
+            {users, socket, users_loaded?} =
+              case load_users(socket.assigns.current_user, socket.assigns.current_user_external?) do
+                {:ok, users} ->
+                  {users, socket, true}
 
-    users =
-      User
-      |> Ash.read!(domain: Accounts)
-      |> Enum.sort_by(& &1.inserted_at, {:asc, DateTime})
+                {:error, error} ->
+                  ErrorLog.log_error("ticket_live.new.reload_users", error)
 
-    show_sample_user? =
-      not socket.assigns.current_user_external? and
-        (users == [] or
-           (socket.assigns.current_user && length(users) == 1 &&
-              hd(users).id == socket.assigns.current_user.id))
+                  {socket.assigns.users, put_flash(socket, :error, "ユーザー一覧の取得に失敗しました"), false}
+              end
 
-    {:noreply,
-     socket
-     |> put_flash(:info, "サンプルユーザーを作成しました")
-     |> assign(:users, users)
-     |> assign(:show_sample_user?, show_sample_user?)}
+            show_sample_user? =
+              users_loaded? and
+                not socket.assigns.current_user_external? and
+                (users == [] or
+                   (socket.assigns.current_user && length(users) == 1 &&
+                      hd(users).id == socket.assigns.current_user.id))
+
+            {:noreply,
+             socket
+             |> put_flash(:info, "サンプルユーザーを作成しました")
+             |> assign(:users, users)
+             |> assign(:show_sample_user?, show_sample_user?)}
+
+          {:error, error} ->
+            ErrorLog.log_error("ticket_live.new.create_sample_user", error)
+
+            {:noreply, put_flash(socket, :error, "サンプルユーザーの作成に失敗しました")}
+        end
+
+      {:error, error} ->
+        ErrorLog.log_error("ticket_live.new.default_company", error)
+
+        {:noreply, put_flash(socket, :error, "会社情報の取得に失敗しました")}
+    end
   end
 
   defp user_options(users) do
     Enum.map(users, fn user ->
       {user_label(user), user.id}
+    end)
+  end
+
+  defp product_options(products) do
+    Enum.map(products, fn product ->
+      {product.name, product.id}
     end)
   end
 
@@ -114,6 +159,32 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
   end
 
   defp maybe_put_requester_id(params, _socket), do: params
+
+  defp load_users(current_user, external_user?) do
+    if external_user? and current_user do
+      {:ok, [current_user]}
+    else
+      case Ash.read(User, domain: Accounts) do
+        {:ok, users} ->
+          {:ok,
+           users
+           |> Enum.reject(&(&1.role == "system"))
+           |> Enum.sort_by(& &1.inserted_at, {:asc, DateTime})}
+
+        {:error, error} ->
+          {:error, error}
+      end
+    end
+  end
+
+  defp load_products(%User{company_id: company_id}) do
+    case Product |> filter(company_id == ^company_id) |> Ash.read(domain: Helpdesk) do
+      {:ok, products} -> {:ok, Enum.sort_by(products, & &1.name, :asc)}
+      {:error, error} -> {:error, error}
+    end
+  end
+
+  defp load_products(_current_user), do: {:ok, []}
 
   defp status_options do
     [
@@ -168,6 +239,14 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
         </.button>
       </div>
 
+      <div :if={@products_loaded? && @products == []} class="alert alert-warning">
+        <.icon name="hero-exclamation-triangle" class="size-5" />
+        <div>
+          <p class="font-semibold">製品が未登録です</p>
+          <p class="text-sm opacity-80">チケット作成前に製品マスタを登録してください。</p>
+        </div>
+      </div>
+
       <div class="card bg-base-100 border border-base-200">
         <div class="card-body">
           <.form for={@form} id="ticket-form" phx-change="validate" phx-submit="save">
@@ -179,6 +258,15 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
               <.input field={@form[:status]} type="select" label="ステータス" options={status_options()} />
               <.input field={@form[:priority]} type="select" label="優先度" options={priority_options()} />
             </div>
+
+            <.input
+              field={@form[:product_id]}
+              type="select"
+              label="対象製品/サービス"
+              prompt="選択してください"
+              options={product_options(@products)}
+              required
+            />
 
             <%= if @current_user_external? do %>
               <div class="rounded-box border border-base-200 p-4 text-sm">
@@ -202,7 +290,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
             <% end %>
 
             <div class="mt-6 flex justify-end">
-              <.button type="submit" variant="primary" disabled={@users == []}>
+              <.button type="submit" variant="primary" disabled={@users == [] or @products == []}>
                 作成
               </.button>
             </div>

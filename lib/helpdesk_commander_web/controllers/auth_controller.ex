@@ -3,6 +3,18 @@ defmodule HelpdeskCommanderWeb.AuthController do
   import Phoenix.Component, only: [to_form: 2]
 
   alias HelpdeskCommander.Accounts.Auth
+  alias HelpdeskCommander.Support.Error, as: ErrorLog
+
+  @expected_auth_errors [
+    :invalid_credentials,
+    :pending_approval,
+    :email_login_disabled,
+    :invalid_company_code,
+    :company_not_found,
+    :user_not_found,
+    :already_active,
+    :inactive
+  ]
 
   @spec new(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def new(conn, _params) do
@@ -42,7 +54,9 @@ defmodule HelpdeskCommanderWeb.AuthController do
         |> put_flash(:error, "会社が見つかりません")
         |> render(:sign_in, form: to_form(params, as: "session"))
 
-      {:error, _reason} ->
+      {:error, reason} ->
+        log_unexpected_auth_error("sign_in", reason)
+
         conn
         |> put_flash(:error, "ログインに失敗しました")
         |> render(:sign_in, form: to_form(params, as: "session"))
@@ -88,7 +102,9 @@ defmodule HelpdeskCommanderWeb.AuthController do
         |> put_flash(:error, "既に登録済みです。ログインしてください。")
         |> redirect(to: ~p"/sign-in")
 
-      {:error, _reason} ->
+      {:error, reason} ->
+        log_unexpected_auth_error("sign_up", reason)
+
         conn
         |> put_flash(:error, "登録に失敗しました。入力内容をご確認ください。")
         |> render(:sign_up, form: to_form(params, as: "registration"))
@@ -100,5 +116,11 @@ defmodule HelpdeskCommanderWeb.AuthController do
     conn
     |> configure_session(drop: true)
     |> redirect(to: ~p"/sign-in")
+  end
+
+  defp log_unexpected_auth_error(_action, reason) when reason in @expected_auth_errors, do: :ok
+
+  defp log_unexpected_auth_error(action, reason) do
+    ErrorLog.log_error("auth.#{action}", reason)
   end
 end

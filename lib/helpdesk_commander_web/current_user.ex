@@ -3,6 +3,7 @@ defmodule HelpdeskCommanderWeb.CurrentUser do
 
   alias HelpdeskCommander.Accounts
   alias HelpdeskCommander.Accounts.User
+  alias HelpdeskCommander.Support.Error, as: ErrorLog
 
   @external_roles ~w(customer external)
   @admin_roles ~w(admin leader)
@@ -39,8 +40,15 @@ defmodule HelpdeskCommanderWeb.CurrentUser do
 
       id ->
         case Ash.get(User, %{id: id}, domain: Accounts) do
-          {:ok, %User{} = user} -> user
-          _result -> nil
+          {:ok, %User{} = user} ->
+            user
+
+          {:ok, nil} ->
+            nil
+
+          {:error, error} ->
+            ErrorLog.log_warn("current_user.fetch", error, user_id: id)
+            nil
         end
     end
   end
