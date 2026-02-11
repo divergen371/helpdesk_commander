@@ -32,3 +32,5 @@
 - Inquiry リソースと `CreateTicket` 変更を追加し、Inquiry 作成時に Ticket を自動生成する流れを実装
 - `add_inquiries` マイグレーション/スナップショットを生成
 - Inquiry の UI/テスト/運用フローは未着手
+- UI差し替え（React/Vue/Corex等）に伴う JSON API 化の設計メモを `docs/DESIGN_API_MIGRATION.md` に追加
+  - 段階移行の方針、認証（Cookie/Token）、エラー標準、セキュリティ、テスト方針、AshJsonApi/GraphQL 拡張の選択肢を整理

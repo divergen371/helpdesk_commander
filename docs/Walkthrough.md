@@ -441,3 +441,13 @@ mix phx.server
 
 - `lib/` は従来どおりフルチェックを維持
 - `test/` は最小チェック（最低限の整形 + 安全系警告）に限定
+
+---
+
+## 2026-02-11 09:05 UTC
+
+### JSON API 化の設計メモを追加
+
+- `docs/DESIGN_API_MIGRATION.md` を新規作成
+- LiveView → React/Vue/Corex 等への UI 差し替えに備えた JSON API 段階移行の方針を整理
+- 選択肢（薄い Phoenix コントローラ / AshJsonApi / AshGraphql）、認証、エラー標準、セキュリティ、テスト方針、ロードマップ等を記載
