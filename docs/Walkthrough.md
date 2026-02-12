@@ -506,3 +506,15 @@ mix phx.server
 - チケット詳細から社内ユーザー向け別ページへ遷移し候補一覧を表示
 - 段階的アプローチを追加（段階1: git log+grep / 段階2: RAG / 段階3: エージェント検証）
 - CodeRabbit/Cursor/Antigravityの手法を参考情報として追記
+
+---
+
+## 2026-02-12 02:08 UTC
+
+### DB関連情報の非公開化
+
+- publicリポジトリからDBスキーマ情報を除去（攻撃面の開示リスク対策）
+- `README.md` の「データベーススキーマ」セクションを削除
+- `docs/DB_SCHEMA.md` / `docs/ERD.md` を `.gitignore` に追加し追跡停止
+- `git filter-repo` で上記2ファイルをコミット履歴から完全に除去
+- force push でリモートに反映
