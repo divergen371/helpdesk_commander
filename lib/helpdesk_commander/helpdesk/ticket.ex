@@ -113,11 +113,6 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
       public? true
     end
 
-    has_many :messages, HelpdeskCommander.Helpdesk.TicketMessage do
-      destination_attribute :ticket_id
-      public? true
-    end
-
     has_many :conversations, HelpdeskCommander.Helpdesk.Conversation do
       destination_attribute :ticket_id
       public? true

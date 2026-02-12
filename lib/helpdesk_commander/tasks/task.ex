@@ -37,6 +37,12 @@ defmodule HelpdeskCommander.Tasks.Task do
   end
 
   relationships do
+    belongs_to :company, HelpdeskCommander.Accounts.Company do
+      attribute_type HelpdeskCommander.Types.BigInt
+      allow_nil? false
+      public? true
+    end
+
     belongs_to :assignee, HelpdeskCommander.Accounts.User do
       attribute_type HelpdeskCommander.Types.BigInt
       allow_nil? true
@@ -52,7 +58,7 @@ defmodule HelpdeskCommander.Tasks.Task do
     defaults [:read, :destroy]
 
     create :create do
-      accept [:title, :description, :status, :priority, :due_date, :assignee_id]
+      accept [:title, :description, :status, :priority, :due_date, :assignee_id, :company_id]
     end
 
     update :update do
@@ -79,7 +85,8 @@ defmodule HelpdeskCommander.Tasks.Task do
                    event_type: "priority_changed",
                    data: data,
                    task_id: task.id,
-                   actor_id: Ash.Changeset.get_argument(changeset, :actor_id)
+                   actor_id: Ash.Changeset.get_argument(changeset, :actor_id),
+                   company_id: task.company_id
                  })
                  |> Ash.create!(domain: HelpdeskCommander.Tasks)
 

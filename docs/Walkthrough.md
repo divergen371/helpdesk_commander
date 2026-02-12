@@ -518,3 +518,18 @@ mix phx.server
 - `docs/DB_SCHEMA.md` / `docs/ERD.md` を `.gitignore` に追加し追跡停止
 - `git filter-repo` で上記2ファイルをコミット履歴から完全に除去
 - force push でリモートに反映
+
+---
+
+## 2026-02-12 02:20 UTC
+
+### DBスキーマ整合性の修正
+
+- **tasks / task_events に company_id を追加**: マルチテナント分離の欠落を修正。既存データは assignee → 親 task から逆引きで backfill
+- **推奨インデックスの追加**: tickets（status, priority, assignee_id+status, requester_id, latest_message_at desc）、ticket_links（ticket_id, related_ticket_id）、conversation_messages（sender_id+inserted_at desc）
+- **ticket_messages テーブルを DROP**: conversation_messages 移行後の残存テーブルを削除
+- **ticket_message.ex リソースを削除**: Ash domain 登録と Ticket の has_many :messages を除去
+- **lock_version を integer に統一**: bigint → integer に変更（Ash 定義との整合）
+- Task / TaskEvent の Ash リソースに `belongs_to :company` を追加、create アクションで `company_id` を受け入れ
+- `set_priority` アクション内の TaskEvent 作成に `company_id` を伝播
+- テストを修正し `mix precommit` を通過（1 property, 68 tests, 0 failures）

@@ -11,6 +11,5 @@ defmodule HelpdeskCommander.Helpdesk do
     resource HelpdeskCommander.Helpdesk.Ticket
     resource HelpdeskCommander.Helpdesk.TicketEvent
     resource HelpdeskCommander.Helpdesk.TicketLink
-    resource HelpdeskCommander.Helpdesk.TicketMessage
   end
 end

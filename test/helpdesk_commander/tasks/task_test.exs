@@ -14,7 +14,7 @@ defmodule HelpdeskCommander.Tasks.TaskTest do
 
     task =
       Task
-      |> Ash.Changeset.for_create(:create, %{title: "Initial task"})
+      |> Ash.Changeset.for_create(:create, %{title: "Initial task", company_id: user.company_id})
       |> Ash.create!(domain: Tasks)
 
     updated =

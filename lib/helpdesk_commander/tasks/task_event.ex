@@ -26,6 +26,12 @@ defmodule HelpdeskCommander.Tasks.TaskEvent do
   end
 
   relationships do
+    belongs_to :company, HelpdeskCommander.Accounts.Company do
+      attribute_type HelpdeskCommander.Types.BigInt
+      allow_nil? false
+      public? true
+    end
+
     belongs_to :task, HelpdeskCommander.Tasks.Task do
       attribute_type HelpdeskCommander.Types.BigInt
       allow_nil? false
@@ -43,7 +49,7 @@ defmodule HelpdeskCommander.Tasks.TaskEvent do
     defaults [:read]
 
     create :create do
-      accept [:event_type, :data, :task_id, :actor_id]
+      accept [:event_type, :data, :task_id, :actor_id, :company_id]
     end
   end
 end
