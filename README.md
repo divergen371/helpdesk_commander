@@ -205,48 +205,6 @@ make clean
 make help
 ```
 
-## 📊 データベーススキーマ
-
-### users テーブル
-
-| カラム名     | 型        | 説明               |
-|-------------|----------|-------------------|
-| id          | uuid     | 主キー             |
-| name        | string   | ユーザー名         |
-| email       | string   | メールアドレス     |
-| role        | string   | ロール（admin/agent/user）|
-| inserted_at | datetime | 作成日時           |
-| updated_at  | datetime | 更新日時           |
-
-### tasks テーブル
-
-| カラム名     | 型        | 説明                          |
-|-------------|----------|------------------------------|
-| id          | uuid     | 主キー                        |
-| title       | string   | タスク名                      |
-| description | text     | タスクの説明                   |
-| status      | string   | ステータス                     |
-| priority    | string   | 優先度                        |
-| due_date    | date     | 期限                          |
-| user_id     | uuid     | 担当者ID                      |
-| inserted_at | datetime | 作成日時                       |
-| updated_at  | datetime | 更新日時                       |
-
-### tickets テーブル
-
-| カラム名      | 型        | 説明                          |
-|--------------|----------|------------------------------|
-| id           | uuid     | 主キー                        |
-| subject      | string   | 件名                          |
-| description  | text     | 詳細                          |
-| status       | string   | ステータス                     |
-| priority     | string   | 優先度                        |
-| requester_id | uuid     | 問い合わせ者ID                 |
-| assignee_id  | uuid     | 担当者ID                      |
-| closed_at    | datetime | クローズ日時                   |
-| inserted_at  | datetime | 作成日時                       |
-| updated_at   | datetime | 更新日時                       |
-
 ## 🔧 設定
 
 ### データベース接続

@@ -86,6 +86,10 @@ npm-debug.log
 *.bak
 *.backup
 
+# DB schema / ERD docs (sensitive internal design)
+docs/DB_SCHEMA.md
+docs/ERD.md
+
 # OS generated files
 .DS_Store
 .DS_Store?
