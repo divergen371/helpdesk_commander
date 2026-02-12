@@ -187,6 +187,8 @@ defmodule HelpdeskCommander.Accounts.Auth do
 
   defp ensure_active(%User{status: "active"}), do: :ok
   defp ensure_active(%User{status: "pending"}), do: {:error, :pending_approval}
+  defp ensure_active(%User{status: "suspended"}), do: {:error, :account_suspended}
+  defp ensure_active(%User{status: "anonymized"}), do: {:error, :account_deleted}
   defp ensure_active(%User{}), do: {:error, :inactive}
 
   defp verify_password(%User{password_hash: nil}, _password), do: {:error, :invalid_credentials}

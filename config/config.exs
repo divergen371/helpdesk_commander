@@ -25,7 +25,11 @@ config :helpdesk_commander,
 config :helpdesk_commander, Oban,
   repo: HelpdeskCommander.Repo,
   plugins: [
-    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7}
+    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
+    {Oban.Plugins.Cron,
+     crontab: [
+       {"0 3 * * *", HelpdeskCommander.Workers.AnonymizeExpiredUsersWorker}
+     ]}
   ],
   queues: [default: 10, notifications: 10, integrations: 5]
 

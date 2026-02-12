@@ -27,6 +27,24 @@ defmodule HelpdeskCommanderWeb.CurrentUser do
   def active?(%User{status: "active"}), do: true
   def active?(_user), do: false
 
+  @spec suspended?(User.t() | nil) :: boolean()
+  def suspended?(%User{status: "suspended"}), do: true
+  def suspended?(_user), do: false
+
+  @spec anonymized?(User.t() | nil) :: boolean()
+  def anonymized?(%User{status: "anonymized"}), do: true
+  def anonymized?(_user), do: false
+
+  @spec display_label(User.t()) :: String.t()
+  def display_label(%User{status: "anonymized"}), do: "削除済みユーザー"
+  def display_label(%User{role: "system"}), do: "System"
+
+  def display_label(%User{status: "suspended", display_name: name}),
+    do: "#{name}（無効）"
+
+  def display_label(%User{display_name: name, email: email}),
+    do: "#{name} <#{email}>"
+
   defp user_id_from_session(session) do
     Map.get(session, "user_id") || Map.get(session, :user_id)
   end

@@ -80,12 +80,12 @@ defmodule HelpdeskCommander.Accounts.AuthTest do
     assert {:error, :invalid_credentials} = Auth.authenticate(company_code, "nopass", @password)
   end
 
-  test "authenticate returns inactive for inactive user" do
+  test "authenticate returns account_suspended for suspended user" do
     company_code = unique_company_code()
     company = create_company!(company_code)
-    _user = create_user!(company, status: "inactive", login_id: "inactive")
+    _user = create_user!(company, status: "suspended", login_id: "suspended")
 
-    assert {:error, :inactive} = Auth.authenticate(company_code, "inactive", @password)
+    assert {:error, :account_suspended} = Auth.authenticate(company_code, "suspended", @password)
   end
 
   test "register_pending_user updates password and display_name" do

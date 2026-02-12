@@ -32,8 +32,15 @@ defmodule HelpdeskCommander.Accounts.User do
       constraints: [min_length: 1, max_length: 100]
 
     attribute :password_hash, :string, allow_nil?: true, sensitive?: true
-    attribute :status, :string, allow_nil?: false, default: "pending"
+
+    attribute :status, :string,
+      allow_nil?: false,
+      default: "pending",
+      constraints: [match: ~r/^(pending|active|suspended|anonymized)$/]
+
     attribute :role, :string, allow_nil?: false, default: "user"
+    attribute :suspended_at, :utc_datetime_usec
+    attribute :anonymized_at, :utc_datetime_usec
 
     timestamps()
   end
@@ -44,7 +51,7 @@ defmodule HelpdeskCommander.Accounts.User do
   end
 
   actions do
-    defaults [:read, :destroy]
+    defaults [:read]
 
     create :create do
       accept [:company_id, :email, :display_name, :role, :status, :login_id]
@@ -90,6 +97,31 @@ defmodule HelpdeskCommander.Accounts.User do
       accept [:login_id]
 
       change HelpdeskCommander.Accounts.User.Changes.NormalizeFields
+    end
+
+    update :suspend do
+      require_atomic? false
+
+      change set_attribute(:status, "suspended")
+      change set_attribute(:password_hash, nil)
+      change set_attribute(:suspended_at, &DateTime.utc_now/0)
+    end
+
+    update :anonymize do
+      require_atomic? false
+
+      change fn changeset, _context ->
+        user = changeset.data
+        anon_email = "deleted-#{user.id}@anonymized.local"
+
+        changeset
+        |> Ash.Changeset.change_attribute(:status, "anonymized")
+        |> Ash.Changeset.change_attribute(:email, anon_email)
+        |> Ash.Changeset.change_attribute(:display_name, "削除済みユーザー")
+        |> Ash.Changeset.change_attribute(:login_id, nil)
+        |> Ash.Changeset.change_attribute(:password_hash, nil)
+        |> Ash.Changeset.change_attribute(:anonymized_at, DateTime.utc_now())
+      end
     end
   end
 

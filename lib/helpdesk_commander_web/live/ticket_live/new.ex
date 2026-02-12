@@ -151,8 +151,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
     end)
   end
 
-  defp user_label(%User{role: "system"}), do: "System"
-  defp user_label(%User{display_name: name, email: email}), do: "#{name} <#{email}>"
+  defp user_label(user), do: CurrentUser.display_label(user)
 
   defp maybe_put_requester_id(params, %{assigns: %{current_user_external?: true, current_user: %User{id: id}}}) do
     Map.put(params, "requester_id", id)
@@ -168,7 +167,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
         {:ok, users} ->
           {:ok,
            users
-           |> Enum.reject(&(&1.role == "system"))
+           |> Enum.reject(&(&1.role == "system" or &1.status in ~w(suspended anonymized)))
            |> Enum.sort_by(& &1.inserted_at, {:asc, DateTime})}
 
         {:error, error} ->

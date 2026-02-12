@@ -533,3 +533,21 @@ mix phx.server
 - Task / TaskEvent の Ash リソースに `belongs_to :company` を追加、create アクションで `company_id` を受け入れ
 - `set_priority` アクション内の TaskEvent 作成に `company_id` を伝播
 - テストを修正し `mix precommit` を通過（1 property, 68 tests, 0 failures）
+
+---
+
+## 2026-02-12 02:40 UTC
+
+### ユーザー削除ポリシーの実装（ステータス無効化 + 遅延匿名化）
+
+- 設計ノート `docs/DESIGN_USER_DELETION.md` を作成
+- 物理削除・`deleted_at` は不採用。既存の `status` に `suspended` / `anonymized` を追加
+- `users` に `suspended_at` / `anonymized_at` カラムを追加（マイグレーション）
+- User リソースに `suspend` / `anonymize` アクションを追加、`:destroy` を除去
+- `suspend`: パスワード消去 + ログイン不可、表示名は維持
+- `anonymize`: PII 除去（email/display_name/login_id）、UNIQUE 解消で同一メール再登録可
+- `CurrentUser.display_label/1` を新設し、suspended「名前（無効）」/ anonymized「削除済みユーザー」を統一表示
+- LiveView の `user_label` を `display_label` に統合、ユーザー選択肢から suspended/anonymized を除外
+- `AnonymizeExpiredUsersWorker` Oban ジョブを作成（30日経過で自動匿名化、毎日 03:00 UTC）
+- 認証の `ensure_active` に `account_suspended` / `account_deleted` を追加
+- テスト 10件追加、`mix precommit` を通過（1 property, 78 tests, 0 failures）

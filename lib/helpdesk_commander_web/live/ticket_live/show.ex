@@ -483,8 +483,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     end)
   end
 
-  defp user_label(%User{role: "system"}), do: "System"
-  defp user_label(%User{display_name: name, email: email}), do: "#{name} <#{email}>"
+  defp user_label(user), do: HelpdeskCommanderWeb.CurrentUser.display_label(user)
 
   defp product_label(%Product{name: name}), do: name
   defp product_label(_product), do: "-"
