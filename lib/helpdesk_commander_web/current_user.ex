@@ -3,10 +3,10 @@ defmodule HelpdeskCommanderWeb.CurrentUser do
 
   alias HelpdeskCommander.Accounts
   alias HelpdeskCommander.Accounts.User
+  alias HelpdeskCommander.Authorization
   alias HelpdeskCommander.Support.Error, as: ErrorLog
 
   @external_roles ~w(customer external)
-  @admin_roles ~w(admin leader)
 
   @spec fetch(map()) :: User.t() | nil
   def fetch(session) when is_map(session) do
@@ -20,7 +20,7 @@ defmodule HelpdeskCommanderWeb.CurrentUser do
   def external?(_user), do: false
 
   @spec admin?(User.t() | nil) :: boolean()
-  def admin?(%User{role: role}), do: role in @admin_roles
+  def admin?(%User{} = user), do: Authorization.privileged_role?(user)
   def admin?(_user), do: false
 
   @spec active?(User.t() | nil) :: boolean()

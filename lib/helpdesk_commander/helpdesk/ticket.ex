@@ -5,9 +5,12 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
 
   import Ash.Query
 
+  alias HelpdeskCommander.Accounts
+  alias HelpdeskCommander.Accounts.User
   alias HelpdeskCommander.Helpdesk.Conversation
   alias HelpdeskCommander.Helpdesk.TicketEvent
   alias HelpdeskCommander.Support.PublicId
+  alias HelpdeskCommander.Workers.CreateTicketNotificationsWorker
 
   @status_regex ~r/^(new|triage|in_progress|waiting|resolved|verified|closed)$/
 
@@ -123,6 +126,11 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
       public? true
     end
 
+    has_many :verifications, HelpdeskCommander.Helpdesk.TicketVerification do
+      destination_attribute :ticket_id
+      public? true
+    end
+
     has_many :outgoing_links, HelpdeskCommander.Helpdesk.TicketLink do
       destination_attribute :ticket_id
       public? true
@@ -184,6 +192,10 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
     end
 
     update :update do
+      require_atomic? false
+
+      argument :actor_id, HelpdeskCommander.Types.BigInt, allow_nil?: true
+
       accept [
         :company_id,
         :product_id,
@@ -205,6 +217,10 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
         :assignee_id
       ]
 
+      change fn changeset, context ->
+        enforce_privileged_update_permissions(changeset, context)
+      end
+
       change optimistic_lock(:lock_version)
     end
 
@@ -214,8 +230,8 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
       argument :status, :string, allow_nil?: false
       argument :actor_id, HelpdeskCommander.Types.BigInt, allow_nil?: false
 
-      change fn changeset, _context ->
-        apply_status_transition(changeset)
+      change fn changeset, context ->
+        apply_status_transition(changeset, context)
       end
 
       change optimistic_lock(:lock_version)
@@ -246,6 +262,19 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
                      company_id: ticket.company_id
                    })
                    |> Ash.create!(domain: HelpdeskCommander.Helpdesk)
+
+                 if to_status == "resolved" do
+                   _job =
+                     CreateTicketNotificationsWorker.enqueue(%{
+                       notification_type: "ticket_resolved_review_required",
+                       title: "検証待ちチケット",
+                       body: "Ticket #{ticket.public_id} が resolved になりました。検証/承認を確認してください。",
+                       company_id: ticket.company_id,
+                       ticket_id: ticket.id,
+                       actor_id: Ash.Changeset.get_argument(changeset, :actor_id),
+                       meta: %{from: from_status, to: to_status}
+                     })
+                 end
                end
 
                {:ok, ticket}
@@ -273,7 +302,7 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
     end
   end
 
-  defp apply_status_transition(changeset) do
+  defp apply_status_transition(changeset, context) do
     from_status = changeset.data.status
     to_status = Ash.Changeset.get_argument(changeset, :status)
 
@@ -283,6 +312,21 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
 
       from_status == to_status ->
         changeset
+
+      allowed_status_transition?(from_status, to_status) and status_requires_privileged_role?(to_status) ->
+        case fetch_actor(changeset, context) do
+          {:ok, %User{} = actor} ->
+            if privileged_role?(actor) do
+              changeset
+              |> Ash.Changeset.change_attribute(:status, to_status)
+              |> maybe_set_status_timestamps(from_status, to_status)
+            else
+              add_privileged_role_error(changeset, "このステータスへの遷移は管理者/リーダーのみ可能です")
+            end
+
+          _result ->
+            add_privileged_role_error(changeset, "権限判定に必要な操作ユーザー情報が不足しています")
+        end
 
       allowed_status_transition?(from_status, to_status) ->
         changeset
@@ -319,6 +363,55 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
   end
 
   defp maybe_set_status_timestamps(changeset, _from_status, _to_status), do: changeset
+
+  defp enforce_privileged_update_permissions(changeset, context) do
+    if privileged_update?(changeset) do
+      case fetch_actor(changeset, context) do
+        {:ok, %User{} = actor} ->
+          if privileged_role?(actor) do
+            changeset
+          else
+            add_privileged_role_error(changeset, "優先度・担当者の確定は管理者/リーダーのみ可能です")
+          end
+
+        _result ->
+          add_privileged_role_error(changeset, "権限判定に必要な操作ユーザー情報が不足しています")
+      end
+    else
+      changeset
+    end
+  end
+
+  defp privileged_update?(changeset) do
+    attribute_changed?(changeset, :priority) or attribute_changed?(changeset, :assignee_id)
+  end
+
+  defp attribute_changed?(changeset, field) do
+    Ash.Changeset.get_attribute(changeset, field) != Map.get(changeset.data, field)
+  end
+
+  defp status_requires_privileged_role?(status), do: status in ~w(verified closed)
+
+  defp fetch_actor(changeset, context) do
+    actor_id = Ash.Changeset.get_argument(changeset, :actor_id) || actor_id_from_context(context)
+
+    case actor_id do
+      nil -> {:error, :missing_actor}
+      id -> Ash.get(User, %{id: id}, domain: Accounts)
+    end
+  end
+
+  defp actor_id_from_context(%{actor: %User{id: id}}), do: id
+  defp actor_id_from_context(%{actor: %{id: id}}) when is_integer(id), do: id
+  defp actor_id_from_context(_context), do: nil
+  defp privileged_role?(%User{role: role}), do: role in ~w(admin leader)
+
+  defp add_privileged_role_error(changeset, message) do
+    Ash.Changeset.add_error(changeset,
+      field: :actor_id,
+      message: message
+    )
+  end
 
   defp maybe_set_timestamp(changeset, field) do
     case Ash.Changeset.get_attribute(changeset, field) do

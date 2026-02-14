@@ -88,6 +88,14 @@ defmodule HelpdeskCommander.Accounts.AuthTest do
     assert {:error, :account_suspended} = Auth.authenticate(company_code, "suspended", @password)
   end
 
+  test "authenticate returns account_deleted for anonymized user" do
+    company_code = unique_company_code()
+    company = create_company!(company_code)
+    _user = create_user!(company, status: "anonymized", login_id: "deleted")
+
+    assert {:error, :account_deleted} = Auth.authenticate(company_code, "deleted", @password)
+  end
+
   test "register_pending_user updates password and display_name" do
     company_code = unique_company_code()
     company = create_company!(company_code)

@@ -29,11 +29,9 @@
 - `stream_data` 依存追加
 - `HelpdeskCommander.PropertyCase` 追加
 
-### 5) PropEr 導入＆実行
-- `proper` 依存追加
-- PropEr の property を追加（`test/support/proper_public_id.erl`）
-- ExUnit から `:proper.quickcheck/2` を実行するテスト追加
-- `erlc_paths` 追加で `.erl` をテスト時にコンパイル
+### 5) PropCheck 導入＆実行
+- `propcheck` 依存追加
+- PropCheck の property を追加（Elixirテストで実装）
 - `mix precommit` で検証
 
 ### 6) ドキュメント更新
@@ -79,8 +77,8 @@
 - SLA定義/監視/可視化
 
 ### G. 品質・運用
-- PropEr のテスト拡充（Ticket/Task の性質）
-- CI で PropEr テストも実行
+- PropCheck のテスト拡充（Ticket/Task の性質）
+- CI で PropCheck テストも実行
 - データ移行／バックアップ手順の整理
 
 ### H. UI/UX

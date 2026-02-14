@@ -205,6 +205,47 @@ make clean
 make help
 ```
 
+## ✅ テスト戦略（詳細）
+
+このプロジェクトのテストは、以下を組み合わせています。
+
+- 通常のユニット/統合テスト（ExUnit）
+- 性質ベーステスト（PropCheck）
+  - ネガティブテスト
+  - Stateful Property（StateM）
+  - Finite State Machine Property（FSM）
+
+基本コマンド:
+
+```bash
+# 全テスト
+mix test
+
+# PBT対象のみ（主要）
+mix test \
+  test/helpdesk_commander/support/public_id_propcheck_test.exs \
+  test/helpdesk_commander/accounts/user_state_propcheck_test.exs \
+  test/helpdesk_commander/helpdesk/ticket_status_fsm_propcheck_test.exs \
+  test/helpdesk_commander/helpdesk/ticket_status_negative_propcheck_test.exs \
+  test/helpdesk_commander/helpdesk/ticket_verification_propcheck_test.exs \
+  test/helpdesk_commander/helpdesk/ticket_authorization_propcheck_test.exs \
+  test/helpdesk_commander/helpdesk/ticket_notification_propcheck_test.exs \
+  --seed 0
+
+# 反例キャッシュをクリア（必要時）
+MIX_ENV=test mix propcheck.clean
+```
+
+運用ルール:
+
+- `mix precommit` を最終確認として実行してください（本プロジェクトの標準）
+- PBTは乱択なので、再現が必要な場合は `--seed` を固定してください
+- FSMプロパティのみ `store_counter_example: false` を設定しています（失敗を成功に変えるものではなく、反例保存による循環を避けるため）
+
+詳細は以下を参照:
+
+- [docs/TESTING.md](docs/TESTING.md)
+
 ## 🔧 設定
 
 ### データベース接続

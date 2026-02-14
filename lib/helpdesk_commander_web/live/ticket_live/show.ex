@@ -12,6 +12,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   alias HelpdeskCommander.Helpdesk.Product
   alias HelpdeskCommander.Helpdesk.Ticket
   alias HelpdeskCommander.Helpdesk.TicketEvent
+  alias HelpdeskCommander.Helpdesk.TicketVerification
   alias HelpdeskCommander.Support.Error, as: ErrorLog
   alias HelpdeskCommanderWeb.CurrentUser
 
@@ -98,6 +99,9 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     can_post_public? =
       not external_user? or (current_user && ticket.requester_id == current_user.id)
 
+    can_approve? = CurrentUser.admin?(current_user)
+    assignable_users = selectable_users(users)
+
     {public_messages, public_has_more?, public_oldest_id, public_warnings} =
       load_messages(public_conversation.id, ticket.id, :public)
 
@@ -107,7 +111,9 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     {events, events_has_more?, events_oldest_id, event_warnings} =
       load_events(external_user?, ticket.id)
 
-    warnings = public_warnings ++ private_warnings ++ event_warnings
+    {verifications, verification_warnings} = load_verifications(ticket.id)
+
+    warnings = public_warnings ++ private_warnings ++ event_warnings ++ verification_warnings
 
     update_form =
       ticket
@@ -129,18 +135,26 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
       |> AshPhoenix.Form.for_create(:create, domain: Helpdesk)
       |> to_form(as: "private_message")
 
+    verification_form =
+      TicketVerification
+      |> AshPhoenix.Form.for_create(:create, domain: Helpdesk)
+      |> to_form(as: "verification")
+
     {:ok,
      %{
        ticket: ticket,
        users: users,
+       assignable_users: assignable_users,
        users_by_id: users_by_id,
        current_user: current_user,
        external_user?: external_user?,
+       can_approve?: can_approve?,
        can_post_public?: can_post_public?,
        status_form: status_form,
        update_form: update_form,
        public_message_form: public_message_form,
        private_message_form: private_message_form,
+       verification_form: verification_form,
        public_conversation: public_conversation,
        private_conversation: private_conversation,
        public_messages: public_messages,
@@ -152,6 +166,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
        events: events,
        events_has_more?: events_has_more?,
        events_oldest_id: events_oldest_id,
+       verifications: verifications,
        warnings: warnings
      }}
   end
@@ -161,14 +176,18 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     |> assign(:page_title, "Ticket #{data.ticket.public_id}")
     |> assign(:ticket, data.ticket)
     |> assign(:users, data.users)
+    |> assign(:assignable_users, data.assignable_users)
     |> assign(:users_by_id, data.users_by_id)
     |> assign(:current_user, data.current_user)
     |> assign(:current_user_external?, data.external_user?)
+    |> assign(:can_approve?, data.can_approve?)
     |> assign(:can_post_public?, data.can_post_public?)
     |> assign(:status_form, data.status_form)
     |> assign(:update_form, data.update_form)
     |> assign(:public_message_form, data.public_message_form)
     |> assign(:private_message_form, data.private_message_form)
+    |> assign(:verification_form, data.verification_form)
+    |> assign(:verifications, data.verifications)
     |> assign(:public_conversation, data.public_conversation)
     |> assign(:private_conversation, data.private_conversation)
     |> assign(:public_messages_has_more?, data.public_messages_has_more?)
@@ -223,9 +242,27 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     end
   end
 
+  defp load_verifications(ticket_id) do
+    query =
+      TicketVerification
+      |> filter(ticket_id == ^ticket_id)
+      |> sort(id: :desc)
+      |> Ash.Query.limit(20)
+
+    case Ash.read(query, domain: Helpdesk) do
+      {:ok, verifications} ->
+        {verifications, []}
+
+      {:error, error} ->
+        ErrorLog.log_error("ticket_live.show.fetch_verifications", error, ticket_id: ticket_id)
+        {[], ["検証結果の取得に失敗しました"]}
+    end
+  end
+
   defp error_message(:load_ticket), do: "チケットの取得に失敗しました"
   defp error_message(:load_users), do: "ユーザー一覧の取得に失敗しました"
   defp error_message(:ensure_conversations), do: "会話の初期化に失敗しました"
+  defp error_message(:load_verifications), do: "検証結果の取得に失敗しました"
   @impl Phoenix.LiveView
   def handle_event("validate_status", %{"form" => params}, socket) do
     if socket.assigns.current_user_external? do
@@ -241,7 +278,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     if socket.assigns.current_user_external? do
       {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
     else
-      params = Map.put_new(params, "actor_id", socket.assigns.current_user.id)
+      params = Map.put(params, "actor_id", socket.assigns.current_user.id)
 
       case AshPhoenix.Form.submit(socket.assigns.status_form, params: params) do
         {:ok, ticket} ->
@@ -344,6 +381,8 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     if socket.assigns.current_user_external? do
       {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
     else
+      params = Map.put(params, "actor_id", socket.assigns.current_user.id)
+
       case AshPhoenix.Form.submit(socket.assigns.update_form, params: params) do
         {:ok, ticket} ->
           ticket = load_ticket_product(ticket)
@@ -377,6 +416,44 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
            socket
            |> put_flash(:error, stale_record_message(form))
            |> assign(:update_form, form)}
+      end
+    end
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("validate_verification", %{"verification" => params}, socket) do
+    form = AshPhoenix.Form.validate(socket.assigns.verification_form, params)
+    {:noreply, assign(socket, :verification_form, form)}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("save_verification", %{"verification" => params}, socket) do
+    if socket.assigns.ticket.status != "resolved" do
+      {:noreply, put_flash(socket, :error, "resolved 状態のチケットのみ検証結果を登録できます")}
+    else
+      params =
+        params
+        |> Map.put("ticket_id", socket.assigns.ticket.id)
+        |> Map.put("verifier_id", socket.assigns.current_user.id)
+
+      case AshPhoenix.Form.submit(socket.assigns.verification_form, params: params) do
+        {:ok, verification} ->
+          form =
+            TicketVerification
+            |> AshPhoenix.Form.for_create(:create, domain: Helpdesk)
+            |> to_form(as: "verification")
+
+          {:noreply,
+           socket
+           |> put_flash(:info, "検証結果を記録しました")
+           |> assign(:verification_form, form)
+           |> assign(:verifications, [verification | socket.assigns.verifications])}
+
+        {:error, form} ->
+          {:noreply,
+           socket
+           |> put_flash(:error, "検証結果の記録に失敗しました")
+           |> assign(:verification_form, form)}
       end
     end
   end
@@ -458,7 +535,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     end
   end
 
-  defp status_options do
+  defp status_options(true) do
     [
       {"new", "new"},
       {"triage", "triage"},
@@ -470,6 +547,29 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     ]
   end
 
+  defp status_options(false) do
+    [
+      {"new", "new"},
+      {"triage", "triage"},
+      {"in_progress", "in_progress"},
+      {"waiting", "waiting"},
+      {"resolved", "resolved"}
+    ]
+  end
+
+  defp verification_result_options do
+    [
+      {"合格", "passed"},
+      {"不合格", "failed"},
+      {"要確認", "needs_review"}
+    ]
+  end
+
+  defp verification_result_label("passed"), do: "合格"
+  defp verification_result_label("failed"), do: "不合格"
+  defp verification_result_label("needs_review"), do: "要確認"
+  defp verification_result_label(value), do: value
+
   defp sender_label(users_by_id, sender_id) do
     case Map.get(users_by_id, sender_id) do
       %User{} = user -> user_label(user)
@@ -480,6 +580,12 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   defp user_options(users) do
     Enum.map(users, fn user ->
       {user_label(user), user.id}
+    end)
+  end
+
+  defp selectable_users(users) do
+    Enum.filter(users, fn user ->
+      user.role != "system" and user.status == "active"
     end)
   end
 
@@ -690,6 +796,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
   defp event_label(%TicketEvent{event_type: "ticket_created"}), do: "チケット作成"
   defp event_label(%TicketEvent{event_type: "status_changed"}), do: "ステータス変更"
+  defp event_label(%TicketEvent{event_type: "verification_submitted"}), do: "検証結果の記録"
 
   defp event_label(%TicketEvent{event_type: "message_posted", data: data}) do
     case event_conversation_kind(data) do
@@ -776,9 +883,10 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
                   field={@status_form[:status]}
                   type="select"
                   label="Status"
-                  options={status_options()}
+                  options={status_options(@can_approve?)}
                 />
                 <.input
+                  id="ticket-status-actor-id"
                   field={@status_form[:actor_id]}
                   type="hidden"
                   value={@current_user.id}
@@ -794,24 +902,115 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
         <div :if={!@current_user_external?} class="card bg-base-100 border border-base-200">
           <div class="card-body">
-            <h3 class="font-semibold">優先度更新</h3>
-            <.form
-              for={@update_form}
-              id="ticket-priority-form"
-              phx-change="validate_update"
-              phx-submit="save_update"
-            >
-              <.input
-                field={@update_form[:priority]}
-                type="select"
-                label="Priority"
-                options={[{"p1", "p1"}, {"p2", "p2"}, {"p3", "p3"}, {"p4", "p4"}]}
-              />
+            <h3 class="font-semibold">優先度/担当者の確定</h3>
+            <%= if @can_approve? do %>
+              <.form
+                for={@update_form}
+                id="ticket-priority-form"
+                phx-change="validate_update"
+                phx-submit="save_update"
+              >
+                <.input
+                  field={@update_form[:priority]}
+                  type="select"
+                  label="Priority"
+                  options={[{"p1", "p1"}, {"p2", "p2"}, {"p3", "p3"}, {"p4", "p4"}]}
+                />
+                <.input
+                  field={@update_form[:assignee_id]}
+                  type="select"
+                  label="Assignee"
+                  prompt="未割り当て"
+                  options={user_options(@assignable_users)}
+                />
+                <.input
+                  id="ticket-update-actor-id"
+                  field={@update_form[:actor_id]}
+                  type="hidden"
+                  value={@current_user.id}
+                />
 
-              <div class="mt-6 flex justify-end">
-                <.button type="submit" variant="primary">更新</.button>
+                <div class="mt-6 flex justify-end">
+                  <.button type="submit" variant="primary">確定</.button>
+                </div>
+              </.form>
+            <% else %>
+              <p class="text-sm opacity-70">
+                優先度・担当者の確定は管理者/リーダーのみ可能です。
+              </p>
+            <% end %>
+          </div>
+        </div>
+
+        <div :if={@ticket.status in ["resolved", "verified", "closed"]} class="card bg-base-100 border border-base-200">
+          <div class="card-body">
+            <h3 class="font-semibold">検証</h3>
+            <div id="ticket-verifications" class="mt-3 space-y-3">
+              <div :if={@verifications == []} id="ticket-verifications-empty" class="text-sm opacity-70">
+                まだ検証結果がありません。
               </div>
-            </.form>
+
+              <div
+                :for={verification <- @verifications}
+                id={"verification-#{verification.id}"}
+                class="rounded-box border border-base-200 p-3 text-sm"
+              >
+                <div class="flex items-center justify-between text-xs text-base-content/60">
+                  <span>{sender_label(@users_by_id, verification.verifier_id)}</span>
+                  <span>{format_dt(verification.verified_at)}</span>
+                </div>
+                <div class="mt-2 font-medium">{verification_result_label(verification.result)}</div>
+                <div :if={verification.notes not in [nil, ""]} class="mt-2 whitespace-pre-wrap opacity-80">
+                  {verification.notes}
+                </div>
+              </div>
+            </div>
+
+            <%= if @ticket.status == "resolved" do %>
+              <div class="mt-6">
+                <h4 class="font-medium">検証結果を入力</h4>
+                <.form
+                  for={@verification_form}
+                  id="ticket-verification-form"
+                  phx-change="validate_verification"
+                  phx-submit="save_verification"
+                >
+                  <.input
+                    id="verification_result"
+                    name="verification[result]"
+                    field={@verification_form[:result]}
+                    type="select"
+                    label="結果"
+                    options={verification_result_options()}
+                  />
+                  <.input
+                    id="verification_notes"
+                    name="verification[notes]"
+                    field={@verification_form[:notes]}
+                    type="textarea"
+                    label="確認メモ"
+                  />
+                  <.input
+                    id="verification_verifier_id"
+                    name="verification[verifier_id]"
+                    field={@verification_form[:verifier_id]}
+                    type="hidden"
+                    value={@current_user.id}
+                  />
+                  <.input
+                    id="verification_ticket_id"
+                    name="verification[ticket_id]"
+                    field={@verification_form[:ticket_id]}
+                    type="hidden"
+                    value={@ticket.id}
+                  />
+
+                  <div class="mt-6 flex justify-end">
+                    <.button type="submit" variant="primary">検証結果を記録</.button>
+                  </div>
+                </.form>
+              </div>
+            <% end %>
           </div>
         </div>
 
@@ -959,7 +1158,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
                     type="select"
                     label="投稿者"
                     prompt="選択してください"
-                    options={user_options(@users)}
+                    options={user_options(@assignable_users)}
                     required
                   />
                 <% end %>
@@ -997,7 +1196,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
                   type="select"
                   label="投稿者"
                   prompt="選択してください"
-                  options={user_options(@users)}
+                  options={user_options(@assignable_users)}
                   required
                 />
 

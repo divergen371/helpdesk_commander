@@ -3,12 +3,12 @@
 作業状況に合わせて随時更新する。
 
 ## 現在
-- Ticket 状態遷移の整合性（楽観ロック/専用アクション化）の設計・実装
+- タスク優先度履歴 UI と `set_priority` アクションの利用導線
 
 ## 次
-- 認証・権限（Leader/Admin の制約、検証・承認フロー）
-- 通知の仕組み（フェーズ4想定：Obanジョブ設計）
-- タスク優先度履歴 UI と `set_priority` アクションの利用導線
+- 検索/フィルタ/ソート仕様の確定と実装
+- Incident 昇格/降格・タイムライン（フェーズ3）
+- 外部通知チャネル（メール/チャット）と重複抑制（通知フェーズ拡張）
 
 ## 保留
 - Incident 昇格/降格・タイムライン（フェーズ3）
@@ -21,3 +21,7 @@
 - Hammer/PlugAttack/RemoteIp による基本的な攻撃耐性の導入
 - 問い合わせ受付（Inquiry）→ Ticket 自動生成の実装（リソース/変更/マイグレーション生成）
 - Ticket 詳細のイベントログ・会話ログの永続化（append-only）とページング基盤
+- Ticket 状態遷移の整合性（楽観ロック/専用アクション化）
+- 認証・権限（Leader/Admin 制約: verified/closed、priority/assignee確定）
+- 検証・承認フロー（`ticket_verifications`、検証入力、承認導線）
+- 通知の仕組み（MVP: Oban + `ticket_notifications` 保存）

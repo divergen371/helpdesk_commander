@@ -12,6 +12,7 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
   alias HelpdeskCommander.Helpdesk.Product
   alias HelpdeskCommander.Helpdesk.Ticket
   alias HelpdeskCommander.Helpdesk.TicketEvent
+  alias HelpdeskCommander.Helpdesk.TicketVerification
 
   test "tickets index renders", %{conn: conn} do
     user = create_user!()
@@ -94,6 +95,91 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
 
     updated = Ash.get!(Ticket, %{public_id: ticket.public_id}, domain: Helpdesk)
     assert updated.status == "resolved"
+  end
+
+  test "non-admin does not see verified/closed status options", %{conn: conn} do
+    user = create_user!()
+    ticket = create_ticket!(user)
+
+    ticket
+    |> Ash.Changeset.for_update(:set_status, %{status: "resolved", actor_id: user.id})
+    |> Ash.update!(domain: Helpdesk)
+
+    conn = log_in(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/tickets/#{ticket.public_id}")
+
+    refute has_element?(view, "#ticket-status-form option[value=\"verified\"]")
+    refute has_element?(view, "#ticket-status-form option[value=\"closed\"]")
+  end
+
+  test "admin can set status to verified", %{conn: conn} do
+    user = create_user!()
+    admin = create_user!("admin")
+    ticket = create_ticket!(user)
+
+    ticket
+    |> Ash.Changeset.for_update(:set_status, %{status: "resolved", actor_id: user.id})
+    |> Ash.update!(domain: Helpdesk)
+
+    conn = log_in(conn, admin)
+    {:ok, view, _html} = live(conn, ~p"/tickets/#{ticket.public_id}")
+
+    view
+    |> form("#ticket-status-form", form: %{"status" => "verified", "actor_id" => to_string(admin.id)})
+    |> render_submit()
+
+    reloaded = Ash.get!(Ticket, %{public_id: ticket.public_id}, domain: Helpdesk)
+    assert reloaded.status == "verified"
+  end
+
+  test "priority/assignee form is visible only for admin/leader", %{conn: conn} do
+    user = create_user!()
+    admin = create_user!("leader")
+    ticket = create_ticket!(user)
+
+    user_conn = log_in(conn, user)
+    {:ok, user_view, _html} = live(user_conn, ~p"/tickets/#{ticket.public_id}")
+    refute has_element?(user_view, "#ticket-priority-form")
+
+    admin_conn = log_in(build_conn(), admin)
+    {:ok, admin_view, _html} = live(admin_conn, ~p"/tickets/#{ticket.public_id}")
+    assert has_element?(admin_view, "#ticket-priority-form")
+  end
+
+  test "submit verification result on resolved ticket", %{conn: conn} do
+    user = create_user!()
+    ticket = create_ticket!(user)
+
+    ticket
+    |> Ash.Changeset.for_update(:set_status, %{status: "resolved", actor_id: user.id})
+    |> Ash.update!(domain: Helpdesk)
+
+    conn = log_in(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/tickets/#{ticket.public_id}")
+
+    view
+    |> form("#ticket-verification-form",
+      verification: %{
+        "result" => "passed",
+        "notes" => "再現しないことを確認"
+      }
+    )
+    |> render_submit()
+
+    verification =
+      TicketVerification
+      |> filter(ticket_id == ^ticket.id)
+      |> Ash.read_one!(domain: Helpdesk)
+
+    assert verification.result == "passed"
+    assert verification.verifier_id == user.id
+
+    events =
+      TicketEvent
+      |> filter(ticket_id == ^ticket.id)
+      |> Ash.read!(domain: Helpdesk)
+
+    assert Enum.any?(events, &(&1.event_type == "verification_submitted" && &1.actor_id == user.id))
   end
 
   test "add message to ticket", %{conn: conn} do

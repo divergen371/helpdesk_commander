@@ -551,3 +551,102 @@ mix phx.server
 - `AnonymizeExpiredUsersWorker` Oban ジョブを作成（30日経過で自動匿名化、毎日 03:00 UTC）
 - 認証の `ensure_active` に `account_suspended` / `account_deleted` を追加
 - テスト 10件追加、`mix precommit` を通過（1 property, 78 tests, 0 failures）
+
+---
+
+## 2026-02-14 02:20 UTC
+
+### Phase 2: 認証・権限制約と検証/承認フローの実装
+
+- `HelpdeskCommander.Authorization` を追加し、管理者/リーダー判定を共通化（将来のSSO導入時に判定ロジックを差し替えやすい形に整理）
+- `Ticket.set_status` に権限制約を導入
+  - `verified` / `closed` への遷移は admin/leader のみ許可
+  - 判定に必要な actor 情報がない場合はサーバ側で拒否
+- `Ticket.update` に権限制約を導入
+  - `priority` / `assignee_id` の確定更新は admin/leader のみ許可
+  - `latest_message_at` などの非特権更新は従来どおり許可
+- Ticket詳細UIでの権限制御を追加
+  - 非特権ユーザーには `verified/closed` 遷移オプションを非表示
+  - 優先度/担当者確定フォームは admin/leader のみ表示
+  - サーバ側でも actor_id をセッションユーザーで上書きし、クライアント改ざんを無効化
+- `ticket_verifications` を追加（リソース + マイグレーション）
+  - 検証結果（passed/failed/needs_review、notes、verified_at）を記録
+  - 記録時に `verification_submitted` イベントを自動生成
+- Ticket詳細に検証セクションを追加
+  - `resolved` 状態のチケットで検証結果入力フォームを表示
+  - 検証履歴一覧を表示
+- AuthController に `account_suspended` / `account_deleted` の明示メッセージを追加
+- テスト追加/更新
+  - LiveView: 権限制御、検証入力、承認遷移
+  - ドメイン: `set_status` / `update` の権限制約
+  - 認証: anonymized ユーザーのログイン拒否
+
+---
+
+## 2026-02-14 03:10 UTC
+
+### 通知基盤（MVP: アプリ内保存 + Oban）の実装
+
+- `ticket_notifications` テーブル/リソースを追加
+  - recipient 単位で通知を保存
+  - `read_at` で既読管理可能な構造を用意
+- `CreateTicketNotificationsWorker`（Oban notifications queue）を追加
+  - 同一 company の `admin` / `leader` / `status=active` を通知対象に選定
+  - 操作本人（actor）は通知対象から除外
+- イベント起点の通知ジョブ投入を追加
+  - `Ticket.set_status` で `resolved` 遷移時に `ticket_resolved_review_required` を enqueue
+  - `TicketVerification.create` で検証登録時に `ticket_verification_submitted` を enqueue
+- Worker テストを追加
+  - recipient 選定（admin/leader のみ）と actor 除外
+  - `resolved` / `verification_submitted` 起点の job enqueue を検証
+- MVPの通知チャネルはアプリ内保存のみ（外部通知は次フェーズ）
+
+---
+
+## 2026-02-14 03:45 UTC
+
+### PropEr から PropCheck への移行
+
+- `proper` 依存を削除し、`propcheck` に置き換え（`only: [:test, :dev]`）
+- PropEr の Erlang property (`test/support/proper_public_id.erl`) を廃止
+- Elixir の PropCheck で public_id のプロパティテストを再実装
+
+---
+
+## 2026-02-14 04:40 UTC
+
+### PropCheck でのPBT拡張（ネガティブ/ステートフル/FSM）
+
+- PublicId で奇数長・非正数長のネガティブプロパティを追加
+- TicketVerification の結果バリデーション（無効値拒否/有効値で verified_at 付与）を PropCheck 化
+- TicketVerification に `ticket.status == "resolved"` ガードを追加（resolved 以前/verified/closed では検証登録を拒否）
+- User の `suspend` / `anonymize` を StateM で状態遷移テスト
+- Ticket の状態遷移を FSM で検証（遷移とタイムスタンプの整合性）
+- FSM の `noop` 後条件判定を調整し、PropCheck の反例保存影響を避ける設定で安定化
+- Ticket の無効遷移・非特権の verified/closed をネガティブプロパティで検証
+- TicketNotification の `mark_read` 既読時刻を単調性付きでプロパティ化
+
+---
+
+## 2026-02-14 06:16 UTC
+
+### テスト情報ドキュメントを README / docs に拡充
+
+- `README.md` に「テスト戦略（詳細）」を追加
+  - 通常テスト + PropCheck（ネガティブ/StateM/FSM）の実行方針を明文化
+  - PBT主要テスト実行コマンド、`--seed` 固定、`mix propcheck.clean` の使い方を追記
+- `docs/TESTING.md` を新規追加
+  - 各PBTプロパティの目的・サンプル数（`numtests`）・有限空間の理論組合せ数を整理
+  - 現行の合計プロパティ数/実行サンプル目安、反例運用（FSMのみ保存無効）の注意点を記載
+- `docs/CODE_QUALITY.md` の参考資料に `docs/TESTING.md` へのリンクを追加
+
+---
+
+## 2026-02-14 06:22 UTC
+
+### CI向けPBT seed運用ガイドを追加
+
+- `docs/TESTING.md` に「CIでの推奨seed運用」を追記
+  - 最低ラインとして `seed=0,1,2` の複数seed実行を推奨
+  - ローカル再現用の loop 実行例を追加
+  - PR時/夜間ジョブでの運用目安（`0,1,2` / `0..9`）を明記

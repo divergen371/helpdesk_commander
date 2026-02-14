@@ -10,6 +10,8 @@ defmodule HelpdeskCommander.Helpdesk do
     resource HelpdeskCommander.Helpdesk.Product
     resource HelpdeskCommander.Helpdesk.Ticket
     resource HelpdeskCommander.Helpdesk.TicketEvent
+    resource HelpdeskCommander.Helpdesk.TicketNotification
+    resource HelpdeskCommander.Helpdesk.TicketVerification
     resource HelpdeskCommander.Helpdesk.TicketLink
   end
 end

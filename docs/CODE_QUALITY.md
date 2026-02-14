@@ -195,4 +195,5 @@ PLTをキャッシュ（CI/CD環境）
 
 - [Credo使い方ガイド](./CREDO.md)
 - [Dialyzer使い方ガイド](./DIALYZER.md)
+- [テスト戦略・PBTガイド](./TESTING.md)
 - [Elixir Formatter](https://hexdocs.pm/mix/Mix.Tasks.Format.html)

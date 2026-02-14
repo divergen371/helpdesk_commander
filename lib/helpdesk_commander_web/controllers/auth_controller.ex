@@ -14,6 +14,8 @@ defmodule HelpdeskCommanderWeb.AuthController do
     :user_not_found,
     :already_active,
     :inactive,
+    :account_suspended,
+    :account_deleted,
     :registration_failed
   ]
 
@@ -53,6 +55,16 @@ defmodule HelpdeskCommanderWeb.AuthController do
       {:error, :company_not_found} ->
         conn
         |> put_flash(:error, "会社が見つかりません")
+        |> render(:sign_in, form: to_form(params, as: "session"))
+
+      {:error, :account_suspended} ->
+        conn
+        |> put_flash(:error, "アカウントは現在停止されています")
+        |> render(:sign_in, form: to_form(params, as: "session"))
+
+      {:error, :account_deleted} ->
+        conn
+        |> put_flash(:error, "このアカウントは削除済みです")
         |> render(:sign_in, form: to_form(params, as: "session"))
 
       {:error, reason} ->
