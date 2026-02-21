@@ -650,3 +650,18 @@ mix phx.server
   - 最低ラインとして `seed=0,1,2` の複数seed実行を推奨
   - ローカル再現用の loop 実行例を追加
   - PR時/夜間ジョブでの運用目安（`0,1,2` / `0..9`）を明記
+
+---
+
+## 2026-02-21 16:46 UTC
+
+### Ash機能寄せの設計メモと優先タスクを整理
+
+- `docs/DESIGN_ASH_REFACTOR.md` を新規作成
+  - Policy Authorizer / 共通Change / Preparation / code_interface / aggregates/calculations / multitenancy を優先度順で整理
+  - 最小リスクの実装順（P0→P2）と完了条件を明記
+- `docs/TASKS.md` の「次」に優先度付きタスクを追記
+  - P0: Policy導入・共通Change抽出・Notification Preparation
+  - P1: code_interface・aggregates/calculations
+  - P2: multitenancy 段階導入
+- `docs/IMPLEMENTATION_PLAN.md` に関連設計メモへの導線を追加

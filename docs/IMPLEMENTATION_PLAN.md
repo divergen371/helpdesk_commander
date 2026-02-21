@@ -28,6 +28,10 @@
 - 競合更新: `lock_version` を使った stale update 検知のテストを用意
 - メッセージ量: LiveView streams + ページングで負荷を検証
 - 通知/外部連携: Oban の失敗リトライと可視化（Telemetry）で監視
+
+## 関連設計メモ
+- Ash機能への寄せ方（Policy/Change/Preparation/code_interface/aggregate/multitenancy）:
+  - `docs/DESIGN_ASH_REFACTOR.md`
 ## 実装後メモ（結果・未達・懸念）
 - Inquiry リソースと `CreateTicket` 変更を追加し、Inquiry 作成時に Ticket を自動生成する流れを実装
 - `add_inquiries` マイグレーション/スナップショットを生成

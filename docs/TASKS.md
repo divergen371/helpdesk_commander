@@ -6,6 +6,12 @@
 - タスク優先度履歴 UI と `set_priority` アクションの利用導線
 
 ## 次
+- [P0] Policy Authorizer 導入（`Ticket` を起点に `policies` へ権限制御を集約）
+- [P0] 共通 Change 抽出 + validations 強化（`ticket_verification` の resolved 制約・日時補完の再利用化）
+- [P0] TicketNotification の read アクションへ Preparation 導入（recipient絞り込み・`inserted_at desc` 統一）
+- [P1] `code_interface` 導入（Domain経由APIへ整理し LiveView/Controller を簡素化）
+- [P1] `aggregates` / `calculations` 導入（未読通知数・検証数・最新イベント時刻）
+- [P2] `multitenancy` 段階導入（company境界の強制）
 - 検索/フィルタ/ソート仕様の確定と実装
 - Incident 昇格/降格・タイムライン（フェーズ3）
 - 外部通知チャネル（メール/チャット）と重複抑制（通知フェーズ拡張）
