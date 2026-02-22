@@ -1,6 +1,7 @@
 defmodule HelpdeskCommander.MixProject do
   use Mix.Project
 
+  @spec project() :: keyword()
   def project do
     env = mix_env()
 
@@ -23,6 +24,81 @@ defmodule HelpdeskCommander.MixProject do
         "coveralls.post": :test,
         "coveralls.html": :test,
         "coveralls.github": :test
+      ],
+      docs: docs()
+    ]
+  end
+
+  defp docs do
+    [
+      main: "readme",
+      extras: [
+        "README.md",
+        "README.ja.md",
+        "QUICKSTART.md",
+        "AGENTS.md",
+        "docs/REQUIREMENTS.md",
+        "docs/CODE_QUALITY.md",
+        "docs/DB_SCHEMA.md",
+        "docs/ERD.md",
+        "docs/SEQUENCE.md",
+        "docs/ERROR_HANDLING.md",
+        "docs/CI_CD.md",
+        "docs/CREDO.md",
+        "docs/DIALYZER.md",
+        "docs/FORMATTER.md",
+        "docs/TESTING.md",
+        "docs/BRANCH_STRATEGY.md",
+        "docs/DESIGN_API_MIGRATION.md",
+        "docs/DESIGN_ASH_REFACTOR.md",
+        "docs/DESIGN_DATA_ENCRYPTION.md",
+        "docs/DESIGN_PRIORITY_CHECK.md",
+        "docs/DESIGN_TICKET_RELATIONS.md",
+        "docs/DESIGN_USER_DELETION.md",
+        "docs/UNDECIDED_ITEMS.md",
+        "docs/Walkthrough.md"
+      ],
+      groups_for_extras: [
+        "Guides": [
+          "README.md",
+          "README.ja.md",
+          "QUICKSTART.md",
+          "AGENTS.md"
+        ],
+        "Architecture & Design": [
+          ~r/docs\/DESIGN_.*/,
+          "docs/ERD.md",
+          "docs/DB_SCHEMA.md",
+          "docs/SEQUENCE.md",
+          "docs/REQUIREMENTS.md"
+        ],
+        "Tooling & Quality": [
+          "docs/CODE_QUALITY.md",
+          "docs/CI_CD.md",
+          "docs/CREDO.md",
+          "docs/DIALYZER.md",
+          "docs/FORMATTER.md",
+          "docs/TESTING.md",
+          "docs/ERROR_HANDLING.md",
+          "docs/BRANCH_STRATEGY.md"
+        ],
+        "Miscellaneous": [
+          "docs/UNDECIDED_ITEMS.md",
+          "docs/Walkthrough.md"
+        ]
+      ],
+      groups_for_modules: [
+        "Core Context": [
+          ~r/HelpdeskCommander\.Helpdesk.*/,
+          ~r/HelpdeskCommander\.Accounts.*/,
+          ~r/HelpdeskCommander\.Support.*/
+        ],
+        "Web Interface": [
+          ~r/HelpdeskCommanderWeb.*/
+        ],
+        "Workers": [
+          ~r/HelpdeskCommander\.Workers.*/
+        ]
       ]
     ]
   end
@@ -30,6 +106,7 @@ defmodule HelpdeskCommander.MixProject do
   # Configuration for the OTP application.
   #
   # Type `mix help compile.app` for more information.
+  @spec application() :: keyword()
   def application do
     [
       mod: {HelpdeskCommander.Application, []},
@@ -37,6 +114,7 @@ defmodule HelpdeskCommander.MixProject do
     ]
   end
 
+  @spec cli() :: keyword()
   def cli do
     [
       preferred_envs: [precommit: :test]
@@ -110,6 +188,7 @@ defmodule HelpdeskCommander.MixProject do
       {:benchee, "~> 1.5", only: :dev, runtime: false},
       {:observer_cli, "~> 1.8", only: :dev, runtime: false},
       {:excoveralls, "~> 0.18", only: :test, runtime: false},
+      {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       # Code quality
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
@@ -119,6 +198,7 @@ defmodule HelpdeskCommander.MixProject do
   defp mix_env do
     if Code.ensure_loaded?(Mix) and function_exported?(Mix, :env, 0) do
       try do
+        # credo:disable-for-next-line
         Mix.env()
       rescue
         ArgumentError -> env_from_system()
