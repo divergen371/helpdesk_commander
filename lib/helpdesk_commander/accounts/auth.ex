@@ -19,6 +19,8 @@ defmodule HelpdeskCommander.Accounts.Auth do
           | :user_not_found
           | :already_active
           | :registration_failed
+          | :account_suspended
+          | :account_deleted
 
   @spec authenticate(String.t(), String.t(), String.t()) :: {:ok, User.t()} | {:error, auth_error()}
   def authenticate(company_code, login_or_email, password) do

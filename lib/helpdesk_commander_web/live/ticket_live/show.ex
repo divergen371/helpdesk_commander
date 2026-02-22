@@ -262,7 +262,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   defp error_message(:load_ticket), do: "チケットの取得に失敗しました"
   defp error_message(:load_users), do: "ユーザー一覧の取得に失敗しました"
   defp error_message(:ensure_conversations), do: "会話の初期化に失敗しました"
-  defp error_message(:load_verifications), do: "検証結果の取得に失敗しました"
+
   @impl Phoenix.LiveView
   def handle_event("validate_status", %{"form" => params}, socket) do
     if socket.assigns.current_user_external? do
