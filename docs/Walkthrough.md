@@ -665,3 +665,16 @@ mix phx.server
   - P1: code_interface・aggregates/calculations
   - P2: multitenancy 段階導入
 - `docs/IMPLEMENTATION_PLAN.md` に関連設計メモへの導線を追加
+
+---
+
+## 2026-02-22 01:50 UTC
+
+### データ暗号化の設計メモを追加
+
+- `docs/DESIGN_DATA_ENCRYPTION.md` を新規作成
+  - 対象データの分類（検索必要 / 検索不要）を明確化
+  - `users.email` / `companies.name` を `*_enc + *_hash` で扱う方針を整理
+  - 事象説明/チャット本文/表示名の暗号化方針と段階導入手順を記載
+- `docs/IMPLEMENTATION_PLAN.md` に暗号化設計メモへのリンクを追加
+- `docs/TASKS.md` に暗号化導入タスク（P0/P1）を追記

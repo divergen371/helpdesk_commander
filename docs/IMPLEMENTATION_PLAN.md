@@ -32,6 +32,8 @@
 ## 関連設計メモ
 - Ash機能への寄せ方（Policy/Change/Preparation/code_interface/aggregate/multitenancy）:
   - `docs/DESIGN_ASH_REFACTOR.md`
+- データ暗号化（AshCloak + 検索ハッシュ）:
+  - `docs/DESIGN_DATA_ENCRYPTION.md`
 ## 実装後メモ（結果・未達・懸念）
 - Inquiry リソースと `CreateTicket` 変更を追加し、Inquiry 作成時に Ticket を自動生成する流れを実装
 - `add_inquiries` マイグレーション/スナップショットを生成
