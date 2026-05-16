@@ -13,6 +13,7 @@
 - Inquiry は実装済み（自動 Ticket 生成まで）
 - Conversation / Event 系のリソースを実装済み（ページング基盤含む）
 - Task 優先度履歴 UI と `set_priority` 導線を実装済み
+- Ticket の `set_status` / `update` 権限制御は Policy Authorizer に移行済み
 
 ## 設計方針
 - 重要操作はイベントログ化し、append-only を基本にする
@@ -44,3 +45,7 @@
 - Task 一覧/詳細 UI を追加し、詳細画面から `set_priority` 経由で優先度変更と履歴表示を行えるようにした
   - company 境界は LiveView の read 側フィルタで担保。将来は multitenancy / Policy Authorizer に寄せる
   - `Task.update` では引き続き priority 変更が可能なため、履歴必須の導線は UI で `set_priority` を使う前提。後続で update から priority を外すか専用アクションへさらに寄せる検討余地あり
+- Ticket に Ash Policy Authorizer を導入し、`set_status` の `verified/closed` 遷移と `update` の `priority/assignee_id` 更新を policy check で制御するようにした
+  - 既存の `actor_id` 引数はイベント記録互換として維持し、LiveView からは `action_opts: [actor: current_user]` も渡す
+  - UI 側の表示抑制は維持しつつ、サーバ側の Forbidden は専用 flash に変換
+  - Ash の policy verifier 向けに `picosat_elixir` を追加

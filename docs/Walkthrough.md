@@ -698,3 +698,28 @@ mix phx.server
   - リソース: `actor_id` 必須、通常 update では履歴を作らないことを検証
   - LiveView: 一覧、詳細、優先度変更、履歴表示、company 境界、未ログインリダイレクトを検証
 - OTP 29.0 では `yamerl` / `cachex` の再コンパイル問題が発生したため、OTP 28.3 + Elixir 1.19.4 で再コンパイルして検証
+
+---
+
+## 2026-05-16 17:26 UTC
+
+### Ticket Policy Authorizer 導入
+
+- `HelpdeskCommander.Helpdesk.Ticket` に `Ash.Policy.Authorizer` を導入
+  - read/create は既存の内部利用との互換性を優先して許可
+  - `destroy` は admin/leader actor のみ許可
+  - `update` は `priority` / `assignee_id` 変更時のみ admin/leader actor を要求
+  - `set_status` は `verified` / `closed` 遷移時のみ admin/leader actor を要求
+- Policy check を追加
+  - `ActorPrivileged`
+  - `NoPrivilegedFieldsChanged`
+  - `StatusDoesNotRequirePrivilegedRole`
+- 既存の change-level 権限チェックを削除し、遷移検証・タイムスタンプ・イベント記録は従来どおり維持
+- Ticket 詳細 LiveView から `AshPhoenix.Form.submit/2` に `action_opts: [actor: current_user]` を渡すように変更
+  - hidden `actor_id` はイベント記録互換として残すが、サーバ側で current user に上書き
+  - policy Forbidden は「アクセス権限がありません」の flash に変換
+- Ash policy verifier の SAT solver warning を解消するため `picosat_elixir` を追加
+- テスト追加/更新
+  - actor context 経由の許可/拒否
+  - 非特権ユーザーの verified 遷移拒否
+  - LiveView で `actor_id` 改ざんをしても policy を回避できないこと

@@ -58,6 +58,44 @@ defmodule HelpdeskCommander.Helpdesk.TicketAuthorizationTest do
     assert updated.priority == "p1"
   end
 
+  test "priority update accepts actor context for privileged users" do
+    user = create_user!()
+    admin = create_user!("admin")
+    ticket = create_ticket!(user)
+
+    updated =
+      ticket
+      |> Ash.Changeset.for_update(:update, %{priority: "p1"})
+      |> Ash.update!(domain: Helpdesk, actor: admin)
+
+    assert updated.priority == "p1"
+  end
+
+  test "priority update is forbidden for non-privileged actor context" do
+    user = create_user!()
+    ticket = create_ticket!(user)
+
+    assert {:error, %Ash.Error.Forbidden{}} =
+             ticket
+             |> Ash.Changeset.for_update(:update, %{priority: "p1"})
+             |> Ash.update(domain: Helpdesk, actor: user)
+  end
+
+  test "verified status transition is forbidden for non-privileged actor context" do
+    user = create_user!()
+    ticket = create_ticket!(user)
+
+    resolved =
+      ticket
+      |> Ash.Changeset.for_update(:set_status, %{status: "resolved", actor_id: user.id})
+      |> Ash.update!(domain: Helpdesk, actor: user)
+
+    assert {:error, %Ash.Error.Forbidden{}} =
+             resolved
+             |> Ash.Changeset.for_update(:set_status, %{status: "verified", actor_id: user.id})
+             |> Ash.update(domain: Helpdesk, actor: user)
+  end
+
   test "non-privileged update path still works without actor_id" do
     user = create_user!()
     ticket = create_ticket!(user)

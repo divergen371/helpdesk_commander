@@ -1,12 +1,11 @@
 defmodule HelpdeskCommander.Helpdesk.Ticket do
   use Ash.Resource,
     domain: HelpdeskCommander.Helpdesk,
-    data_layer: AshPostgres.DataLayer
+    data_layer: AshPostgres.DataLayer,
+    authorizers: [Ash.Policy.Authorizer]
 
   import Ash.Query
 
-  alias HelpdeskCommander.Accounts
-  alias HelpdeskCommander.Accounts.User
   alias HelpdeskCommander.Helpdesk.Conversation
   alias HelpdeskCommander.Helpdesk.TicketEvent
   alias HelpdeskCommander.Support.PublicId
@@ -146,6 +145,26 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
     identity :unique_public_id, [:public_id]
   end
 
+  policies do
+    policy action_type([:read, :create]) do
+      authorize_if always()
+    end
+
+    policy action(:destroy) do
+      authorize_if HelpdeskCommander.Helpdesk.Ticket.Checks.ActorPrivileged
+    end
+
+    policy action(:update) do
+      authorize_if HelpdeskCommander.Helpdesk.Ticket.Checks.NoPrivilegedFieldsChanged
+      authorize_if HelpdeskCommander.Helpdesk.Ticket.Checks.ActorPrivileged
+    end
+
+    policy action(:set_status) do
+      authorize_if HelpdeskCommander.Helpdesk.Ticket.Checks.StatusDoesNotRequirePrivilegedRole
+      authorize_if HelpdeskCommander.Helpdesk.Ticket.Checks.ActorPrivileged
+    end
+  end
+
   actions do
     defaults [:read, :destroy]
 
@@ -217,10 +236,6 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
         :assignee_id
       ]
 
-      change fn changeset, context ->
-        enforce_privileged_update_permissions(changeset, context)
-      end
-
       change optimistic_lock(:lock_version)
     end
 
@@ -230,8 +245,8 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
       argument :status, :string, allow_nil?: false
       argument :actor_id, HelpdeskCommander.Types.BigInt, allow_nil?: false
 
-      change fn changeset, context ->
-        apply_status_transition(changeset, context)
+      change fn changeset, _context ->
+        apply_status_transition(changeset)
       end
 
       change optimistic_lock(:lock_version)
@@ -302,7 +317,7 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
     end
   end
 
-  defp apply_status_transition(changeset, context) do
+  defp apply_status_transition(changeset) do
     from_status = changeset.data.status
     to_status = Ash.Changeset.get_argument(changeset, :status)
 
@@ -312,21 +327,6 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
 
       from_status == to_status ->
         changeset
-
-      allowed_status_transition?(from_status, to_status) and status_requires_privileged_role?(to_status) ->
-        case fetch_actor(changeset, context) do
-          {:ok, %User{} = actor} ->
-            if privileged_role?(actor) do
-              changeset
-              |> Ash.Changeset.change_attribute(:status, to_status)
-              |> maybe_set_status_timestamps(from_status, to_status)
-            else
-              add_privileged_role_error(changeset, "このステータスへの遷移は管理者/リーダーのみ可能です")
-            end
-
-          _result ->
-            add_privileged_role_error(changeset, "権限判定に必要な操作ユーザー情報が不足しています")
-        end
 
       allowed_status_transition?(from_status, to_status) ->
         changeset
@@ -363,55 +363,6 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
   end
 
   defp maybe_set_status_timestamps(changeset, _from_status, _to_status), do: changeset
-
-  defp enforce_privileged_update_permissions(changeset, context) do
-    if privileged_update?(changeset) do
-      case fetch_actor(changeset, context) do
-        {:ok, %User{} = actor} ->
-          if privileged_role?(actor) do
-            changeset
-          else
-            add_privileged_role_error(changeset, "優先度・担当者の確定は管理者/リーダーのみ可能です")
-          end
-
-        _result ->
-          add_privileged_role_error(changeset, "権限判定に必要な操作ユーザー情報が不足しています")
-      end
-    else
-      changeset
-    end
-  end
-
-  defp privileged_update?(changeset) do
-    attribute_changed?(changeset, :priority) or attribute_changed?(changeset, :assignee_id)
-  end
-
-  defp attribute_changed?(changeset, field) do
-    Ash.Changeset.get_attribute(changeset, field) != Map.get(changeset.data, field)
-  end
-
-  defp status_requires_privileged_role?(status), do: status in ~w(verified closed)
-
-  defp fetch_actor(changeset, context) do
-    actor_id = Ash.Changeset.get_argument(changeset, :actor_id) || actor_id_from_context(context)
-
-    case actor_id do
-      nil -> {:error, :missing_actor}
-      id -> Ash.get(User, %{id: id}, domain: Accounts)
-    end
-  end
-
-  defp actor_id_from_context(%{actor: %User{id: id}}), do: id
-  defp actor_id_from_context(%{actor: %{id: id}}) when is_integer(id), do: id
-  defp actor_id_from_context(_context), do: nil
-  defp privileged_role?(%User{role: role}), do: role in ~w(admin leader)
-
-  defp add_privileged_role_error(changeset, message) do
-    Ash.Changeset.add_error(changeset,
-      field: :actor_id,
-      message: message
-    )
-  end
 
   defp maybe_set_timestamp(changeset, field) do
     case Ash.Changeset.get_attribute(changeset, field) do

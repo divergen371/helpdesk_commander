@@ -50,6 +50,24 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     end
   end
 
+  defp ticket_status_form(%Ticket{} = ticket, current_user) do
+    AshPhoenix.Form.for_update(ticket, :set_status, form_options(current_user))
+  end
+
+  defp ticket_update_form(%Ticket{} = ticket, current_user) do
+    AshPhoenix.Form.for_update(ticket, :update, form_options(current_user))
+  end
+
+  defp form_options(current_user) do
+    Keyword.merge([domain: Helpdesk, warn_on_unhandled_errors?: false], actor_option(current_user))
+  end
+
+  defp actor_option(%User{} = user), do: [actor: user]
+  defp actor_option(_current_user), do: []
+
+  defp actor_action_opts(%{assigns: %{current_user: %User{} = user}}), do: [actor: user]
+  defp actor_action_opts(_socket), do: []
+
   defp load_ticket_data(public_id, current_user, external_user?) do
     with {:ok, ticket} <- load_ticket(public_id),
          :ok <- authorize_ticket(ticket, current_user, external_user?),
@@ -117,12 +135,12 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
     update_form =
       ticket
-      |> AshPhoenix.Form.for_update(:update, domain: Helpdesk)
+      |> ticket_update_form(current_user)
       |> to_form()
 
     status_form =
       ticket
-      |> AshPhoenix.Form.for_update(:set_status, domain: Helpdesk)
+      |> ticket_status_form(current_user)
       |> to_form()
 
     public_message_form =
@@ -280,18 +298,21 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     else
       params = Map.put(params, "actor_id", socket.assigns.current_user.id)
 
-      case AshPhoenix.Form.submit(socket.assigns.status_form, params: params) do
+      case AshPhoenix.Form.submit(socket.assigns.status_form,
+             params: params,
+             action_opts: actor_action_opts(socket)
+           ) do
         {:ok, ticket} ->
           ticket = load_ticket_product(ticket)
 
           status_form =
             ticket
-            |> AshPhoenix.Form.for_update(:set_status, domain: Helpdesk)
+            |> ticket_status_form(socket.assigns.current_user)
             |> to_form()
 
           update_form =
             ticket
-            |> AshPhoenix.Form.for_update(:update, domain: Helpdesk)
+            |> ticket_update_form(socket.assigns.current_user)
             |> to_form()
 
           {:noreply,
@@ -311,7 +332,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
           {:noreply,
            socket
-           |> put_flash(:error, stale_record_message(form))
+           |> put_flash(:error, submit_error_message(form))
            |> assign(:status_form, form)}
       end
     end
@@ -383,18 +404,21 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     else
       params = Map.put(params, "actor_id", socket.assigns.current_user.id)
 
-      case AshPhoenix.Form.submit(socket.assigns.update_form, params: params) do
+      case AshPhoenix.Form.submit(socket.assigns.update_form,
+             params: params,
+             action_opts: actor_action_opts(socket)
+           ) do
         {:ok, ticket} ->
           ticket = load_ticket_product(ticket)
 
           status_form =
             ticket
-            |> AshPhoenix.Form.for_update(:set_status, domain: Helpdesk)
+            |> ticket_status_form(socket.assigns.current_user)
             |> to_form()
 
           update_form =
             ticket
-            |> AshPhoenix.Form.for_update(:update, domain: Helpdesk)
+            |> ticket_update_form(socket.assigns.current_user)
             |> to_form()
 
           {:noreply,
@@ -414,7 +438,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
           {:noreply,
            socket
-           |> put_flash(:error, stale_record_message(form))
+           |> put_flash(:error, submit_error_message(form))
            |> assign(:update_form, form)}
       end
     end
@@ -612,12 +636,12 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
         status_form =
           ticket
-          |> AshPhoenix.Form.for_update(:set_status, domain: Helpdesk)
+          |> ticket_status_form(socket.assigns.current_user)
           |> to_form()
 
         update_form =
           ticket
-          |> AshPhoenix.Form.for_update(:update, domain: Helpdesk)
+          |> ticket_update_form(socket.assigns.current_user)
           |> to_form()
 
         socket
@@ -630,19 +654,31 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     end
   end
 
-  defp stale_record_message(form) do
-    if stale_record_error?(form) do
-      "更新競合が発生しました。最新の内容を再読み込みしました。もう一度お試しください。"
-    else
-      "更新に失敗しました"
+  defp submit_error_message(form) do
+    cond do
+      forbidden_error?(form) ->
+        "アクセス権限がありません"
+
+      stale_record_error?(form) ->
+        "更新競合が発生しました。最新の内容を再読み込みしました。もう一度お試しください。"
+
+      true ->
+        "更新に失敗しました"
     end
   end
 
-  defp stale_record_error?(%AshPhoenix.Form{errors: errors}) when is_list(errors) do
-    Enum.any?(errors, &stale_error?/1)
+  defp stale_record_error?(%Phoenix.HTML.Form{source: source}), do: stale_record_error?(source)
+
+  defp stale_record_error?(%AshPhoenix.Form{source: source, submit_errors: submit_errors}) do
+    stale_error?(source) or
+      submit_errors
+      |> List.wrap()
+      |> Enum.any?(&stale_error?/1)
   end
 
   defp stale_record_error?(_form), do: false
+
+  defp stale_error?(%Ash.Changeset{errors: errors}), do: Enum.any?(errors, &stale_error?/1)
 
   defp stale_error?(%Ash.Error.Changes.StaleRecord{}), do: true
 
@@ -657,6 +693,30 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   end
 
   defp stale_error?(_error), do: false
+
+  defp forbidden_error?(%Phoenix.HTML.Form{source: source}), do: forbidden_error?(source)
+
+  defp forbidden_error?(%AshPhoenix.Form{source: source, submit_errors: submit_errors}) do
+    forbidden_error?(source) or
+      submit_errors
+      |> List.wrap()
+      |> Enum.any?(&forbidden_error?/1)
+  end
+
+  defp forbidden_error?(%Ash.Changeset{errors: errors}), do: Enum.any?(errors, &forbidden_error?/1)
+
+  defp forbidden_error?(%Ash.Error.Forbidden{}), do: true
+  defp forbidden_error?(%Ash.Error.Forbidden.Policy{}), do: true
+
+  defp forbidden_error?(%{errors: errors}) when is_list(errors), do: Enum.any?(errors, &forbidden_error?/1)
+
+  defp forbidden_error?({_field, {message, _vars}}) when is_binary(message) do
+    String.contains?(message, "Forbidden") or String.contains?(message, "forbidden")
+  end
+
+  defp forbidden_error?({_field, error}), do: forbidden_error?(error)
+
+  defp forbidden_error?(_error), do: false
 
   defp load_users do
     case Ash.read(User, domain: Accounts) do

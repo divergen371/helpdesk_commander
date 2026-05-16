@@ -154,6 +154,7 @@ defmodule HelpdeskCommander.MixProject do
       {:ash_phoenix, "~> 2.0"},
       {:ash_postgres, "~> 2.0"},
       {:ash_authentication, "~> 4.0"},
+      {:picosat_elixir, "~> 0.2.3"},
       {:igniter, "~> 0.6", only: [:dev, :test]},
       {:phoenix, "~> 1.8.3"},
       {:phoenix_ecto, "~> 4.5"},

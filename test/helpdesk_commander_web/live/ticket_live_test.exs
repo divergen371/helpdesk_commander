@@ -132,6 +132,30 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
     assert reloaded.status == "verified"
   end
 
+  test "non-admin cannot bypass verified status policy by submitting another actor_id", %{conn: conn} do
+    user = create_user!()
+    admin = create_user!("admin")
+    ticket = create_ticket!(user)
+
+    resolved =
+      ticket
+      |> Ash.Changeset.for_update(:set_status, %{status: "resolved", actor_id: user.id})
+      |> Ash.update!(domain: Helpdesk)
+
+    conn = log_in(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/tickets/#{ticket.public_id}")
+
+    html =
+      render_submit(view, "save_status", %{
+        "form" => %{"status" => "verified", "actor_id" => to_string(admin.id)}
+      })
+
+    assert html =~ "アクセス権限がありません"
+
+    reloaded = Ash.get!(Ticket, %{public_id: resolved.public_id}, domain: Helpdesk)
+    assert reloaded.status == "resolved"
+  end
+
   test "priority/assignee form is visible only for admin/leader", %{conn: conn} do
     user = create_user!()
     admin = create_user!("leader")
