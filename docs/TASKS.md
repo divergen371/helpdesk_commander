@@ -3,10 +3,9 @@
 作業状況に合わせて随時更新する。
 
 ## 現在
-- タスク優先度履歴 UI と `set_priority` アクションの利用導線
+- [P0] Policy Authorizer 導入（`Ticket` を起点に `policies` へ権限制御を集約）
 
 ## 次
-- [P0] Policy Authorizer 導入（`Ticket` を起点に `policies` へ権限制御を集約）
 - [P0] 共通 Change 抽出 + validations 強化（`ticket_verification` の resolved 制約・日時補完の再利用化）
 - [P0] TicketNotification の read アクションへ Preparation 導入（recipient絞り込み・`inserted_at desc` 統一）
 - [P0] PII保護の段階導入（`users.email` / `companies.name` を `*_enc + *_hash` へ移行し検索・一意制約を維持）
@@ -33,3 +32,4 @@
 - 認証・権限（Leader/Admin 制約: verified/closed、priority/assignee確定）
 - 検証・承認フロー（`ticket_verifications`、検証入力、承認導線）
 - 通知の仕組み（MVP: Oban + `ticket_notifications` 保存）
+- タスク優先度履歴 UI と `set_priority` アクションの利用導線

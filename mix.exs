@@ -59,7 +59,7 @@ defmodule HelpdeskCommander.MixProject do
         "docs/Walkthrough.md"
       ],
       groups_for_extras: [
-        "Guides": [
+        Guides: [
           "README.md",
           "README.ja.md",
           "QUICKSTART.md",
@@ -82,7 +82,7 @@ defmodule HelpdeskCommander.MixProject do
           "docs/ERROR_HANDLING.md",
           "docs/BRANCH_STRATEGY.md"
         ],
-        "Miscellaneous": [
+        Miscellaneous: [
           "docs/UNDECIDED_ITEMS.md",
           "docs/Walkthrough.md"
         ]
@@ -96,7 +96,7 @@ defmodule HelpdeskCommander.MixProject do
         "Web Interface": [
           ~r/HelpdeskCommanderWeb.*/
         ],
-        "Workers": [
+        Workers: [
           ~r/HelpdeskCommander\.Workers.*/
         ]
       ]

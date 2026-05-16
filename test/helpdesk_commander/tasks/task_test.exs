@@ -36,6 +36,50 @@ defmodule HelpdeskCommander.Tasks.TaskTest do
     assert (Map.get(event.data, "to") || Map.get(event.data, :to)) == "high"
   end
 
+  test "set_priority requires an actor and does not record an event on failure" do
+    user = create_user!()
+
+    task =
+      Task
+      |> Ash.Changeset.for_create(:create, %{title: "Initial task", company_id: user.company_id})
+      |> Ash.create!(domain: Tasks)
+
+    assert {:error, _error} =
+             task
+             |> Ash.Changeset.for_update(:set_priority, %{priority: "high"})
+             |> Ash.update(domain: Tasks)
+
+    events =
+      TaskEvent
+      |> filter(task_id == ^task.id)
+      |> Ash.read!(domain: Tasks)
+
+    assert events == []
+  end
+
+  test "regular update can change priority without recording a priority event" do
+    user = create_user!()
+
+    task =
+      Task
+      |> Ash.Changeset.for_create(:create, %{title: "Initial task", company_id: user.company_id})
+      |> Ash.create!(domain: Tasks)
+
+    updated =
+      task
+      |> Ash.Changeset.for_update(:update, %{priority: "low"})
+      |> Ash.update!(domain: Tasks)
+
+    assert updated.priority == "low"
+
+    events =
+      TaskEvent
+      |> filter(task_id == ^task.id)
+      |> Ash.read!(domain: Tasks)
+
+    assert events == []
+  end
+
   defp create_user! do
     email = "test+#{System.unique_integer([:positive])}@example.com"
     company = Accounts.Auth.default_company!()

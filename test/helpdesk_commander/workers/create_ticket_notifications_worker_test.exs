@@ -3,6 +3,7 @@ defmodule HelpdeskCommander.Workers.CreateTicketNotificationsWorkerTest do
   use Oban.Testing, repo: HelpdeskCommander.Repo
 
   import Ash.Query
+  import ExUnit.CaptureLog
 
   alias HelpdeskCommander.Accounts
   alias HelpdeskCommander.Accounts.User
@@ -45,14 +46,19 @@ defmodule HelpdeskCommander.Workers.CreateTicketNotificationsWorkerTest do
   end
 
   test "worker discards invalid args" do
-    assert {:discard, {:invalid_string, "title"}} =
-             perform_job(CreateTicketNotificationsWorker, %{
-               notification_type: "ticket_resolved_review_required",
-               title: "",
-               body: "body",
-               company_id: 1,
-               ticket_id: 1
-             })
+    log =
+      capture_log(fn ->
+        assert {:discard, {:invalid_string, "title"}} =
+                 perform_job(CreateTicketNotificationsWorker, %{
+                   notification_type: "ticket_resolved_review_required",
+                   title: "",
+                   body: "body",
+                   company_id: 1,
+                   ticket_id: 1
+                 })
+      end)
+
+    assert log =~ "[workers.create_ticket_notifications.invalid_args]"
   end
 
   test "set_status to resolved enqueues notification job" do

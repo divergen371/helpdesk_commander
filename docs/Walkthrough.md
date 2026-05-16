@@ -678,3 +678,23 @@ mix phx.server
   - 事象説明/チャット本文/表示名の暗号化方針と段階導入手順を記載
 - `docs/IMPLEMENTATION_PLAN.md` に暗号化設計メモへのリンクを追加
 - `docs/TASKS.md` に暗号化導入タスク（P0/P1）を追記
+
+---
+
+## 2026-05-16 14:45 UTC
+
+### タスク優先度履歴 UI と set_priority 導線
+
+- `/tasks` と `/tasks/:public_id` を追加
+  - 自社 company のタスク一覧/詳細のみを表示
+  - 別 company のタスク public_id は一覧へ戻す
+- Task 詳細に優先度変更フォームを追加
+  - UI からの変更は `set_priority` アクション経由
+  - `actor_id` はセッションの current user でサーバ側付与
+- Task 詳細に優先度変更履歴を表示
+  - `TaskEvent` の `priority_changed` を新しい順に表示
+  - actor、変更前/変更後、変更日時を確認可能
+- テストを追加
+  - リソース: `actor_id` 必須、通常 update では履歴を作らないことを検証
+  - LiveView: 一覧、詳細、優先度変更、履歴表示、company 境界、未ログインリダイレクトを検証
+- OTP 29.0 では `yamerl` / `cachex` の再コンパイル問題が発生したため、OTP 28.3 + Elixir 1.19.4 で再コンパイルして検証

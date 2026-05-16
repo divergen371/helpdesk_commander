@@ -12,6 +12,7 @@
 - Oban / Cachex / Telemetry / Hammer / PlugAttack / RemoteIp を導入済み
 - Inquiry は実装済み（自動 Ticket 生成まで）
 - Conversation / Event 系のリソースを実装済み（ページング基盤含む）
+- Task 優先度履歴 UI と `set_priority` 導線を実装済み
 
 ## 設計方針
 - 重要操作はイベントログ化し、append-only を基本にする
@@ -40,3 +41,6 @@
 - Inquiry の UI/テスト/運用フローは未着手
 - UI差し替え（React/Vue/Corex等）に伴う JSON API 化の設計メモを `docs/DESIGN_API_MIGRATION.md` に追加
   - 段階移行の方針、認証（Cookie/Token）、エラー標準、セキュリティ、テスト方針、AshJsonApi/GraphQL 拡張の選択肢を整理
+- Task 一覧/詳細 UI を追加し、詳細画面から `set_priority` 経由で優先度変更と履歴表示を行えるようにした
+  - company 境界は LiveView の read 側フィルタで担保。将来は multitenancy / Policy Authorizer に寄せる
+  - `Task.update` では引き続き priority 変更が可能なため、履歴必須の導線は UI で `set_priority` を使う前提。後続で update から priority を外すか専用アクションへさらに寄せる検討余地あり
