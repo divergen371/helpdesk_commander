@@ -39,6 +39,21 @@ defmodule HelpdeskCommanderWeb.AdminUserLive.PendingTest do
     assert has_element?(view, "[role=\"alert\"]")
   end
 
+  test "admin only sees pending users from their own company", %{conn: conn} do
+    company = create_company!()
+    admin = create_user!(company, role: "admin", status: "active")
+    own_pending = create_user!(company, role: "user", status: "pending")
+
+    other_company = create_company!()
+    other_pending = create_user!(other_company, role: "user", status: "pending")
+
+    conn = log_in(conn, admin)
+    {:ok, view, _html} = live(conn, ~p"/admin/pending-users")
+
+    assert has_element?(view, "td", own_pending.email)
+    refute has_element?(view, "td", other_pending.email)
+  end
+
   defp create_company! do
     Company
     |> Ash.Changeset.for_create(:create, %{

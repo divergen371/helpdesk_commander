@@ -3,6 +3,8 @@ defmodule HelpdeskCommander.Tasks.Task do
     domain: HelpdeskCommander.Tasks,
     data_layer: AshPostgres.DataLayer
 
+  alias HelpdeskCommander.Accounts.User
+  alias HelpdeskCommander.Authorization
   alias HelpdeskCommander.Support.PublicId
 
   postgres do
@@ -72,6 +74,28 @@ defmodule HelpdeskCommander.Tasks.Task do
       argument :priority, :string, allow_nil?: false
 
       change set_attribute(:priority, arg(:priority))
+
+      change fn changeset, _context ->
+        actor_id = Ash.Changeset.get_argument(changeset, :actor_id)
+
+        case Ash.get(User, %{id: actor_id}, domain: HelpdeskCommander.Accounts) do
+          {:ok, %User{} = actor} ->
+            if Authorization.same_company?(actor, changeset.data.company_id) do
+              changeset
+            else
+              Ash.Changeset.add_error(changeset,
+                field: :actor_id,
+                message: "別会社のタスクは変更できません"
+              )
+            end
+
+          _result ->
+            Ash.Changeset.add_error(changeset,
+              field: :actor_id,
+              message: "実行者が見つかりません"
+            )
+        end
+      end
 
       change after_action(fn changeset, task, _context ->
                previous = changeset.data

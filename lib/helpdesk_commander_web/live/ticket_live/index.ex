@@ -33,8 +33,11 @@ defmodule HelpdeskCommanderWeb.TicketLive.Index do
      |> stream(:tickets, tickets)}
   end
 
-  defp load_tickets(current_user, external_user?) do
-    query = maybe_filter_for_external(Ticket, current_user, external_user?)
+  defp load_tickets(%User{company_id: company_id} = user, external_user?) do
+    query =
+      Ticket
+      |> filter(company_id == ^company_id or visibility_scope == "global")
+      |> maybe_filter_for_external(external_user?, user)
 
     case Ash.read(query, domain: Helpdesk) do
       {:ok, tickets} ->
@@ -48,11 +51,13 @@ defmodule HelpdeskCommanderWeb.TicketLive.Index do
     end
   end
 
-  defp maybe_filter_for_external(query, %User{id: requester_id}, true) do
+  defp load_tickets(_current_user, _external_user?), do: {:ok, []}
+
+  defp maybe_filter_for_external(query, true, %User{id: requester_id}) do
     filter(query, requester_id == ^requester_id or visibility_scope == "global")
   end
 
-  defp maybe_filter_for_external(query, _user, _external), do: query
+  defp maybe_filter_for_external(query, _external, _user), do: query
 
   @impl Phoenix.LiveView
   def render(assigns) do

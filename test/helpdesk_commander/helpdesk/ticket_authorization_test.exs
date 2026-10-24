@@ -109,6 +109,79 @@ defmodule HelpdeskCommander.Helpdesk.TicketAuthorizationTest do
     assert DateTime.compare(updated.latest_message_at, now) in [:eq, :gt]
   end
 
+  test "privileged actions are forbidden across companies" do
+    user = create_user!()
+    ticket = create_ticket!(user)
+
+    other_company = create_company!()
+    other_admin = create_user_in_company!(other_company, "admin")
+
+    assert {:error, %Ash.Error.Forbidden{}} =
+             ticket
+             |> Ash.Changeset.for_update(:update, %{priority: "p1"})
+             |> Ash.update(domain: Helpdesk, actor: other_admin)
+
+    resolved =
+      ticket
+      |> Ash.Changeset.for_update(:set_status, %{status: "resolved", actor_id: user.id})
+      |> Ash.update!(domain: Helpdesk, actor: user)
+
+    assert {:error, %Ash.Error.Forbidden{}} =
+             resolved
+             |> Ash.Changeset.for_update(:set_status, %{
+               status: "verified",
+               actor_id: other_admin.id
+             })
+             |> Ash.update(domain: Helpdesk, actor: other_admin)
+  end
+
+  test "external users cannot change ticket status" do
+    user = create_user!()
+    customer = create_user!("customer")
+    ticket = create_ticket!(user)
+
+    assert {:error, %Ash.Error.Forbidden{}} =
+             ticket
+             |> Ash.Changeset.for_update(:set_status, %{
+               status: "triage",
+               actor_id: customer.id
+             })
+             |> Ash.update(domain: Helpdesk, actor: customer)
+  end
+
+  defp create_company! do
+    HelpdeskCommander.Accounts.Company
+    |> Ash.Changeset.for_create(:create, %{
+      name: "Company #{System.unique_integer([:positive])}",
+      company_code: unique_company_code()
+    })
+    |> Ash.create!(domain: Accounts)
+  end
+
+  defp create_user_in_company!(company, role) do
+    email = "test+#{System.unique_integer([:positive])}@example.com"
+
+    User
+    |> Ash.Changeset.for_create(:create, %{
+      email: email,
+      display_name: "Test User",
+      role: role,
+      status: "active",
+      company_id: company.id
+    })
+    |> Ash.create!(domain: Accounts)
+  end
+
+  defp unique_company_code do
+    suffix =
+      System.unique_integer([:positive])
+      |> rem(900_000)
+      |> Kernel.+(100_000)
+      |> Integer.to_string()
+
+    "A-#{suffix}"
+  end
+
   defp create_user!(role \\ "user") do
     email = "test+#{System.unique_integer([:positive])}@example.com"
     company = Accounts.Auth.default_company!()

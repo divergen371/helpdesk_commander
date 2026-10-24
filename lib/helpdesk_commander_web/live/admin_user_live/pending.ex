@@ -11,8 +11,10 @@ defmodule HelpdeskCommanderWeb.AdminUserLive.Pending do
 
   @impl Phoenix.LiveView
   def mount(_params, _session, socket) do
+    company_id = socket.assigns.current_user.company_id
+
     {users, socket_after_users} =
-      case pending_users() do
+      case pending_users(company_id) do
         {:ok, users} ->
           {users, socket}
 
@@ -23,7 +25,7 @@ defmodule HelpdeskCommanderWeb.AdminUserLive.Pending do
       end
 
     {companies, socket_after_companies} =
-      case company_map() do
+      case company_map(company_id) do
         {:ok, companies} ->
           {companies, socket_after_users}
 
@@ -54,7 +56,7 @@ defmodule HelpdeskCommanderWeb.AdminUserLive.Pending do
         case Auth.approve_user(user) do
           {:ok, _user} ->
             {users, socket} =
-              case pending_users() do
+              case pending_users(socket.assigns.current_user.company_id) do
                 {:ok, users} ->
                   {users, socket}
 
@@ -76,8 +78,8 @@ defmodule HelpdeskCommanderWeb.AdminUserLive.Pending do
     end
   end
 
-  defp pending_users do
-    query = filter(User, status == "pending")
+  defp pending_users(company_id) do
+    query = filter(User, company_id == ^company_id and status == "pending")
 
     case Ash.read(query, domain: Accounts) do
       {:ok, users} ->
@@ -88,8 +90,10 @@ defmodule HelpdeskCommanderWeb.AdminUserLive.Pending do
     end
   end
 
-  defp company_map do
-    case Ash.read(Company, domain: Accounts) do
+  defp company_map(company_id) do
+    query = filter(Company, id == ^company_id)
+
+    case Ash.read(query, domain: Accounts) do
       {:ok, companies} ->
         {:ok, Map.new(companies, &{&1.id, &1})}
 

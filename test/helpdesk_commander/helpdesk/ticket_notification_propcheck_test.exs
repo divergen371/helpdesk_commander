@@ -11,14 +11,14 @@ defmodule HelpdeskCommander.Helpdesk.TicketNotificationPropCheckTest do
 
   property "propcheck: mark_read sets read_at and is monotonic" do
     forall times <- integer(1, 3) do
-      notification = create_notification!()
+      {notification, user} = create_notification!()
 
       {last_read_at, _notification} =
         Enum.reduce(1..times, {nil, notification}, fn _step, {prev_read_at, current} ->
           updated =
             current
             |> Ash.Changeset.for_update(:mark_read, %{})
-            |> Ash.update!(domain: Helpdesk)
+            |> Ash.update!(domain: Helpdesk, actor: user)
 
           if prev_read_at != nil do
             assert DateTime.compare(updated.read_at, prev_read_at) in [:eq, :gt]
@@ -35,16 +35,19 @@ defmodule HelpdeskCommander.Helpdesk.TicketNotificationPropCheckTest do
     user = create_user!()
     ticket = create_ticket!(user)
 
-    TicketNotification
-    |> Ash.Changeset.for_create(:create, %{
-      notification_type: "propcheck_read",
-      title: "既読テスト",
-      body: "read_atテスト",
-      company_id: user.company_id,
-      ticket_id: ticket.id,
-      recipient_id: user.id
-    })
-    |> Ash.create!(domain: Helpdesk)
+    notification =
+      TicketNotification
+      |> Ash.Changeset.for_create(:create, %{
+        notification_type: "propcheck_read",
+        title: "既読テスト",
+        body: "read_atテスト",
+        company_id: user.company_id,
+        ticket_id: ticket.id,
+        recipient_id: user.id
+      })
+      |> Ash.create!(domain: Helpdesk)
+
+    {notification, user}
   end
 
   defp create_user! do

@@ -1,7 +1,10 @@
 defmodule HelpdeskCommander.Helpdesk.TicketNotification do
   use Ash.Resource,
     domain: HelpdeskCommander.Helpdesk,
-    data_layer: AshPostgres.DataLayer
+    data_layer: AshPostgres.DataLayer,
+    authorizers: [Ash.Policy.Authorizer]
+
+  alias HelpdeskCommander.Helpdesk.TicketNotification.Preparations.ForRecipient
 
   postgres do
     table "ticket_notifications"
@@ -48,6 +51,25 @@ defmodule HelpdeskCommander.Helpdesk.TicketNotification do
       attribute_type HelpdeskCommander.Types.BigInt
       allow_nil? true
       public? true
+    end
+  end
+
+  preparations do
+    prepare ForRecipient
+    prepare build(sort: [inserted_at: :desc])
+  end
+
+  policies do
+    policy action_type(:read) do
+      authorize_if expr(recipient_id == ^actor(:id))
+    end
+
+    policy action(:mark_read) do
+      authorize_if expr(recipient_id == ^actor(:id))
+    end
+
+    policy action_type(:create) do
+      authorize_if always()
     end
   end
 

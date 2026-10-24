@@ -78,6 +78,15 @@ defmodule HelpdeskCommanderWeb.TaskLiveTest do
     assert {:error, {:redirect, %{to: "/sign-in"}}} = live(conn, ~p"/tasks/#{task.public_id}")
   end
 
+  test "external user is redirected away from tasks", %{conn: conn} do
+    company = create_company!()
+    external = create_user!(company, role: "customer")
+
+    conn = log_in(conn, external)
+
+    assert {:error, {:redirect, %{to: "/tickets"}}} = live(conn, ~p"/tasks")
+  end
+
   defp create_company! do
     Company
     |> Ash.Changeset.for_create(:create, %{

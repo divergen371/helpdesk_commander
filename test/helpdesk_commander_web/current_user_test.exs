@@ -104,6 +104,29 @@ defmodule HelpdeskCommanderWeb.CurrentUserTest do
     refute Authorization.privileged_role?(nil)
   end
 
+  test "Authorization scopes roles and companies" do
+    company = create_company!()
+    other_company = create_company!()
+    admin = create_user!(company, role: "admin")
+    user = create_user!(company)
+
+    assert Authorization.external?("customer")
+    refute Authorization.external?("user")
+    refute Authorization.external?(nil)
+
+    assert Authorization.internal?("user")
+    refute Authorization.internal?("customer")
+    refute Authorization.internal?(nil)
+
+    assert Authorization.same_company?(user, company.id)
+    refute Authorization.same_company?(user, other_company.id)
+    refute Authorization.same_company?(nil, company.id)
+
+    assert Authorization.privileged_for_company?(admin, company.id)
+    refute Authorization.privileged_for_company?(admin, other_company.id)
+    refute Authorization.privileged_for_company?(nil, company.id)
+  end
+
   defp create_company! do
     Company
     |> Ash.Changeset.for_create(:create, %{

@@ -80,6 +80,60 @@ defmodule HelpdeskCommander.Tasks.TaskTest do
     assert events == []
   end
 
+  test "set_priority is forbidden across companies" do
+    company = create_company!()
+
+    task =
+      Task
+      |> Ash.Changeset.for_create(:create, %{title: "Tenant task", company_id: company.id})
+      |> Ash.create!(domain: Tasks)
+
+    other_company = create_company!()
+    other_user = create_user_in_company!(other_company)
+
+    assert {:error, _error} =
+             task
+             |> Ash.Changeset.for_update(:set_priority, %{
+               actor_id: other_user.id,
+               priority: "high"
+             })
+             |> Ash.update(domain: Tasks)
+
+    assert TaskEvent
+           |> filter(task_id == ^task.id)
+           |> Ash.read!(domain: Tasks) == []
+  end
+
+  defp create_company! do
+    HelpdeskCommander.Accounts.Company
+    |> Ash.Changeset.for_create(:create, %{
+      name: "Company #{System.unique_integer([:positive])}",
+      company_code: unique_company_code()
+    })
+    |> Ash.create!(domain: Accounts)
+  end
+
+  defp create_user_in_company!(company) do
+    User
+    |> Ash.Changeset.for_create(:create, %{
+      email: "test+#{System.unique_integer([:positive])}@example.com",
+      display_name: "Test User",
+      company_id: company.id,
+      status: "active"
+    })
+    |> Ash.create!(domain: Accounts)
+  end
+
+  defp unique_company_code do
+    suffix =
+      System.unique_integer([:positive])
+      |> rem(900_000)
+      |> Kernel.+(100_000)
+      |> Integer.to_string()
+
+    "A-#{suffix}"
+  end
+
   defp create_user! do
     email = "test+#{System.unique_integer([:positive])}@example.com"
     company = Accounts.Auth.default_company!()

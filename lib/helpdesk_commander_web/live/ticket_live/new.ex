@@ -88,54 +88,46 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
   @impl Phoenix.LiveView
   def handle_event("create_sample_user", _params, socket) do
     email = "user+#{System.unique_integer([:positive])}@example.com"
-    company_result = Accounts.Auth.default_company()
+    current_user = socket.assigns.current_user
 
-    case company_result do
-      {:ok, company} ->
-        changeset =
-          Ash.Changeset.for_create(User, :create, %{
-            email: email,
-            display_name: "Sample User",
-            company_id: company.id,
-            status: "active"
-          })
+    changeset =
+      Ash.Changeset.for_create(User, :create, %{
+        email: email,
+        display_name: "Sample User",
+        company_id: current_user.company_id,
+        status: "active"
+      })
 
-        case Ash.create(changeset, domain: Accounts) do
-          {:ok, _user} ->
-            {users, socket, users_loaded?} =
-              case load_users(socket.assigns.current_user, socket.assigns.current_user_external?) do
-                {:ok, users} ->
-                  {users, socket, true}
+    case Ash.create(changeset, domain: Accounts) do
+      {:ok, _user} ->
+        {users, socket, users_loaded?} =
+          case load_users(current_user, socket.assigns.current_user_external?) do
+            {:ok, users} ->
+              {users, socket, true}
 
-                {:error, error} ->
-                  ErrorLog.log_error("ticket_live.new.reload_users", error)
+            {:error, error} ->
+              ErrorLog.log_error("ticket_live.new.reload_users", error)
 
-                  {socket.assigns.users, put_flash(socket, :error, "ユーザー一覧の取得に失敗しました"), false}
-              end
+              {socket.assigns.users, put_flash(socket, :error, "ユーザー一覧の取得に失敗しました"), false}
+          end
 
-            show_sample_user? =
-              users_loaded? and
-                not socket.assigns.current_user_external? and
-                (users == [] or
-                   (socket.assigns.current_user && length(users) == 1 &&
-                      hd(users).id == socket.assigns.current_user.id))
+        show_sample_user? =
+          users_loaded? and
+            not socket.assigns.current_user_external? and
+            (users == [] or
+               (socket.assigns.current_user && length(users) == 1 &&
+                  hd(users).id == socket.assigns.current_user.id))
 
-            {:noreply,
-             socket
-             |> put_flash(:info, "サンプルユーザーを作成しました")
-             |> assign(:users, users)
-             |> assign(:show_sample_user?, show_sample_user?)}
-
-          {:error, error} ->
-            ErrorLog.log_error("ticket_live.new.create_sample_user", error)
-
-            {:noreply, put_flash(socket, :error, "サンプルユーザーの作成に失敗しました")}
-        end
+        {:noreply,
+         socket
+         |> put_flash(:info, "サンプルユーザーを作成しました")
+         |> assign(:users, users)
+         |> assign(:show_sample_user?, show_sample_user?)}
 
       {:error, error} ->
-        ErrorLog.log_error("ticket_live.new.default_company", error)
+        ErrorLog.log_error("ticket_live.new.create_sample_user", error)
 
-        {:noreply, put_flash(socket, :error, "会社情報の取得に失敗しました")}
+        {:noreply, put_flash(socket, :error, "サンプルユーザーの作成に失敗しました")}
     end
   end
 
@@ -159,22 +151,26 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
 
   defp maybe_put_requester_id(params, _socket), do: params
 
-  defp load_users(current_user, external_user?) do
-    if external_user? and current_user do
-      {:ok, [current_user]}
-    else
-      case Ash.read(User, domain: Accounts) do
-        {:ok, users} ->
-          {:ok,
-           users
-           |> Enum.reject(&(&1.role == "system" or &1.status in ~w(suspended anonymized)))
-           |> Enum.sort_by(& &1.inserted_at, {:asc, DateTime})}
+  defp load_users(%User{} = current_user, true) do
+    {:ok, [current_user]}
+  end
 
-        {:error, error} ->
-          {:error, error}
-      end
+  defp load_users(%User{company_id: company_id}, false) do
+    query = filter(User, company_id == ^company_id)
+
+    case Ash.read(query, domain: Accounts) do
+      {:ok, users} ->
+        {:ok,
+         users
+         |> Enum.reject(&(&1.role == "system" or &1.status in ~w(suspended anonymized)))
+         |> Enum.sort_by(& &1.inserted_at, {:asc, DateTime})}
+
+      {:error, error} ->
+        {:error, error}
     end
   end
+
+  defp load_users(_current_user, _external_user?), do: {:ok, []}
 
   defp load_products(%User{company_id: company_id}) do
     case Product |> filter(company_id == ^company_id) |> Ash.read(domain: Helpdesk) do

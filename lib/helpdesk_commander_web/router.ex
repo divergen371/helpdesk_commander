@@ -30,6 +30,10 @@ defmodule HelpdeskCommanderWeb.Router do
       live "/tickets", TicketLive.Index, :index
       live "/tickets/new", TicketLive.New, :new
       live "/tickets/:public_id", TicketLive.Show, :show
+    end
+
+    live_session :internal_required,
+      on_mount: {HelpdeskCommanderWeb.LiveUserAuth, :internal_required} do
       live "/tasks", TaskLive.Index, :index
       live "/tasks/:public_id", TaskLive.Show, :show
     end

@@ -8,9 +8,7 @@
 ## 現在（P0）
 
 - [ ] Inquiry（Webフォーム）→ Ticket 自動生成の UI/ルート/テスト（現状はリソースと自動生成のみ）
-- [ ] テナント境界と操作権限の監査（一覧・詳細・担当者候補・通知・承認を `company_id` とロールで制約）
 - [ ] 共通 Change 抽出 + validations 強化（`ticket_verification` の resolved 制約・日時補完の再利用化）
-- [ ] TicketNotification の read アクションへ Preparation 導入（recipient絞り込み・`inserted_at desc` 統一）
 - [ ] PII保護の段階導入（`users.email` / `companies.name` を `*_enc + *_hash` へ移行し検索・一意制約を維持）
 
 ## 次（P1）
@@ -30,7 +28,7 @@
 - [ ] 検索/フィルタ/ソート仕様の確定と実装
 - [ ] 通知の重複抑制・クールダウン
 - [ ] 外部通知チャネル（メール/チャット）と重複抑制（通知フェーズ拡張）
-- [ ] カバレッジの余裕確保（現在 80.0%。worker / `ticket_live/show.ex` の未テスト分を追加）
+- [ ] カバレッジの余裕確保（現在 80.3%。worker / `ticket_live/show.ex` の未テスト分を追加）
 - [ ] Ash resource snapshot の再生成（`mix ash.codegen --check` の 8 ファイル。`ticket_messages` DROP を含むため手動レビュー）
 
 ## 保留（P2）
@@ -46,6 +44,8 @@
 
 ## 完了
 
+- [x] テナント境界・認可監査（チケット/タスク/ユーザー承認を `company_id` で制約、社外のタスクアクセス禁止、横断的な特権操作を拒否）
+- [x] TicketNotification read の Preparation（受信者絞り込み・`inserted_at desc`・read/mark_read ポリシー）
 - [x] Erlang/OTP 29.1.2 + Elixir 1.20.4 対応（`.tool-versions` / CI 更新、Ash/Phoenix 依存更新、型警告修正）
 - [x] CI カバレッジ 80% 回復（CurrentUser / Authorization / 認証コントローラのテスト追加）
 - [x] コアリソース（Users/Tickets/Tasks）と public_id 方針の実装

@@ -6,6 +6,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
   alias HelpdeskCommander.Accounts
   alias HelpdeskCommander.Accounts.User
+  alias HelpdeskCommander.Authorization
   alias HelpdeskCommander.Helpdesk
   alias HelpdeskCommander.Helpdesk.Conversation
   alias HelpdeskCommander.Helpdesk.ConversationMessage
@@ -71,7 +72,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   defp load_ticket_data(public_id, current_user, external_user?) do
     with {:ok, ticket} <- load_ticket(public_id),
          :ok <- authorize_ticket(ticket, current_user, external_user?),
-         {:ok, users, users_by_id} <- load_users(),
+         {:ok, users, users_by_id} <- load_users(ticket.company_id),
          {:ok, conversations} <- ensure_conversations(ticket) do
       build_ticket_data(ticket, current_user, external_user?, users, users_by_id, conversations)
     else
@@ -95,16 +96,28 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     end
   end
 
-  defp authorize_ticket(_ticket, _current_user, false), do: :ok
+  defp authorize_ticket(ticket, %User{} = current_user, external_user?) do
+    cond do
+      ticket.visibility_scope == "global" ->
+        :ok
 
-  defp authorize_ticket(ticket, current_user, true) do
-    if current_user &&
-         (ticket.requester_id == current_user.id || ticket.visibility_scope == "global") do
-      :ok
-    else
-      {:error, :forbidden}
+      external_user? ->
+        if Authorization.same_company?(current_user, ticket.company_id) and
+             ticket.requester_id == current_user.id do
+          :ok
+        else
+          {:error, :forbidden}
+        end
+
+      Authorization.same_company?(current_user, ticket.company_id) ->
+        :ok
+
+      true ->
+        {:error, :forbidden}
     end
   end
+
+  defp authorize_ticket(_ticket, _current_user, _external_user?), do: {:error, :forbidden}
 
   defp build_ticket_data(
          ticket,
@@ -609,7 +622,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
   defp selectable_users(users) do
     Enum.filter(users, fn user ->
-      user.role != "system" and user.status == "active"
+      Authorization.internal?(user) and user.status == "active"
     end)
   end
 
@@ -718,8 +731,10 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
   defp forbidden_error?(_error), do: false
 
-  defp load_users do
-    case Ash.read(User, domain: Accounts) do
+  defp load_users(company_id) do
+    query = filter(User, company_id == ^company_id)
+
+    case Ash.read(query, domain: Accounts) do
       {:ok, users} ->
         sorted = Enum.sort_by(users, & &1.inserted_at, {:asc, DateTime})
         {:ok, sorted, Map.new(sorted, &{&1.id, &1})}

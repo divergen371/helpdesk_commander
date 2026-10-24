@@ -35,11 +35,17 @@ defmodule HelpdeskCommander.Workers.CreateTicketNotificationsWorkerTest do
     notifications =
       TicketNotification
       |> filter(ticket_id == ^ticket.id and notification_type == "ticket_resolved_review_required")
-      |> Ash.read!(domain: Helpdesk)
+      |> Ash.read!(domain: Helpdesk, actor: admin)
+
+    leader_notifications =
+      TicketNotification
+      |> filter(ticket_id == ^ticket.id and notification_type == "ticket_resolved_review_required")
+      |> Ash.read!(domain: Helpdesk, actor: leader)
 
     recipient_ids =
-      notifications
+      (notifications ++ leader_notifications)
       |> Enum.map(& &1.recipient_id)
+      |> Enum.uniq()
       |> Enum.sort()
 
     assert recipient_ids == Enum.sort([admin.id, leader.id])

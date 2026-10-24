@@ -24,12 +24,12 @@
 | コマンド | 結果 |
 | --- | --- |
 | `mix precommit` | 成功 |
-| `mix test` | **13 properties, 111 tests, 0 failures** |
+| `mix test` | **13 properties, 122 tests, 0 failures** |
 | `mix credo --strict` | 指摘なし（65 files / 95 checks） |
 | `mix dialyzer` | **0 errors** |
 | `mix compile --warnings-as-errors` | 成功（プロジェクト側の警告 0） |
 | `mix format` | 差分なし |
-| `MIX_ENV=test mix coveralls` | **80.0%**（最低基準 80% を満たす） |
+| `MIX_ENV=test mix coveralls` | **80.3%**（最低基準 80% を満たす） |
 
 ### 環境
 
@@ -56,7 +56,7 @@
 | `workers/create_ticket_notifications_worker.ex` | 70.7% |
 | `live/ticket_live/show.ex` | 75.7% |
 | `accounts/auth.ex` | 77.5% |
-| **合計** | **80.0%**（1041 / 1301 行） |
+| **合計** | **80.3%**（1078 / 1342 行） |
 
 基準は満たしているが余裕がないため、新規コード追加時はテストも同時に追加する。
 
@@ -114,18 +114,20 @@
 
 ### 3.2 品質・セキュリティ
 
-- **カバレッジの余裕がない**（80.0% / 基準 80%）。新規コード追加時に容易に下回る。
+- **カバレッジの余裕がない**（80.3% / 基準 80%）。新規コード追加時に容易に下回る。
 - **ツールチェーンは固定済み**（`.tool-versions`: Erlang 29.1.2 / Elixir `ref:v1.20.4`）。CI も同一バージョン。
-- **企業（テナント）境界の一貫性**
-  - タスク一覧は `company_id` で絞っている。
-  - チケット一覧・詳細は社内ユーザーに対して全社表示（要件上「社内は全件閲覧」だが、操作権限まで全社横断でよいかは要確認）。
-  - チケット詳細の `load_users/0` は全社のユーザーを取得し、担当者選択候補にも全社ユーザーが入る。
-  - admin/leader の権限判定はロールのみで、所属会社を条件にしていない。
-- **Ash ポリシーの適用範囲が限定的**
-  - `Ticket` 以外の主要リソース（Task / Inquiry / ConversationMessage / TicketNotification など）にポリシーがない。
-  - 現状は LiveView 側の手動チェックが主で、将来の API 化時に漏れるリスクがある。
+- **企業（テナント）境界は company 単位に統一済み**
+  - チケット一覧・詳細は自社 company の範囲に制限（`visibility_scope: "global"` は全体公開として例外）。
+  - 担当者・投稿者の候補は自社の内部ユーザーに限定。
+  - タスクは自社 company のみ。社外ユーザーは `/tasks` からリダイレクト。
+  - ユーザー承認は管理者の自社 company の pending ユーザーのみ。
+  - admin/leader の特権操作は「ロール + 対象チケットの company 一致」で制約。
+- **Ash ポリシーの適用範囲はまだ限定的**
+  - `Ticket` と `TicketNotification` 以外の主要リソース（Task / Inquiry / ConversationMessage / TicketLink など）は
+    LiveView 側の手動チェックに依存している。
+  - `Ticket` の read / 非特権 update は引き続きポリシー上は許可しており、将来の API 化時にデータ層での強制が必要。
 - **通知の重複抑制なし**。同一イベントの再実行で通知が重複し得る。
-- **通知 read の受信者スコープ未実装**。`TicketNotification` の read は受信者で絞られていない（`TASKS.md` の Preparation 導入待ち）。
+- **通知 read は受信者に限定済み**。`TicketNotification` の Preparation と read/mark_read ポリシーで保証。
 - **PII 暗号化は設計のみ**（`DESIGN_DATA_ENCRYPTION.md`）。`users.email` / `companies.name` などは平文。
 - **`code_interface` / `aggregates` / `calculations` / `multitenancy` は未導入**（`DESIGN_ASH_REFACTOR.md`）。
 - **Ash の resource snapshot が古い**

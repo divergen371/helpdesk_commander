@@ -5,6 +5,7 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
   import Phoenix.LiveViewTest
 
   alias HelpdeskCommander.Accounts
+  alias HelpdeskCommander.Accounts.Company
   alias HelpdeskCommander.Accounts.User
   alias HelpdeskCommander.Helpdesk
   alias HelpdeskCommander.Helpdesk.Conversation
@@ -362,6 +363,77 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
     refute has_element?(view, "#ticket-messages-private")
     refute has_element?(view, "#ticket-message-form-private")
     refute has_element?(view, "#ticket-events")
+  end
+
+  test "internal user cannot see or open another company's tickets", %{conn: conn} do
+    company = create_company!()
+    user = create_user_in_company!(company)
+    own_ticket = create_ticket!(user)
+
+    other_company = create_company!()
+    other_user = create_user_in_company!(other_company)
+    other_ticket = create_ticket!(other_user)
+
+    conn = log_in(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/tickets")
+
+    assert has_element?(view, "td", own_ticket.public_id)
+    refute has_element?(view, "td", other_ticket.public_id)
+
+    assert {:error, {:live_redirect, %{to: "/tickets"}}} =
+             live(log_in(build_conn(), user), ~p"/tickets/#{other_ticket.public_id}")
+  end
+
+  test "sample user is created in the current user's company", %{conn: conn} do
+    company = create_company!()
+    user = create_user_in_company!(company)
+
+    conn = log_in(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/tickets/new")
+
+    view
+    |> element("button[phx-click=\"create_sample_user\"]")
+    |> render_click()
+
+    sample =
+      User
+      |> filter(company_id == ^company.id and email != ^user.email)
+      |> Ash.read_one!(domain: Accounts)
+
+    assert sample.company_id == company.id
+  end
+
+  defp create_company! do
+    Company
+    |> Ash.Changeset.for_create(:create, %{
+      name: "Company #{System.unique_integer([:positive])}",
+      company_code: unique_company_code()
+    })
+    |> Ash.create!(domain: Accounts)
+  end
+
+  defp create_user_in_company!(company, opts \\ []) do
+    role = Keyword.get(opts, :role, "user")
+
+    User
+    |> Ash.Changeset.for_create(:create, %{
+      email: "user+#{System.unique_integer([:positive])}@example.com",
+      display_name: "Test User",
+      role: role,
+      status: "active",
+      company_id: company.id
+    })
+    |> Ash.create!(domain: Accounts)
+  end
+
+  defp unique_company_code do
+    suffix =
+      System.unique_integer([:positive])
+      |> rem(900_000)
+      |> Kernel.+(100_000)
+      |> Integer.to_string()
+
+    "A-#{suffix}"
   end
 
   defp create_user!(role \\ "user") do

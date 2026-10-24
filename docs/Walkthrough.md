@@ -791,3 +791,35 @@ mix phx.server
 - `mix precommit` は引き続き成功（13 properties / 111 tests / 0 failures）
 - ローカルの macOS では Tailwind 4.1.12 バイナリが SIGKILL されるため、
   `mix assets.deploy` の完全実行は CI（Linux）で確認する
+
+---
+
+## 2026-10-24 08:55 UTC
+
+### テナント境界・認可監査 / TicketNotification read Preparation
+
+- テナント境界を company 単位に統一
+  - チケット一覧・詳細: 自社 company のみ（`visibility_scope: "global"` は例外）
+  - 担当者・投稿者候補: 自社 company の内部ユーザーのみ
+  - ユーザー承認: 管理者の自社 company の pending ユーザーのみ
+  - サンプルユーザー: 現在のユーザーの company に作成
+- タスク
+  - `:internal_required` on_mount を追加し、社外ユーザーを `/tasks` から `/tickets` へリダイレクト
+  - `Task.set_priority` に実行者とタスクの company 一致チェックを追加
+- チケット認可
+  - `ActorPrivileged`: admin/leader かつ対象チケットと同一 company を要求
+  - `StatusDoesNotRequirePrivilegedRole`: 内部ユーザーかつ同一 company を要求（社外はステータス変更不可）
+- 通知
+  - `TicketNotification.Preparations.ForRecipient` を追加
+    - `context.actor` の `id` で `recipient_id` を絞り込み
+    - `inserted_at desc` に統一
+  - `read` / `mark_read` の Ash ポリシーを受信者に限定
+- テスト追加
+  - 別 company のチケット一覧/詳細が見えない
+  - 別 company の admin が特権操作できない
+  - 社外ユーザーがステータス変更・タスク閲覧できない
+  - 通知が受信者ごとに分離され、非受信者の既読化が拒否される
+- 検証結果
+  - `mix precommit` 成功
+  - 13 properties / 122 tests / 0 failures
+  - `mix coveralls` 80.3%

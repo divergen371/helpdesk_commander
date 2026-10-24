@@ -74,3 +74,17 @@
   - `docs/STATUS.md`（現状・検証結果・ギャップ・リスク）
   - `docs/ROADMAP.md`（フェーズ別ロードマップ・優先バックログ・マイルストーン）
 - `docs/TASKS.md` を現状に合わせて更新
+
+## 実装後メモ（2026-10-24 テナント境界・認可監査 / 通知 read）
+
+- テナント境界を company 単位に統一
+  - チケット一覧・詳細は自社 company に制限（`global` 公開のみ例外）
+  - 担当者・投稿者候補、ユーザー承認、サンプルユーザー作成を自社 company に限定
+  - タスクは社外ユーザーを `/tasks` からリダイレクト
+  - `Ticket` の特権操作はロールに加えて対象チケットの company 一致を要求
+  - `Task.set_priority` は実行者とタスクの company 一致を要求
+- `TicketNotification` に受信者限定の read Preparation を追加
+  - `recipient_id == actor.id` で絞り込み、`inserted_at desc` に統一
+  - read / mark_read の Ash ポリシーを追加
+- テストを追加（横断的なテナント境界、社外タスク拒否、通知の受信者分離・既読拒否）
+- `mix precommit` 成功、13 properties / 122 tests、カバレッジ 80.3%
