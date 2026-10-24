@@ -19,6 +19,10 @@ defmodule HelpdeskCommanderWeb.CurrentUser do
   def external?(%User{role: role}), do: role in @external_roles
   def external?(_user), do: false
 
+  @spec id(User.t() | nil) :: integer() | nil
+  def id(%User{id: id}), do: id
+  def id(_user), do: nil
+
   @spec admin?(User.t() | nil) :: boolean()
   def admin?(%User{} = user), do: Authorization.privileged_role?(user)
   def admin?(_user), do: false

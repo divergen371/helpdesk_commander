@@ -21,7 +21,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
           {users, socket, true}
 
         {:error, error} ->
-          ErrorLog.log_error("ticket_live.new.load_users", error, user_id: current_user && current_user.id)
+          ErrorLog.log_error("ticket_live.new.load_users", error, user_id: CurrentUser.id(current_user))
 
           {[], put_flash(socket, :error, "ユーザー一覧の取得に失敗しました"), false}
       end
@@ -32,7 +32,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
           {products, socket_after_users, true}
 
         {:error, error} ->
-          ErrorLog.log_error("ticket_live.new.load_products", error, user_id: current_user && current_user.id)
+          ErrorLog.log_error("ticket_live.new.load_products", error, user_id: CurrentUser.id(current_user))
 
           {[], put_flash(socket_after_users, :error, "製品一覧の取得に失敗しました"), false}
       end

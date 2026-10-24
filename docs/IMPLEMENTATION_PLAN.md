@@ -10,10 +10,14 @@
 ## 現状
 - コアリソース（Users/Tickets/Tasks）と `public_id` 方針は実装済み
 - Oban / Cachex / Telemetry / Hammer / PlugAttack / RemoteIp を導入済み
-- Inquiry は実装済み（自動 Ticket 生成まで）
+- Inquiry は実装済み（自動 Ticket 生成まで。Web フォームは未実装）
 - Conversation / Event 系のリソースを実装済み（ページング基盤含む）
-- Task 優先度履歴 UI と `set_priority` 導線を実装済み
+- Task 優先度履歴 UI と `set_priority` 導線を実装済み（CRUD UI は未実装）
 - Ticket の `set_status` / `update` 権限制御は Policy Authorizer に移行済み
+- 通知は `ticket_notifications` への保存まで実装済み（UI・既読導線は未実装）
+- 検証・承認フロー、製品マスタ、チケット関連リンクのリソースを実装済み
+- 2026-10-24 時点の検証結果・ギャップ・リスクは [STATUS.md](STATUS.md) に整理
+- フェーズ別の残作業と優先順位は [ROADMAP.md](ROADMAP.md)、詳細タスクは [TASKS.md](TASKS.md) を参照
 
 ## 設計方針
 - 重要操作はイベントログ化し、append-only を基本にする
@@ -49,3 +53,24 @@
   - 既存の `actor_id` 引数はイベント記録互換として維持し、LiveView からは `action_opts: [actor: current_user]` も渡す
   - UI 側の表示抑制は維持しつつ、サーバ側の Forbidden は専用 flash に変換
   - Ash の policy verifier 向けに `picosat_elixir` を追加
+
+## 実装後メモ（2026-10-24 現状調査 / OTP 29・Elixir 1.20 対応）
+
+- `main` / `a25dc83` を対象に、実装・テスト・CI・ドキュメントの現状を調査
+- **Erlang/OTP 29.1.2 + Elixir 1.20.4 へ更新**
+  - `.tool-versions` に Erlang/Elixir を固定し、CI も同一バージョンへ更新
+  - Ash 3.37.0 / AshPostgres 2.15.1 / AshPhoenix 2.3.25、Phoenix 1.8.16 / LiveView 1.2.13 へ更新
+  - `config :ash, default_string_length_count: :codepoints` を追加（Ash 3.37 の必須設定）
+  - Elixir 1.20 の型推論警告に対応（`CurrentUser.id/1`、`<.button>` の `type` 属性許可）
+- `mix precommit` 成功（13 properties / 111 tests / 0 failures、Credo 指摘なし、警告 0）
+- `MIX_ENV=test mix coveralls` は **80.0%** で基準を満たす
+  - `CurrentUser` / `Authorization` / 認証コントローラのテストを追加して回復
+- 旧環境（OTP 28.3 + Elixir 1.19.4）では `yamerl` の再コンパイル問題があったが、
+  OTP 29 + 更新後依存 + クリーンな rebar3 設定では解消
+- `mix ash.codegen --check` は 8 ファイルの生成待ちを報告（既存の snapshot 未更新）
+  - `ticket_messages` の DROP を含むため、自動適用せず `TASKS.md` に手動レビュー項目として追加
+- 実装と README の記述に乖離があったため、README の機能一覧とロードマップを実態に合わせて修正
+- 新規ドキュメント:
+  - `docs/STATUS.md`（現状・検証結果・ギャップ・リスク）
+  - `docs/ROADMAP.md`（フェーズ別ロードマップ・優先バックログ・マイルストーン）
+- `docs/TASKS.md` を現状に合わせて更新

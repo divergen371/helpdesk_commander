@@ -4,6 +4,7 @@ defmodule HelpdeskCommanderWeb.CurrentUserTest do
   alias HelpdeskCommander.Accounts
   alias HelpdeskCommander.Accounts.Company
   alias HelpdeskCommander.Accounts.User
+  alias HelpdeskCommander.Authorization
   alias HelpdeskCommanderWeb.CurrentUser
 
   test "fetch returns nil when session has no user_id" do
@@ -45,6 +46,64 @@ defmodule HelpdeskCommanderWeb.CurrentUserTest do
     refute CurrentUser.active?(external)
   end
 
+  test "id returns the user id or nil" do
+    company = create_company!()
+    user = create_user!(company)
+
+    assert CurrentUser.id(user) == user.id
+    assert CurrentUser.id(nil) == nil
+  end
+
+  test "nil-safe helpers return false" do
+    refute CurrentUser.external?(nil)
+    refute CurrentUser.admin?(nil)
+    refute CurrentUser.active?(nil)
+    refute CurrentUser.suspended?(nil)
+    refute CurrentUser.anonymized?(nil)
+  end
+
+  test "suspended? and anonymized? reflect the account status" do
+    company = create_company!()
+    suspended = create_user!(company, status: "suspended")
+    anonymized = create_user!(company, status: "anonymized")
+
+    assert CurrentUser.suspended?(suspended)
+    refute CurrentUser.suspended?(anonymized)
+    assert CurrentUser.anonymized?(anonymized)
+    refute CurrentUser.anonymized?(suspended)
+  end
+
+  test "display_label handles anonymized, system, suspended, and active users" do
+    company = create_company!()
+
+    assert CurrentUser.display_label(create_user!(company, status: "anonymized")) ==
+             "削除済みユーザー"
+
+    assert CurrentUser.display_label(create_user!(company, role: "system")) == "System"
+
+    assert CurrentUser.display_label(create_user!(company, status: "suspended")) ==
+             "Test User（無効）"
+
+    active = create_user!(company)
+    assert CurrentUser.display_label(active) == "Test User <#{active.email}>"
+  end
+
+  test "fetch returns nil for a missing user id" do
+    assert CurrentUser.fetch(%{"user_id" => "999999999"}) == nil
+  end
+
+  test "fetch returns nil for unsupported id types" do
+    assert CurrentUser.fetch(%{"user_id" => %{}}) == nil
+    assert CurrentUser.fetch(%{"user_id" => 1.5}) == nil
+  end
+
+  test "Authorization.privileged_role? handles role strings and nil" do
+    assert Authorization.privileged_role?("admin")
+    assert Authorization.privileged_role?("leader")
+    refute Authorization.privileged_role?("user")
+    refute Authorization.privileged_role?(nil)
+  end
+
   defp create_company! do
     Company
     |> Ash.Changeset.for_create(:create, %{
@@ -54,7 +113,7 @@ defmodule HelpdeskCommanderWeb.CurrentUserTest do
     |> Ash.create!(domain: Accounts)
   end
 
-  defp create_user!(%Company{id: company_id}, opts) do
+  defp create_user!(%Company{id: company_id}, opts \\ []) do
     email = Keyword.get(opts, :email, "user+#{System.unique_integer([:positive])}@example.com")
     status = Keyword.get(opts, :status, "active")
     role = Keyword.get(opts, :role, "user")

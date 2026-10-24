@@ -16,8 +16,8 @@ on:
 
 env:
   MIX_ENV: test
-  ELIXIR_VERSION: "1.19.4"
-  OTP_VERSION: "28.3"
+  ELIXIR_VERSION: "1.20.4"
+  OTP_VERSION: "29.1.2"
 
 jobs:
   test:
@@ -26,8 +26,8 @@ jobs:
 
     strategy:
       matrix:
-        elixir: ["1.19.4"]
-        otp: ["28.3"]
+        elixir: ["1.20.4"]
+        otp: ["29.1.2"]
 
     services:
       postgres:

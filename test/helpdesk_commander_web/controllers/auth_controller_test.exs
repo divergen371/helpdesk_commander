@@ -134,6 +134,85 @@ defmodule HelpdeskCommanderWeb.AuthControllerTest do
     assert redirected_to(conn) == "/sign-in"
   end
 
+  test "sign in reports a missing company", %{conn: conn} do
+    conn =
+      post(conn, ~p"/sign-in",
+        session: %{
+          "company_code" => unique_company_code(),
+          "login" => "agent",
+          "password" => @password
+        }
+      )
+
+    assert html_response(conn, 200) =~ "会社が見つかりません"
+  end
+
+  test "sign in rejects suspended and deleted accounts", %{conn: conn} do
+    company_code = unique_company_code()
+    company = create_company!(company_code)
+    _suspended = create_user!(company, status: "suspended", login_id: "suspended")
+    _deleted = create_user!(company, status: "anonymized", login_id: "deleted")
+
+    suspended_conn =
+      post(conn, ~p"/sign-in",
+        session: %{
+          "company_code" => company_code,
+          "login" => "suspended",
+          "password" => @password
+        }
+      )
+
+    assert html_response(suspended_conn, 200) =~ "アカウントは現在停止されています"
+
+    deleted_conn =
+      post(conn, ~p"/sign-in",
+        session: %{
+          "company_code" => company_code,
+          "login" => "deleted",
+          "password" => @password
+        }
+      )
+
+    assert html_response(deleted_conn, 200) =~ "このアカウントは削除済みです"
+  end
+
+  test "sign up reports a missing pending user", %{conn: conn} do
+    company_code = unique_company_code()
+    _company = create_company!(company_code)
+
+    conn =
+      post(conn, ~p"/sign-up",
+        registration: %{
+          "company_code" => company_code,
+          "email" => "missing@example.com",
+          "display_name" => "Missing",
+          "password" => @password,
+          "password_confirmation" => @password
+        }
+      )
+
+    assert html_response(conn, 200) =~ "該当する仮ユーザーが見つかりません"
+  end
+
+  test "sign up reports registration failure", %{conn: conn} do
+    company_code = unique_company_code()
+    company = create_company!(company_code)
+    pending = create_user!(company, status: "pending", login_id: nil, with_password: false)
+
+    conn =
+      post(conn, ~p"/sign-up",
+        registration: %{
+          "company_code" => company_code,
+          "email" => pending.email,
+          "display_name" => "New Name",
+          "password" => @password,
+          "password_confirmation" => "different-password"
+        }
+      )
+
+    assert html_response(conn, 200) =~ "登録に失敗しました"
+  end
+
   test "sign out clears session", %{conn: conn} do
     conn = delete(conn, ~p"/sign-out")
     assert redirected_to(conn) == "/sign-in"

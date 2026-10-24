@@ -11,7 +11,8 @@ config :spark, formatter: ["Ash.Resource": [section_order: [:postgres]]]
 
 config :ash,
   known_types: [AshPostgres.Timestamptz, AshPostgres.TimestamptzUsec],
-  default_belongs_to_type: HelpdeskCommander.Types.BigInt
+  default_belongs_to_type: HelpdeskCommander.Types.BigInt,
+  default_string_length_count: :codepoints
 
 config :helpdesk_commander,
   ecto_repos: [HelpdeskCommander.Repo],

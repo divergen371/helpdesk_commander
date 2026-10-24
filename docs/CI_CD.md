@@ -10,8 +10,8 @@
 ## 🔧 使用技術
 
 - **CI/CDプラットフォーム**: GitHub Actions
-- **Elixir**: 1.19.4
-- **Erlang/OTP**: 28.3
+- **Elixir**: 1.20.4
+- **Erlang/OTP**: 29.1.2
 - **PostgreSQL**: 18 (Alpine)
 - **Assets**: `mix tailwind.install` / `mix esbuild.install` → `mix assets.deploy`
 
@@ -87,8 +87,8 @@ on:
 ```yaml
 env:
   MIX_ENV: test
-  ELIXIR_VERSION: "1.19.4"
-  OTP_VERSION: "28.3"
+  ELIXIR_VERSION: "1.20.4"
+  OTP_VERSION: "29.1.2"
 ```
 
 ### キャッシュ戦略

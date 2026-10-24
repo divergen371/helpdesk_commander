@@ -723,3 +723,56 @@ mix phx.server
   - actor context 経由の許可/拒否
   - 非特権ユーザーの verified 遷移拒否
   - LiveView で `actor_id` 改ざんをしても policy を回避できないこと
+
+---
+
+## 2026-10-24 06:55 UTC
+
+### リポジトリ現状・残タスク・ロードマップの調査
+
+- `main` / `a25dc83` を対象に、実装・テスト・CI・ドキュメントを突き合わせ
+- OTP 28.3 + Elixir 1.19.4 で `mix precommit` を実行
+  - 13 properties / 100 tests / 0 failures、Credo 指摘なし、format 差分なし
+- `MIX_ENV=test mix coveralls` は 79.1% で、80% の最低基準を下回ることを確認
+  - `tasks/task_event.ex`、`controllers/auth_html.ex`、`controllers/page_html.ex` などが 0%
+- デフォルトの OTP 29.1.2 では `yamerl` の再コンパイルが失敗することを再確認
+  - 検証は OTP 28.3 を PATH で明示して実施
+- README の機能一覧・ロードマップに実装との乖離があったため修正
+- 新規ドキュメント:
+  - `docs/STATUS.md`（現状・検証結果・ギャップ・リスク）
+  - `docs/ROADMAP.md`（フェーズ別ロードマップ・優先バックログ）
+- `docs/TASKS.md` / `docs/IMPLEMENTATION_PLAN.md` を現状に合わせて更新
+- ExDoc の extras に新規ドキュメントを追加
+
+---
+
+## 2026-10-24 07:06 UTC
+
+### Erlang/OTP 29.1.2 + Elixir 1.20.4 対応
+
+- `.tool-versions` をリポジトリ管理に変更
+  - `erlang 29.1.2`
+  - `elixir ref:v1.20.4`
+- CI の `ELIXIR_VERSION` / `OTP_VERSION` を 1.20.4 / 29.1.2 に更新
+- 依存関係を更新
+  - Ash 3.37.0 / AshPostgres 2.15.1 / AshPhoenix 2.3.25
+  - Phoenix 1.8.16 / Phoenix LiveView 1.2.13 / LiveDashboard 0.9.1
+  - Ecto SQL 3.14.0 / Postgrex 0.22.4
+- Ash 3.37 の必須設定 `default_string_length_count: :codepoints` を追加
+- Elixir 1.20 の型推論警告を修正
+  - `CurrentUser.id/1` を追加し、nil 分岐を明示化
+  - `<.button>` の `:rest` に `type` 属性を追加
+- Phoenix LiveView 1.2 の opaque 型対応
+  - `show/1,2` / `hide/1,2` の `@spec` を `map()` に変更（Dialyzer `contract_with_opaque` / `call_without_opaque` 対策）
+- カバレッジ回復のためテストを追加
+  - `CurrentUser` の nil / 状態 / 表示名
+  - `Authorization.privileged_role?/1`
+  - 認証コントローラの会社不在・停止・削除済み・仮ユーザー不在・登録失敗
+- 検証結果
+  - `mix precommit` 成功
+  - 13 properties / 111 tests / 0 failures
+  - `mix coveralls` 80.0%
+  - `mix dialyzer` 0 errors
+  - `mix compile --warnings-as-errors` 成功
+- `docs/ELIXIR_UPGRADE.md` を 1.20.4 / OTP 29.1.2 向けに更新
+- `docs/STATUS.md` / `docs/ROADMAP.md` / `docs/TASKS.md` を更新

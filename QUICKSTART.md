@@ -1,12 +1,25 @@
 # 🚀 クイックスタートガイド
 
-## 現在の実装状況（2026-01-31）
+## 前提バージョン
+
+リポジトリの `.tool-versions` に固定しています。
+
+- Erlang/OTP **29.1.2**
+- Elixir **ref:v1.20.4**
+- PostgreSQL 18（Docker Compose）
+
+```bash
+asdf install
+```
+
+## 現在の実装状況（2026-10-24）
 
 - Phoenix + Ash 基盤
 - コアリソース: `Accounts.User` / `Helpdesk.Ticket` / `Tasks.Task`
 - ID方針: `bigint` 連番PK + `public_id`（**tickets/tasksのみ**）
 - 初期マイグレーション: `priv/repo/migrations/20260131061820_init_core_resources.exs`
 - CI: GitHub Actions（詳細は `docs/CI_CD.md`）
+- 現状・残タスク: `docs/STATUS.md` / `docs/ROADMAP.md` / `docs/TASKS.md`
 
 ## 📦 セットアップ
 

@@ -18,7 +18,7 @@ defmodule HelpdeskCommanderWeb.TaskLive.Index do
           {tasks, socket}
 
         {:error, error} ->
-          ErrorLog.log_error("task_live.index.load_tasks", error, user_id: current_user && current_user.id)
+          ErrorLog.log_error("task_live.index.load_tasks", error, user_id: CurrentUser.id(current_user))
           {[], put_flash(socket, :error, "タスクの取得に失敗しました")}
       end
 

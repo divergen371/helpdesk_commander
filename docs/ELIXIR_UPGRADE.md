@@ -1,164 +1,129 @@
-# Elixir 1.19.4 アップグレード完了
+# Elixir 1.20.4 / Erlang OTP 29.1.2 アップグレード完了
 
 ## ✅ アップグレード結果
 
 ### バージョン情報
 
 | コンポーネント | 旧バージョン | 新バージョン |
-|--------------|------------|------------|
-| **Elixir** | 1.18.4 | **1.19.4** |
-| **Erlang/OTP** | 28.1 | **28.2** |
+| --- | --- | --- |
+| **Elixir** | 1.19.4 | **1.20.4** |
+| **Erlang/OTP** | 28.3 | **29.1.2** |
+| **PostgreSQL** | 18 | 18（変更なし） |
+
+`.tool-versions` で以下を固定し、CI も同じバージョンに更新した。
+
+```text
+erlang 29.1.2
+elixir ref:v1.20.4
+```
 
 ### 実施内容
 
-1. **依存関係のクリーンアップ**
-   ```bash
-   mix clean
-   mix deps.clean --all
-   mix deps.get
-   ```
+1. **ツールチェーンの更新**
+   - `asdf install erlang 29.1.2`
+   - `asdf install elixir ref:v1.20.4`
+   - `.tool-versions` をリポジトリで管理（`.gitignore` から除外）
 
-2. **再コンパイル**
-   ```bash
-   mix compile
-   ```
+2. **依存関係の更新**
+   - Ash 3.11.3 → **3.37.0**
+   - AshPostgres 2.6.27 → **2.15.1**
+   - AshPhoenix 2.3.18 → **2.3.25**
+   - AshAuthentication 4.13.7 → **4.15.0**
+   - Phoenix 1.8.3 → **1.8.16**
+   - Phoenix LiveView 1.1.19 → **1.2.13**
+   - LiveDashboard 0.8.7 → **0.9.1**
+   - Ecto SQL 3.13.4 → **3.14.0**
+   - Postgrex 0.21.1 → **0.22.4**
+   - Swoosh 1.20.0 → **1.29.0**（セキュリティアドバイザリ解消）
+   - その他、`mix deps.update` で解決された推移的依存
 
-3. **Dialyzer PLT再生成**
-   ```bash
-   rm -rf priv/plts/
-   make dialyzer-plt  # 3分20秒
-   ```
+3. **Elixir 1.20 / Ash 3.37 対応**
+   - `config :ash, default_string_length_count: :codepoints` を追加
+     - Ash 3.37 では `min_length` / `max_length` 利用時に必須
+   - `CurrentUser.id/1` を追加
+     - `current_user && current_user.id` が Elixir 1.20 の型推論で警告になるため明示化
+   - `<.button>` の `:rest` に `type` を追加
+     - Phoenix LiveView 1.2 の属性検証で `type="button"` / `type="submit"` が警告になるため
+   - `show/1,2` / `hide/1,2` の `@spec` を `map()` に変更
+     - Phoenix LiveView 1.2 で `JS.t()` が opaque 型になり、Dialyzer が
+       `contract_with_opaque` / `call_without_opaque` を報告するため
 
 4. **動作確認**
-   - ✅ コンパイル成功
-   - ✅ Credo正常動作
-   - ✅ Dialyzer正常動作
-   - ✅ テスト5件すべてパス
+   - `mix compile --force --warnings-as-errors`: 成功（プロジェクト側の警告 0）
+   - `mix precommit`: 成功
+   - `mix test`: **13 properties, 111 tests, 0 failures**
+   - `mix credo --strict`: 指摘なし
+   - `mix dialyzer`: **0 errors**
+   - `MIX_ENV=test mix coveralls`: **80.0%**（基準 80% を満たす）
 
-## 🎯 Elixir 1.19の主な新機能
+## ⚠️ 互換性・移行時の注意
 
-### 1. パフォーマンス改善
+### 1. Ash 3.37 の文字列長カウント
 
-- JITコンパイラの最適化
-- メモリ使用量の削減
-- コンパイル速度の向上
+`config :ash, default_string_length_count: :codepoints` を設定しないと、
+Ash リソースのコンパイル時に `Spark.Error.DslError` が発生する。
 
-### 2. 言語機能の強化
+`:codepoints` は PostgreSQL の文字数カウントと一致するため、DB 側の制約と
+アプリ側バリデーションの齟齬を避けられる。
 
-- パターンマッチングの改善
-- 型推論の強化
-- エラーメッセージの改善
+### 2. Elixir 1.20 の型推論警告
 
-### 3. 標準ライブラリの拡充
+Elixir 1.20 では型推論が強化され、従来は警告にならなかった
+「常に真/偽になる条件」が `--warnings-as-errors` で失敗する。
 
-- 新しいEnumヘルパー関数
-- Streamの最適化
-- DateTimeの機能追加
+今回の対応:
 
-## ⚠️ 互換性確認事項
+- nil 許容の値を `&&` で分岐していた箇所を `CurrentUser.id/1` に集約
+- HEEx コンポーネントの未宣言属性を `attr :rest, :global, include: [...]` に追加
 
-### Credoの互換性チェック
+### 3. rebar3 のグローバルプラグイン
 
-- ✅ 全チェック項目が正常動作
-- ✅ Elixir 1.18非互換チェックを無効化済み
-  - `PreferUnquotedAtoms`
-  - `MapInto`
-  - `LazyLogging`
+OTP 29 では、グローバルに導入した古い `rebar3_format`（依存の `katana_code`）が
+`catch` の deprecation 警告を `warnings_as_errors` で失敗させ、依存コンパイルが
+巻き添えで失敗することがある。
 
-### Dialyzerの互換性チェック
+CI やクリーンな環境では発生しない。ローカルで発生する場合は、次のいずれかを行う。
 
-- ✅ PLT正常生成
-- ✅ 型チェック正常動作
-- ✅ AshPostgres Repo警告を適切に無視
+```bash
+# 1. プロジェクト用にクリーンなグローバル設定ディレクトリを使う
+export REBAR_GLOBAL_CONFIG_DIR=/tmp/rebar-clean
+mkdir -p "$REBAR_GLOBAL_CONFIG_DIR/.config/rebar3"
 
-### 依存関係の互換性
-
-すべての依存関係がElixir 1.19.4で正常動作：
-
-- ash 3.11.3
-- ash_phoenix 2.3.18
-- ash_postgres 2.6.27
-- phoenix 1.8.3
-- phoenix_live_view 1.1.19
-- credo 1.7.15
-- dialyxir 1.4.7
+# 2. 不要な場合はグローバルプラグインを外す
+# ~/.config/rebar3/rebar.config の {plugins, [rebar3_format]}. を削除
+```
 
 ## 🔧 今後の推奨事項
 
-### 1. 新機能の活用
-
-Elixir 1.19の新機能を積極的に活用：
-
-```elixir
-# 新しいEnum機能
-Enum.frequencies_by(list, fn x -> x.category end)
-
-# 改善されたパターンマッチング
-def process(%{type: type} = data) when type in [:a, :b, :c] do
-  # ...
-end
-```
-
-### 2. パフォーマンス最適化
-
-JIT改善の恩恵を受けるため、本番環境でもアップグレード推奨。
-
-### 3. 定期的なアップデート
-
-```bash
-# 依存関係の更新確認
-mix hex.outdated
-
-# 更新
-mix deps.update --all
-```
+- `mix hex.outdated` で依存更新を定期的に確認する
+- `mix precommit` と `mix coveralls` をローカルでも実行する
+- カバレッジは 80.0% ちょうどのため、新規コードにはテストを同時に追加する
+- `docs/ELIXIR_UPGRADE.md`（本ドキュメント）と `docs/STATUS.md` を更新する
 
 ## 📋 アップグレードチェックリスト
 
-- [x] Elixir 1.19.4インストール
-- [x] 依存関係クリーンアップ
-- [x] 再コンパイル
-- [x] Dialyzer PLT再生成
-- [x] Credoチェック
-- [x] テスト実行
-- [ ] 本番環境でのアップグレード計画
-- [ ] CI/CDパイプラインの更新
+- [x] Erlang/OTP 29.1.2 インストール
+- [x] Elixir ref:v1.20.4 インストール
+- [x] `.tool-versions` のリポジトリ管理
+- [x] 依存関係の更新
+- [x] Ash 3.37 の必須設定追加
+- [x] Elixir 1.20 の型警告修正
+- [x] `mix dialyzer` 0 errors
+- [x] `mix precommit` 成功
+- [x] テスト成功（13 properties / 111 tests）
+- [x] カバレッジ 80% 以上
+- [x] CI のバージョン更新
+- [ ] 本番環境への反映計画
 - [ ] チーム全体への周知
-
-## 🐛 トラブルシューティング
-
-### コンパイルエラーが出る場合
-
-```bash
-# 完全クリーン
-rm -rf _build deps
-mix deps.get
-mix compile
-```
-
-### Dialyzerエラーが出る場合
-
-```bash
-# PLT完全再生成
-rm -rf priv/plts/
-mix dialyzer --plt
-```
-
-### テスト失敗する場合
-
-```bash
-# テスト環境のクリーン
-MIX_ENV=test mix do clean, compile, test
-```
 
 ## 📚 参考リンク
 
-- [Elixir 1.19 Changelog](https://github.com/elixir-lang/elixir/releases/tag/v1.19.0)
-- [Erlang/OTP 28 Release Notes](https://www.erlang.org/downloads/28)
+- [Elixir 1.20 Release Notes](https://github.com/elixir-lang/elixir/releases/tag/v1.20.0)
+- [Erlang/OTP 29 Release Notes](https://www.erlang.org/downloads/29)
+- [Ash 3.x Changelog](https://github.com/ash-project/ash/blob/main/CHANGELOG.md)
 - [Upgrading Elixir Guide](https://hexdocs.pm/elixir/compatibility-and-deprecations.html)
 
 ## ✅ 結論
 
-Elixir 1.19.4へのアップグレードは**完全に成功**しました。
-
-すべてのツールとテストが正常に動作しており、本番環境へのデプロイも可能な状態です。
+Erlang/OTP 29.1.2 + Elixir 1.20.4 へのアップグレードは成功した。
+`mix precommit`、テスト、Credo、カバレッジのすべてが基準を満たしている。

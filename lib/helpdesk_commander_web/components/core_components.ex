@@ -89,7 +89,7 @@ defmodule HelpdeskCommanderWeb.CoreComponents do
       <.button phx-click="go" variant="primary">Send!</.button>
       <.button navigate={~p"/"}>Home</.button>
   """
-  attr :rest, :global, include: ~w(href navigate patch method download name value disabled)
+  attr :rest, :global, include: ~w(href navigate patch method download name value disabled type)
   attr :class, :any
   attr :variant, :string, values: ~w(primary)
   slot :inner_block, required: true
@@ -452,7 +452,7 @@ defmodule HelpdeskCommanderWeb.CoreComponents do
 
   ## JS Commands
 
-  @spec show(String.t()) :: JS.t()
+  @spec show(String.t()) :: map()
   def show(selector) do
     JS.show(
       to: selector,
@@ -463,7 +463,7 @@ defmodule HelpdeskCommanderWeb.CoreComponents do
     )
   end
 
-  @spec show(JS.t(), String.t()) :: JS.t()
+  @spec show(map(), String.t()) :: map()
   def show(js, selector) do
     JS.show(js,
       to: selector,
@@ -474,7 +474,7 @@ defmodule HelpdeskCommanderWeb.CoreComponents do
     )
   end
 
-  @spec hide(String.t()) :: JS.t()
+  @spec hide(String.t()) :: map()
   def hide(selector) do
     JS.hide(
       to: selector,
@@ -485,7 +485,7 @@ defmodule HelpdeskCommanderWeb.CoreComponents do
     )
   end
 
-  @spec hide(JS.t(), String.t()) :: JS.t()
+  @spec hide(map(), String.t()) :: map()
   def hide(js, selector) do
     JS.hide(js,
       to: selector,

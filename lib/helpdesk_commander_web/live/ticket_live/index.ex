@@ -20,7 +20,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Index do
           {tickets, socket}
 
         {:error, error} ->
-          ErrorLog.log_error("ticket_live.index.load_tickets", error, user_id: current_user && current_user.id)
+          ErrorLog.log_error("ticket_live.index.load_tickets", error, user_id: CurrentUser.id(current_user))
 
           {[], put_flash(socket, :error, "チケットの取得に失敗しました")}
       end
