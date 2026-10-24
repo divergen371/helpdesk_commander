@@ -776,3 +776,18 @@ mix phx.server
   - `mix compile --warnings-as-errors` 成功
 - `docs/ELIXIR_UPGRADE.md` を 1.20.4 / OTP 29.1.2 向けに更新
 - `docs/STATUS.md` / `docs/ROADMAP.md` / `docs/TASKS.md` を更新
+
+---
+
+## 2026-10-24 08:41 UTC
+
+### CI Assets ジョブの Tailwind ダウンロード失敗を修正
+
+- `Assets Build Check` の `mix tailwind.install --if-missing` が失敗
+  - `:httpc` のデフォルト最大ヘッダ長 10KB を GitHub のレスポンスヘッダが超過
+  - `{:error, {:header_too_long, {:max, 10240}}}`
+- `tailwind` を 0.4.1 → **0.5.2** に更新
+  - 0.5.2 では `:httpc` に `max_header_size: 32_768` が設定されている
+- `mix precommit` は引き続き成功（13 properties / 111 tests / 0 failures）
+- ローカルの macOS では Tailwind 4.1.12 バイナリが SIGKILL されるため、
+  `mix assets.deploy` の完全実行は CI（Linux）で確認する

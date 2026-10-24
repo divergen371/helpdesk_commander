@@ -178,7 +178,7 @@ defmodule HelpdeskCommander.MixProject do
       {:stream_data, "~> 1.1"},
       {:phoenix_live_dashboard, "~> 0.9"},
       {:esbuild, "~> 0.10", runtime: env == :dev},
-      {:tailwind, "~> 0.3", runtime: env == :dev},
+      {:tailwind, "~> 0.5", runtime: env == :dev},
       {:heroicons,
        github: "tailwindlabs/heroicons", tag: "v2.2.0", sparse: "optimized", app: false, compile: false, depth: 1},
       {:bcrypt_elixir, "~> 3.0"},
