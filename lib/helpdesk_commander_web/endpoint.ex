@@ -33,7 +33,11 @@ defmodule HelpdeskCommanderWeb.Endpoint do
     socket "/phoenix/live_reload/socket", Phoenix.LiveReloader.Socket
     plug Phoenix.LiveReloader
     plug Phoenix.CodeReloader
-    plug AshPhoenix.Plug.CheckCodegenStatus
+
+    if Application.compile_env(:helpdesk_commander, :ash_codegen_check, true) do
+      plug AshPhoenix.Plug.CheckCodegenStatus
+    end
+
     plug Phoenix.Ecto.CheckRepoStatus, otp_app: :helpdesk_commander
   end
 

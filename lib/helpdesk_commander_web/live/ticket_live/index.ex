@@ -262,13 +262,19 @@ defmodule HelpdeskCommanderWeb.TicketLive.Index do
   @impl Phoenix.LiveView
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_user={assigns[:current_user]}>
       <.header>
         Tickets
         <:subtitle>チケットの一覧</:subtitle>
         <:actions>
           <.button navigate={~p"/notifications"}>
             <.icon name="hero-bell" class="size-4" /> 通知 ({@unread_notifications_count})
+          </.button>
+          <.button navigate={~p"/products"}>
+            <.icon name="hero-cube" class="size-4" /> 製品
+          </.button>
+          <.button navigate={~p"/relations"}>
+            <.icon name="hero-share" class="size-4" /> 関係グラフ
           </.button>
           <.button navigate={~p"/inquiries/new"} variant="primary">
             <.icon name="hero-chat-bubble-left-right" class="size-4" /> 問い合わせ
@@ -323,9 +329,11 @@ defmodule HelpdeskCommanderWeb.TicketLive.Index do
       </div>
 
       <div class="card bg-base-100 border border-base-200">
-        <div class="card-body p-0">
+        <div class="card-body overflow-x-auto p-0">
           <.table
             id="tickets"
+            class="min-w-[1000px]"
+            style="min-width: 1000px"
             rows={@streams.tickets}
             row_item={fn {_id, ticket} -> ticket end}
           >

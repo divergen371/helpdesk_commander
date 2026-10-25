@@ -17,8 +17,6 @@ defmodule HelpdeskCommanderWeb.Router do
   scope "/", HelpdeskCommanderWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
-
     get "/sign-in", AuthController, :new
     post "/sign-in", AuthController, :create
     get "/sign-up", AuthController, :new_registration
@@ -27,6 +25,7 @@ defmodule HelpdeskCommanderWeb.Router do
 
     live_session :user_required,
       on_mount: {HelpdeskCommanderWeb.LiveUserAuth, :live_user_required} do
+      live "/", DashboardLive, :home
       live "/tickets", TicketLive.Index, :index
       live "/tickets/new", TicketLive.New, :new
       live "/tickets/:public_id", TicketLive.Show, :show
@@ -39,6 +38,9 @@ defmodule HelpdeskCommanderWeb.Router do
       live "/tasks", TaskLive.Index, :index
       live "/tasks/new", TaskLive.New, :new
       live "/tasks/:public_id", TaskLive.Show, :show
+      live "/products", ProductLive.Index, :index
+      live "/products/:id", ProductLive.Show, :show
+      live "/relations", RelationGraphLive.Index, :index
     end
 
     live_session :admin_required,

@@ -124,6 +124,7 @@ defmodule HelpdeskCommander.MixProject do
         precommit: :test,
         coveralls: :test,
         "coveralls.detail": :test,
+        "coveralls.json": :test,
         "coveralls.post": :test,
         "coveralls.html": :test,
         "coveralls.github": :test
@@ -251,7 +252,7 @@ defmodule HelpdeskCommander.MixProject do
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ash.setup --quiet", "test"],
-      "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
+      "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing", "cmd --cd assets npm install"],
       "assets.build": ["compile", "tailwind helpdesk_commander", "esbuild helpdesk_commander"],
       "assets.deploy": [
         "compile",

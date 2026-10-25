@@ -13,6 +13,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   alias HelpdeskCommander.Helpdesk.Product
   alias HelpdeskCommander.Helpdesk.Ticket
   alias HelpdeskCommander.Helpdesk.TicketEvent
+  alias HelpdeskCommander.Helpdesk.TicketRelations
   alias HelpdeskCommander.Helpdesk.TicketVerification
   alias HelpdeskCommander.Support.Error, as: ErrorLog
   alias HelpdeskCommander.Tasks
@@ -77,7 +78,8 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
          :ok <- authorize_ticket(ticket, current_user, external_user?),
          {:ok, users, users_by_id} <- load_users(ticket.company_id),
          {:ok, conversations} <- ensure_conversations(ticket),
-         {:ok, task_links, linkable_tasks} <- load_task_links(ticket) do
+         {:ok, task_links, linkable_tasks} <- load_task_links(ticket),
+         {:ok, ticket_links, linkable_tickets} <- load_ticket_relations(ticket) do
       build_ticket_data(
         ticket,
         current_user,
@@ -85,8 +87,12 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
         users,
         users_by_id,
         conversations,
-        task_links,
-        linkable_tasks
+        %{
+          task_links: task_links,
+          linkable_tasks: linkable_tasks,
+          ticket_links: ticket_links,
+          linkable_tickets: linkable_tickets
+        }
       )
     else
       {:error, _reason} = error -> error
@@ -139,8 +145,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
          users,
          users_by_id,
          {public_conversation, private_conversation},
-         task_links,
-         linkable_tasks
+         relations
        ) do
     can_post_public? =
       not external_user? or (current_user && ticket.requester_id == current_user.id)
@@ -213,9 +218,12 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
        events_has_more?: events_has_more?,
        events_oldest_id: events_oldest_id,
        verifications: verifications,
-       task_links: task_links,
-       linkable_tasks: linkable_tasks,
+       task_links: relations.task_links,
+       linkable_tasks: relations.linkable_tasks,
        task_link_form: to_form(%{"task_id" => ""}, as: "link"),
+       ticket_links: relations.ticket_links,
+       linkable_tickets: relations.linkable_tickets,
+       ticket_link_form: to_form(%{"related_ticket_id" => "", "relation_type" => "related"}, as: "link"),
        warnings: warnings
      }}
   end
@@ -248,6 +256,9 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     |> assign(:task_links, data.task_links)
     |> assign(:linkable_tasks, data.linkable_tasks)
     |> assign(:task_link_form, data.task_link_form)
+    |> assign(:ticket_links, data.ticket_links)
+    |> assign(:linkable_tickets, data.linkable_tickets)
+    |> assign(:ticket_link_form, data.ticket_link_form)
     |> stream(:public_messages, data.public_messages)
     |> stream(:private_messages, data.private_messages)
     |> stream(:events, data.events)
@@ -315,6 +326,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   defp error_message(:load_users), do: "ユーザー一覧の取得に失敗しました"
   defp error_message(:ensure_conversations), do: "会話の初期化に失敗しました"
   defp error_message(:load_task_links), do: "関連タスクの取得に失敗しました"
+  defp error_message(:load_ticket_relations), do: "関連チケットの取得に失敗しました"
 
   @impl Phoenix.LiveView
   def handle_event("link_task", %{"link" => %{"task_id" => task_id}}, socket) do
@@ -383,6 +395,54 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
         :error ->
           {:noreply, put_flash(socket, :error, "紐付けが見つかりません")}
+      end
+    end
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("link_ticket", %{"link" => params}, socket) do
+    if socket.assigns.current_user_external? do
+      {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
+    else
+      case TicketRelations.create_link(
+             socket.assigns.ticket,
+             params["related_ticket_id"],
+             params["relation_type"],
+             socket.assigns.current_user
+           ) do
+        {:ok, _link} ->
+          {:noreply,
+           socket
+           |> put_flash(:info, "関連チケットを追加しました")
+           |> reload_ticket_relations()}
+
+        {:error, error} ->
+          ErrorLog.log_error("ticket_live.show.link_ticket", error, ticket_id: socket.assigns.ticket.id)
+
+          {:noreply, put_flash(socket, :error, "関連チケットの追加に失敗しました")}
+      end
+    end
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("unlink_ticket", %{"link_id" => link_id}, socket) do
+    if socket.assigns.current_user_external? do
+      {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
+    else
+      case TicketRelations.delete_link(socket.assigns.ticket, link_id) do
+        :ok ->
+          {:noreply,
+           socket
+           |> put_flash(:info, "関連チケットを解除しました")
+           |> reload_ticket_relations()}
+
+        {:error, error} ->
+          ErrorLog.log_error("ticket_live.show.unlink_ticket", error,
+            ticket_id: socket.assigns.ticket.id,
+            link_id: link_id
+          )
+
+          {:noreply, put_flash(socket, :error, "関連チケットの解除に失敗しました")}
       end
     end
   end
@@ -680,6 +740,43 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     end
   end
 
+  defp reload_ticket_relations(socket) do
+    case load_ticket_relations(socket.assigns.ticket) do
+      {:ok, links, linkable_tickets} ->
+        socket
+        |> assign(:ticket_links, links)
+        |> assign(:linkable_tickets, linkable_tickets)
+        |> assign(
+          :ticket_link_form,
+          to_form(%{"related_ticket_id" => "", "relation_type" => "related"}, as: "link")
+        )
+
+      {:error, error} ->
+        ErrorLog.log_error("ticket_live.show.reload_ticket_relations", error, ticket_id: socket.assigns.ticket.id)
+
+        put_flash(socket, :error, "関連チケットの取得に失敗しました")
+    end
+  end
+
+  defp relation_options do
+    [
+      {"関連", "related"},
+      {"再起票元", "reopened_from"},
+      {"重複", "duplicate_of"},
+      {"ブロックする", "blocks"},
+      {"ブロックされる", "blocked_by"}
+    ]
+  end
+
+  defp ticket_options(tickets) do
+    Enum.map(tickets, fn ticket ->
+      {"#{ticket.public_id} #{ticket.subject} (#{ticket.status})", ticket.id}
+    end)
+  end
+
+  defp direction_label(:outgoing), do: "このチケットから"
+  defp direction_label(:incoming), do: "このチケットへ"
+
   defp status_options(true) do
     [
       {"new", "new"},
@@ -872,6 +969,15 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     end
   end
 
+  defp load_ticket_relations(%Ticket{} = ticket) do
+    with {:ok, links} <- TicketRelations.list_links(ticket),
+         {:ok, linkable_tickets} <- TicketRelations.linkable_tickets(ticket) do
+      {:ok, links, linkable_tickets}
+    else
+      {:error, error} -> {:error, {:load_ticket_relations, error}}
+    end
+  end
+
   defp ensure_conversations(%Ticket{} = ticket) do
     with {:ok, public} <- get_or_create_conversation(ticket, "internal_public"),
          {:ok, private} <- get_or_create_conversation(ticket, "internal_private") do
@@ -1040,7 +1146,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   @impl Phoenix.LiveView
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_user={assigns[:current_user]}>
       <.header>
         Ticket {@ticket.public_id}
         <:subtitle>{@ticket.subject}</:subtitle>
@@ -1118,6 +1224,71 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
                 <div class="mt-4 flex justify-end">
                   <.button type="submit" variant="primary">紐付ける</.button>
+                </div>
+              </.form>
+            </div>
+          </div>
+        </div>
+
+        <div :if={!@current_user_external?} class="card bg-base-100 border border-base-200">
+          <div class="card-body">
+            <h3 class="font-semibold">関連チケット</h3>
+
+            <div id="ticket-links" class="mt-4 space-y-3">
+              <div :if={@ticket_links == []} id="ticket-links-empty" class="text-sm opacity-70">
+                関連チケットはまだありません。
+              </div>
+
+              <div
+                :for={entry <- @ticket_links}
+                id={"ticket-link-#{entry.link.id}"}
+                class="flex flex-wrap items-center justify-between gap-3 rounded-box border border-base-200 p-3 text-sm"
+              >
+                <div>
+                  <div class="text-xs opacity-60">
+                    {direction_label(entry.direction)} / {entry.link.relation_type}
+                  </div>
+                  <.link class="font-medium hover:underline" navigate={~p"/tickets/#{entry.ticket.public_id}"}>
+                    {entry.ticket.subject}
+                  </.link>
+                  <div class="mt-1 text-xs opacity-60">{entry.ticket.public_id}</div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="rounded-full bg-base-200 px-3 py-1">{entry.ticket.status}</span>
+                  <span class="rounded-full bg-base-200 px-3 py-1">{entry.ticket.priority}</span>
+                  <button
+                    type="button"
+                    class="link text-error"
+                    phx-click="unlink_ticket"
+                    phx-value-link_id={entry.link.id}
+                  >
+                    解除
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div :if={@linkable_tickets != []} class="mt-6">
+              <.form for={@ticket_link_form} id="ticket-link-form" phx-submit="link_ticket">
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto]">
+                  <.input
+                    field={@ticket_link_form[:related_ticket_id]}
+                    type="select"
+                    label="関連チケット"
+                    prompt="選択してください"
+                    options={ticket_options(@linkable_tickets)}
+                    required
+                  />
+                  <.input
+                    field={@ticket_link_form[:relation_type]}
+                    type="select"
+                    label="関係"
+                    options={relation_options()}
+                  />
+                </div>
+
+                <div class="mt-4 flex justify-end">
+                  <.button type="submit" variant="primary">関連付ける</.button>
                 </div>
               </.form>
             </div>

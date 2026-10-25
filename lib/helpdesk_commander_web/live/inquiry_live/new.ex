@@ -136,7 +136,7 @@ defmodule HelpdeskCommanderWeb.InquiryLive.New do
   @impl Phoenix.LiveView
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_user={assigns[:current_user]}>
       <.header>
         問い合わせ
         <:subtitle>送信するとチケットが自動生成されます</:subtitle>

@@ -5,6 +5,8 @@ defmodule HelpdeskCommanderWeb.Layouts do
   """
   use HelpdeskCommanderWeb, :html
 
+  alias HelpdeskCommanderWeb.CurrentUser
+
   # Embed all files in layouts/* within this module.
   # The default root.html.heex file contains the HTML
   # skeleton of your application, namely HTML headers
@@ -26,6 +28,7 @@ defmodule HelpdeskCommanderWeb.Layouts do
 
   """
   attr :flash, :map, required: true, doc: "the map of flash messages"
+  attr :current_user, :any, default: nil, doc: "the signed-in user, when available"
 
   attr :current_scope, :map,
     default: nil,
@@ -36,35 +39,56 @@ defmodule HelpdeskCommanderWeb.Layouts do
   @spec app(map()) :: Phoenix.LiveView.Rendered.t()
   def app(assigns) do
     ~H"""
-    <header class="navbar px-4 sm:px-6 lg:px-8">
+    <header class="navbar sticky top-0 z-30 border-b border-base-200 bg-base-100/95 px-4 backdrop-blur sm:px-6 lg:px-8">
       <div class="flex-1">
-        <a href="/" class="flex-1 flex w-fit items-center gap-2">
-          <img src={~p"/images/logo.svg"} width="36" />
-          <span class="text-sm font-semibold">v{Application.spec(:phoenix, :vsn)}</span>
-        </a>
+        <.link navigate={~p"/"} class="flex w-fit items-center gap-3">
+          <img src={~p"/images/logo.svg"} width="32" />
+          <span class="text-sm font-semibold tracking-tight sm:text-base">Helpdesk Commander</span>
+        </.link>
       </div>
+
       <div class="flex-none">
-        <ul class="flex flex-column px-1 space-x-4 items-center">
-          <li>
-            <a href="https://phoenixframework.org/" class="btn btn-ghost">Website</a>
-          </li>
-          <li>
-            <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">GitHub</a>
-          </li>
+        <ul class="flex flex-wrap items-center justify-end gap-1 sm:gap-3">
+          <%= if assigns[:current_user] do %>
+            <li>
+              <.link class="btn btn-ghost btn-sm" navigate={~p"/tickets"}>チケット</.link>
+            </li>
+            <%= if !CurrentUser.external?(assigns[:current_user]) do %>
+              <li>
+                <.link class="btn btn-ghost btn-sm" navigate={~p"/tasks"}>タスク</.link>
+              </li>
+              <li>
+                <.link class="btn btn-ghost btn-sm" navigate={~p"/products"}>製品</.link>
+              </li>
+              <li>
+                <.link class="btn btn-ghost btn-sm" navigate={~p"/relations"}>関係グラフ</.link>
+              </li>
+            <% end %>
+            <li>
+              <.link class="btn btn-ghost btn-sm" navigate={~p"/notifications"}>通知</.link>
+            </li>
+            <li class="hidden text-xs opacity-60 lg:block">
+              {CurrentUser.display_label(assigns[:current_user])}
+            </li>
+            <li>
+              <.link href={~p"/sign-out"} method="delete" class="btn btn-ghost btn-sm">
+                ログアウト
+              </.link>
+            </li>
+          <% else %>
+            <li>
+              <.link class="btn btn-primary btn-sm" navigate={~p"/sign-in"}>サインイン</.link>
+            </li>
+          <% end %>
           <li>
             <.theme_toggle />
-          </li>
-          <li>
-            <a href="https://hexdocs.pm/phoenix/overview.html" class="btn btn-primary">
-              Get Started <span aria-hidden="true">&rarr;</span>
-            </a>
           </li>
         </ul>
       </div>
     </header>
 
-    <main class="px-4 py-20 sm:px-6 lg:px-8">
-      <div class="mx-auto max-w-2xl space-y-4">
+    <main class="px-4 py-8 sm:px-6 lg:px-8">
+      <div class="mx-auto max-w-7xl space-y-6">
         {render_slot(@inner_block)}
       </div>
     </main>

@@ -15,7 +15,9 @@ company = Accounts.Auth.default_company!()
 
 users = Ash.read!(User, domain: Accounts)
 
-if users == [] do
+if Enum.any?(users, &(&1.email == "admin@example.com")) do
+  :ok
+else
   _user =
     User
     |> Ash.Changeset.for_create(:create, %{

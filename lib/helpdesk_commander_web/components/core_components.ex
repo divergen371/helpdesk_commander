@@ -342,6 +342,8 @@ defmodule HelpdeskCommanderWeb.CoreComponents do
   """
   attr :id, :string, required: true
   attr :rows, :list, required: true
+  attr :class, :any, default: nil
+  attr :style, :string, default: nil
   attr :row_id, :any, default: nil, doc: "the function for generating the row id"
   attr :row_click, :any, default: nil, doc: "the function for handling phx-click on each row"
 
@@ -363,7 +365,7 @@ defmodule HelpdeskCommanderWeb.CoreComponents do
       end
 
     ~H"""
-    <table class="table table-zebra">
+    <table class={["table table-zebra", @class]} style={@style}>
       <thead>
         <tr>
           <th :for={col <- @col}>{col[:label]}</th>
@@ -381,7 +383,7 @@ defmodule HelpdeskCommanderWeb.CoreComponents do
           >
             {render_slot(col, @row_item.(row))}
           </td>
-          <td :if={@action != []} class="w-0 font-semibold">
+          <td :if={@action != []} class="whitespace-nowrap font-semibold">
             <div class="flex gap-4">
               <%= for action <- @action do %>
                 {render_slot(action, @row_item.(row))}

@@ -76,7 +76,7 @@ defmodule HelpdeskCommanderWeb.TaskLive.New do
   @impl Phoenix.LiveView
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_user={assigns[:current_user]}>
       <.header>
         新規タスク
         <:subtitle>タスクの作成</:subtitle>

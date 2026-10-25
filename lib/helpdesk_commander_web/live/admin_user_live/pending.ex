@@ -112,7 +112,7 @@ defmodule HelpdeskCommanderWeb.AdminUserLive.Pending do
   @impl Phoenix.LiveView
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_user={assigns[:current_user]}>
       <.header>
         承認待ちユーザー
         <:subtitle>仮ユーザーの承認</:subtitle>

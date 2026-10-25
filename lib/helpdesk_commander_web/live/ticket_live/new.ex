@@ -166,7 +166,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
   @impl Phoenix.LiveView
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_user={assigns[:current_user]}>
       <.header>
         新規チケット
         <:subtitle>まずは最小の項目で作成</:subtitle>

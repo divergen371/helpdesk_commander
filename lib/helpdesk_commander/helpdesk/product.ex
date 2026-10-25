@@ -16,8 +16,16 @@ defmodule HelpdeskCommander.Helpdesk.Product do
       writable?: false,
       public?: true
 
-    attribute :name, :string, allow_nil?: false, public?: true
-    attribute :description, :string, public?: true
+    attribute :name, :string,
+      allow_nil?: false,
+      public?: true,
+      constraints: [min_length: 1, max_length: 100]
+
+    attribute :description, :string,
+      public?: true,
+      constraints: [max_length: 1000]
+
+    attribute :active, :boolean, allow_nil?: false, default: true, public?: true
 
     timestamps()
   end
@@ -38,11 +46,11 @@ defmodule HelpdeskCommander.Helpdesk.Product do
     defaults [:read, :destroy]
 
     create :create do
-      accept [:name, :description, :company_id]
+      accept [:name, :description, :active, :company_id]
     end
 
     update :update do
-      accept [:name, :description]
+      accept [:name, :description, :active]
     end
   end
 end

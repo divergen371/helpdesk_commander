@@ -83,7 +83,7 @@ defmodule HelpdeskCommanderWeb.NotificationLive.Index do
   @impl Phoenix.LiveView
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_user={assigns[:current_user]}>
       <.header>
         通知
         <:subtitle>{@unread_count} 件の未読通知</:subtitle>

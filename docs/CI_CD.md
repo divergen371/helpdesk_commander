@@ -55,6 +55,7 @@
 
 **実行内容**:
 - `mix deps.get`
+- `npm ci --prefix assets`
 - `mix tailwind.install --if-missing`
 - `mix esbuild.install --if-missing`
 - `mix assets.deploy`

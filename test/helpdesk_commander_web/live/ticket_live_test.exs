@@ -13,6 +13,7 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
   alias HelpdeskCommander.Helpdesk.Product
   alias HelpdeskCommander.Helpdesk.Ticket
   alias HelpdeskCommander.Helpdesk.TicketEvent
+  alias HelpdeskCommander.Helpdesk.TicketLink
   alias HelpdeskCommander.Helpdesk.TicketVerification
   alias HelpdeskCommander.Tasks
   alias HelpdeskCommander.Tasks.Task
@@ -495,6 +496,48 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
 
     refute has_element?(view, "#ticket-task-links")
     refute has_element?(view, "#ticket-task-link-form")
+  end
+
+  test "internal user can link and unlink a related ticket", %{conn: conn} do
+    user = create_user!()
+    ticket = create_ticket!(user)
+    related = create_ticket!(user, subject: "Related ticket")
+
+    conn = log_in(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/tickets/#{ticket.public_id}")
+
+    assert has_element?(view, "#ticket-links-empty")
+
+    render_submit(view, "link_ticket", %{
+      "link" => %{
+        "related_ticket_id" => to_string(related.id),
+        "relation_type" => "blocks"
+      }
+    })
+
+    link =
+      TicketLink
+      |> filter(ticket_id == ^ticket.id and related_ticket_id == ^related.id)
+      |> Ash.read_one!(domain: Helpdesk)
+
+    assert has_element?(view, "#ticket-link-#{link.id}", related.subject)
+
+    view
+    |> element("button[phx-click=\"unlink_ticket\"][phx-value-link_id=\"#{link.id}\"]")
+    |> render_click()
+
+    assert has_element?(view, "#ticket-links-empty")
+    assert Ash.read!(TicketLink, domain: Helpdesk) == []
+  end
+
+  test "external user does not see related tickets or graph", %{conn: conn} do
+    user = create_user!("customer")
+    ticket = create_ticket!(user)
+
+    conn = log_in(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/tickets/#{ticket.public_id}")
+
+    refute has_element?(view, "#ticket-links")
   end
 
   test "external user hides internal sections in ticket detail", %{conn: conn} do

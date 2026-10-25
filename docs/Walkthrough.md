@@ -877,7 +877,7 @@ mix phx.server
 - 検証結果
   - `mix precommit` 成功
   - 13 properties / 133 tests / 0 failures
-  - `mix coveralls` 80.9%
+  - `mix coveralls` 80.5%
   - `mix dialyzer` 0 errors
 
 ---
@@ -964,3 +964,72 @@ mix phx.server
   - 13 properties / 152 tests / 0 failures
   - `mix coveralls` 81.2%
   - `mix dialyzer` 0 errors
+
+---
+
+## 2026-10-25 05:44 UTC
+
+### チケット関連リンク UI + Sigma.js 関係グラフ PoC / 製品マスタ管理 UI
+
+- チケット関連リンク
+  - チケット詳細で関連/再起票/重複/依存を登録・解除
+  - 同一 company のチケットのみ候補に表示
+  - outgoing / incoming の両方を表示
+- Sigma.js 関係グラフ PoC
+  - サーバー側でノード/エッジ/固定座標/スコアを生成
+  - Sigma.js + Graphology を assets に追加
+  - ノードクリックでチケット遷移、関係ラベルとスコアを表示
+- 製品マスタ管理
+  - `/products` で作成・一覧
+  - `/products/:id` で編集・有効化/無効化
+  - `products.active` を追加し、チケット/問い合わせでは有効製品のみ選択
+- アセット
+  - `assets/package.json` と lockfile を追加
+  - CI に `npm ci --prefix assets` を追加
+- 検証結果
+  - `mix precommit` 成功
+  - 13 properties / 160 tests / 0 failures
+  - `mix coveralls` 80.5%
+  - `mix dialyzer` 0 errors
+
+---
+
+## 2026-10-25 14:28 UTC
+
+### UI 修正（グラフ分離・トップ・一覧レイアウト）
+
+- 関係グラフをチケット詳細から `/relations` に分離
+  - 自社チケット全体をグリッド配置で俯瞰
+  - ノードクリックでチケット遷移
+  - 詳細ページは関連チケットの登録・解除に集中
+- トップページをダッシュボード化
+  - チケット・タスク・製品・通知の件数
+  - 最近のチケット / タスク
+  - 主要画面への導線
+- レイアウト修正
+  - `Layouts.app` を `max-w-7xl` に拡張
+  - アプリ用ナビゲーション（チケット/タスク/製品/関係グラフ/通知）
+  - `Layouts.app` に `current_user` を渡し、ログイン中でも「サインイン」表示になる問題を修正
+  - チケット一覧テーブルを横スクロール対応・最小幅指定
+  - 操作列の「詳細」が縦折れしないよう修正
+- ローカル確認
+  - ダッシュボード、一覧、問い合わせ、タスク、製品、通知、関係グラフを表示確認
+  - Sigma.js グラフの canvas 描画を確認
+- グラフのテーマ対応
+  - ノードは status、エッジは relation をキーにライト/ダークの色を選択
+  - `data-theme` の変更と OS のカラースキーム変更を監視して再描画
+  - Sigma.js v4 の WebGL 描画エラーを避けるため v3.0.3 に固定
+- 開発環境
+  - Ash snapshot 未再生成のため `ash_codegen_check: false` を dev のみ設定
+  - ローカル Tailwind は Docker の Linux 版 CLI で CSS 生成
+
+---
+
+## 2026-10-26 ラベル色の修正
+
+- Sigma.js v3 の `labelColor` / `edgeLabelColor` は `{color: ...}` 形式が必要
+  - 文字列を渡していたため既定の黒にフォールバックし、ダークモードでラベルが読めなかった
+- ライト/ダークそれぞれのパレット色をオブジェクトで渡すよう修正
+- `stagePadding` を 90 に広げ、端のノード名が見切れないように調整
+- ライト/ダーク両モードでスクリーンショットを取得し、ラベル色の切り替わりを確認
+- コンソール警告なし

@@ -119,7 +119,7 @@
 - 一覧に種別・担当者列を追加
 - 担当者フィルタ用に `FormOptions.load_internal_users/1` を追加
 - テスト追加（フィルタ、担当者、ソート、21件ページング）
-- `mix precommit` 成功、13 properties / 133 tests、カバレッジ 80.9%
+- `mix precommit` 成功、13 properties / 133 tests、カバレッジ 80.5%
 
 ## 実装後メモ（2026-10-25 通知 UI）
 
@@ -157,3 +157,29 @@
   - 紐付け済みタスクの表示、未紐付けタスクの追加、解除
 - テスト追加（LiveView、テナント境界、重複、カスケード）
 - `mix precommit` 成功、13 properties / 152 tests、カバレッジ 81.2%
+
+## 実装後メモ（2026-10-25 関連リンク/グラフ/製品マスタ）
+
+- チケット関連リンク UI
+  - チケット詳細で関連/再起票/重複/依存を登録・解除
+  - outgoing / incoming を表示し、同一 company のみ許可
+- Sigma.js 関係グラフ PoC
+  - サーバー固定レイアウト（ノード/エッジ/座標/スコア）
+  - Sigma.js + Graphology を assets に追加
+- 製品マスタ管理 UI
+  - `/products` と `/products/:id`
+  - `products.active` を追加し、有効製品のみチケット/問い合わせで選択
+  - CI に `npm ci --prefix assets` を追加
+- `mix precommit` 成功、13 properties / 160 tests、カバレッジ 80.5%
+
+## 実装後メモ（2026-10-25 UI 修正）
+
+- 関係グラフを `/relations` に分離し、自社チケット全体を俯瞰
+- トップページをダッシュボード化（件数サマリ + 最近のチケット/タスク）
+- `Layouts.app` を `max-w-7xl` に拡張し、アプリ用ナビゲーションを追加
+- `Layouts.app` に `current_user` を渡し、ログイン中のヘッダー導線を修正
+- チケット一覧テーブルを横スクロール対応・最小幅指定でレイアウト修正
+- グラフのラベル色を `{color: ...}` 形式に修正（ダークモードの黒文字を解消）
+- `stagePadding` で端のノード名の見切れを調整
+- dev 環境は Ash snapshot 未再生成のため `ash_codegen_check: false`
+- `mix precommit` 成功、13 properties / 164 tests

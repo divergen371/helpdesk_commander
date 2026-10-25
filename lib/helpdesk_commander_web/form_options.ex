@@ -52,7 +52,7 @@ defmodule HelpdeskCommanderWeb.FormOptions do
   @spec load_products(User.t() | nil) :: {:ok, [Product.t()]} | {:error, term()}
   def load_products(%User{company_id: company_id}) do
     case Product
-         |> filter(company_id == ^company_id)
+         |> filter(company_id == ^company_id and active == true)
          |> Ash.read(domain: Helpdesk) do
       {:ok, products} -> {:ok, Enum.sort_by(products, & &1.name, :asc)}
       {:error, error} -> {:error, error}

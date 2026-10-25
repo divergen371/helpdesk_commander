@@ -41,7 +41,7 @@ defmodule HelpdeskCommanderWeb.TaskLive.Index do
   @impl Phoenix.LiveView
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_user={assigns[:current_user]}>
       <.header>
         Tasks
         <:subtitle>タスクの一覧</:subtitle>

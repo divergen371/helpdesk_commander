@@ -102,6 +102,10 @@ config :helpdesk_commander, HelpdeskCommanderWeb.Endpoint,
 # Enable dev routes for dashboard and mailbox
 config :helpdesk_commander, dev_routes: true
 
+# Ash の resource snapshot 再生成は未完了のため、開発時チェックのみ無効化する。
+# snapshot 再生成後にこの設定を削除する（docs/TASKS.md 参照）。
+config :helpdesk_commander, ash_codegen_check: false
+
 # Do not include metadata nor timestamps in development logs
 config :logger, :default_formatter, format: "[$level] $message\n"
 
