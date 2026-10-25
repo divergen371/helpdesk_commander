@@ -18,8 +18,16 @@ defmodule HelpdeskCommander.Helpdesk.Inquiry do
       writable?: false,
       public?: true
 
-    attribute :subject, :string, allow_nil?: false, public?: true
-    attribute :body, :string, allow_nil?: false, public?: true
+    attribute :subject, :string,
+      allow_nil?: false,
+      public?: true,
+      constraints: [min_length: 1, max_length: 200]
+
+    attribute :body, :string,
+      allow_nil?: false,
+      public?: true,
+      constraints: [min_length: 1, max_length: 10_000]
+
     attribute :source, :string, allow_nil?: false, default: "web", public?: true
 
     create_timestamp :inserted_at
@@ -55,9 +63,11 @@ defmodule HelpdeskCommander.Helpdesk.Inquiry do
     defaults [:read]
 
     create :create do
-      accept [:subject, :body, :source, :requester_id, :company_id, :product_id]
+      accept [:subject, :body, :source, :requester_id, :product_id]
 
+      change HelpdeskCommander.Helpdesk.Inquiry.Changes.NormalizeFields
       change HelpdeskCommander.Helpdesk.Changes.AssignCompanyFromRequester
+      change HelpdeskCommander.Helpdesk.Inquiry.Changes.ValidateTenant
 
       change CreateTicket
     end

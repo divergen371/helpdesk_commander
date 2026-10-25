@@ -1,14 +1,12 @@
 defmodule HelpdeskCommanderWeb.TicketLive.New do
   use HelpdeskCommanderWeb, :live_view
-  import Ash.Query
-
   alias HelpdeskCommander.Accounts
   alias HelpdeskCommander.Accounts.User
   alias HelpdeskCommander.Helpdesk
-  alias HelpdeskCommander.Helpdesk.Product
   alias HelpdeskCommander.Helpdesk.Ticket
   alias HelpdeskCommander.Support.Error, as: ErrorLog
   alias HelpdeskCommanderWeb.CurrentUser
+  alias HelpdeskCommanderWeb.FormOptions
 
   @impl Phoenix.LiveView
   def mount(_params, session, socket) do
@@ -16,7 +14,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
     external_user? = CurrentUser.external?(current_user)
 
     {users, socket_after_users, users_loaded?} =
-      case load_users(current_user, external_user?) do
+      case FormOptions.load_users(current_user, external_user?) do
         {:ok, users} ->
           {users, socket, true}
 
@@ -27,7 +25,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
       end
 
     {products, socket_after_products, products_loaded?} =
-      case load_products(current_user) do
+      case FormOptions.load_products(current_user) do
         {:ok, products} ->
           {products, socket_after_users, true}
 
@@ -101,7 +99,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
     case Ash.create(changeset, domain: Accounts) do
       {:ok, _user} ->
         {users, socket, users_loaded?} =
-          case load_users(current_user, socket.assigns.current_user_external?) do
+          case FormOptions.load_users(current_user, socket.assigns.current_user_external?) do
             {:ok, users} ->
               {users, socket, true}
 
@@ -131,18 +129,6 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
     end
   end
 
-  defp user_options(users) do
-    Enum.map(users, fn user ->
-      {user_label(user), user.id}
-    end)
-  end
-
-  defp product_options(products) do
-    Enum.map(products, fn product ->
-      {product.name, product.id}
-    end)
-  end
-
   defp user_label(user), do: CurrentUser.display_label(user)
 
   defp maybe_put_requester_id(params, %{assigns: %{current_user_external?: true, current_user: %User{id: id}}}) do
@@ -150,36 +136,6 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
   end
 
   defp maybe_put_requester_id(params, _socket), do: params
-
-  defp load_users(%User{} = current_user, true) do
-    {:ok, [current_user]}
-  end
-
-  defp load_users(%User{company_id: company_id}, false) do
-    query = filter(User, company_id == ^company_id)
-
-    case Ash.read(query, domain: Accounts) do
-      {:ok, users} ->
-        {:ok,
-         users
-         |> Enum.reject(&(&1.role == "system" or &1.status in ~w(suspended anonymized)))
-         |> Enum.sort_by(& &1.inserted_at, {:asc, DateTime})}
-
-      {:error, error} ->
-        {:error, error}
-    end
-  end
-
-  defp load_users(_current_user, _external_user?), do: {:ok, []}
-
-  defp load_products(%User{company_id: company_id}) do
-    case Product |> filter(company_id == ^company_id) |> Ash.read(domain: Helpdesk) do
-      {:ok, products} -> {:ok, Enum.sort_by(products, & &1.name, :asc)}
-      {:error, error} -> {:error, error}
-    end
-  end
-
-  defp load_products(_current_user), do: {:ok, []}
 
   defp status_options do
     [
@@ -258,7 +214,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
               type="select"
               label="対象製品/サービス"
               prompt="選択してください"
-              options={product_options(@products)}
+              options={FormOptions.product_options(@products)}
               required
             />
 
@@ -278,7 +234,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
                 type="select"
                 label="依頼者"
                 prompt="選択してください"
-                options={user_options(@users)}
+                options={FormOptions.user_options(@users)}
                 required
               />
             <% end %>

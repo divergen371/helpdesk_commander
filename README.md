@@ -27,7 +27,7 @@ Helpdesk Commanderは、社内のタスク管理とヘルプデスク業務を1�
 
 #### 🎫 ヘルプデスク
 
-- 問い合わせ受付（Inquiry リソースと Ticket 自動生成。Web フォームは未実装）
+- 問い合わせ受付（`/inquiries/new` から Ticket を自動生成）
 - チケット管理（一覧/新規作成/詳細）
 - チケットチャット（公開/非公開）
 - チケット状態遷移とイベントログ
@@ -331,7 +331,7 @@ end
 - [x] Docker環境構築（PostgreSQL 18）
 - [x] タスク管理リソース作成
 - [x] ヘルプデスクリソース作成（Inquiry/Ticket/Conversation/Event）
-- [ ] Inquiry Webフォーム（問い合わせ受付・ログイン必須）→ チケット自動生成
+- [x] Inquiry Webフォーム（問い合わせ受付・ログイン必須）→ チケット自動生成
 - [ ] チケット一覧のフィルタ/ソート/ページング
 - [x] チケットチャット（公開/非公開）
 - [x] ステータス更新（new/triage/in_progress/waiting/resolved…）

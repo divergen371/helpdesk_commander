@@ -823,3 +823,32 @@ mix phx.server
   - `mix precommit` 成功
   - 13 properties / 122 tests / 0 failures
   - `mix coveralls` 80.3%
+
+---
+
+## 2026-10-25 03:37 UTC
+
+### Inquiry Web フォーム
+
+- `/inquiries/new` を追加（ログイン必須）
+  - 対象製品を製品マスタから選択
+  - 社外ユーザーは依頼者を自分に固定
+  - 内部ユーザーは自社 company のユーザーを依頼者として選択
+- Inquiry のサーバ側検証
+  - subject 1..200、body 1..10,000
+  - 前後空白をトリムし、空文字を拒否
+  - `company_id` はフォームから受け取らず依頼者から導出
+  - 対象製品と依頼者の company 一致をリソース側でも検証
+- 送信後は自動生成された Ticket 詳細へ遷移
+- チケット一覧に「問い合わせ」導線を追加
+- ユーザー/製品の選択肢読み込みを `HelpdeskCommanderWeb.FormOptions` に共通化
+- テスト追加
+  - 社外/内部の問い合わせ送信
+  - トリム、空入力拒否
+  - 別会社の製品・依頼者の拒否
+  - 未ログインリダイレクト
+- 検証結果
+  - `mix precommit` 成功
+  - 13 properties / 130 tests / 0 failures
+  - `mix coveralls` 80.5%
+  - `mix dialyzer` 0 errors

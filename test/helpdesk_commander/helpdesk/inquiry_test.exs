@@ -30,6 +30,69 @@ defmodule HelpdeskCommander.Helpdesk.InquiryTest do
     assert ticket.product_id == product.id
   end
 
+  test "trims subject and body and rejects blank values" do
+    user = create_user!()
+    product = create_product!(user.company_id)
+
+    inquiry =
+      Inquiry
+      |> Ash.Changeset.for_create(:create, %{
+        subject: "  Need help  ",
+        body: "  Something broke  ",
+        product_id: product.id,
+        requester_id: user.id
+      })
+      |> Ash.create!(domain: Helpdesk)
+
+    assert inquiry.subject == "Need help"
+    assert inquiry.body == "Something broke"
+
+    assert {:error, _error} =
+             Inquiry
+             |> Ash.Changeset.for_create(:create, %{
+               subject: "   ",
+               body: "Something broke",
+               product_id: product.id,
+               requester_id: user.id
+             })
+             |> Ash.create(domain: Helpdesk)
+  end
+
+  test "rejects a product from another company" do
+    user = create_user!()
+    other_company = create_company!()
+    other_product = create_product!(other_company.id)
+
+    assert {:error, _error} =
+             Inquiry
+             |> Ash.Changeset.for_create(:create, %{
+               subject: "Cross tenant",
+               body: "Should be rejected",
+               product_id: other_product.id,
+               requester_id: user.id
+             })
+             |> Ash.create(domain: Helpdesk)
+  end
+
+  defp create_company! do
+    HelpdeskCommander.Accounts.Company
+    |> Ash.Changeset.for_create(:create, %{
+      name: "Company #{System.unique_integer([:positive])}",
+      company_code: unique_company_code()
+    })
+    |> Ash.create!(domain: Accounts)
+  end
+
+  defp unique_company_code do
+    suffix =
+      System.unique_integer([:positive])
+      |> rem(900_000)
+      |> Kernel.+(100_000)
+      |> Integer.to_string()
+
+    "A-#{suffix}"
+  end
+
   defp create_user! do
     email = "test+#{System.unique_integer([:positive])}@example.com"
     company = Accounts.Auth.default_company!()

@@ -67,6 +67,9 @@ defmodule HelpdeskCommanderWeb.TicketLive.Index do
         Tickets
         <:subtitle>チケットの一覧</:subtitle>
         <:actions>
+          <.button navigate={~p"/inquiries/new"} variant="primary">
+            <.icon name="hero-chat-bubble-left-right" class="size-4" /> 問い合わせ
+          </.button>
           <.button navigate={~p"/tickets/new"}>
             <.icon name="hero-plus" class="size-4" /> 新規作成
           </.button>

@@ -24,12 +24,12 @@
 | コマンド | 結果 |
 | --- | --- |
 | `mix precommit` | 成功 |
-| `mix test` | **13 properties, 122 tests, 0 failures** |
+| `mix test` | **13 properties, 130 tests, 0 failures** |
 | `mix credo --strict` | 指摘なし（65 files / 95 checks） |
 | `mix dialyzer` | **0 errors** |
 | `mix compile --warnings-as-errors` | 成功（プロジェクト側の警告 0） |
 | `mix format` | 差分なし |
-| `MIX_ENV=test mix coveralls` | **80.3%**（最低基準 80% を満たす） |
+| `MIX_ENV=test mix coveralls` | **80.5%**（最低基準 80% を満たす） |
 
 ### 環境
 
@@ -56,7 +56,7 @@
 | `workers/create_ticket_notifications_worker.ex` | 70.7% |
 | `live/ticket_live/show.ex` | 75.7% |
 | `accounts/auth.ex` | 77.5% |
-| **合計** | **80.3%**（1078 / 1342 行） |
+| **合計** | **80.5%**（1139 / 1414 行） |
 
 基準は満たしているが余裕がないため、新規コード追加時はテストも同時に追加する。
 
@@ -78,7 +78,7 @@
 | イベントログ | 実装済み | `ticket_events`（作成・状態変更・メッセージ投稿・検証登録）。詳細画面で表示。 |
 | 検証・承認 | 一部実装 | `resolved` のみ検証登録可。結果は passed/failed/needs_review。admin/leader が `verified` / `closed` へ遷移可能。 |
 | 通知 | バックエンドのみ | resolved / 検証登録時に admin/leader 宛の `ticket_notifications` を Oban で生成。一覧・既読 UI は未実装。 |
-| 問い合わせ（Inquiry） | バックエンドのみ | Inquiry 作成時に Ticket を自動生成。Web フォーム・ルーティング・画面は未実装。 |
+| 問い合わせ（Inquiry） | 実装済み | `/inquiries/new` から送信し、Ticket を自動生成。製品選択・依頼者指定・サーバ側検証・テナント検証を含む。 |
 | 製品マスタ | 一部実装 | `products` リソース、チケット作成時の選択、シード。マスタ管理 UI は未実装。 |
 | タスク | 一部実装 | リソース、一覧、詳細、優先度変更（`set_priority`）と履歴表示。作成・編集・削除 UI は未実装。 |
 | チケット関連リンク | バックエンドのみ | `ticket_links`（related / duplicate_of など）。UI と自動生成は未実装。 |
@@ -93,8 +93,6 @@
 
 ### 3.1 MVP を閉じるために必要なもの
 
-- **Inquiry の Web フォーム**（ログイン必須、製品選択、送信で Ticket 自動生成）
-  - 現状は `/tickets/new` から手動作成するのみ。要件 5.1 の受付導線が未完成。
 - **チケット一覧のフィルタ / ソート**
   - 現状は全件を `inserted_at desc` で取得。状態・担当・優先度・種別の条件指定はない。
 - **チケット一覧のページング**
@@ -114,7 +112,7 @@
 
 ### 3.2 品質・セキュリティ
 
-- **カバレッジの余裕がない**（80.3% / 基準 80%）。新規コード追加時に容易に下回る。
+- **カバレッジの余裕がない**（80.5% / 基準 80%）。新規コード追加時に容易に下回る。
 - **ツールチェーンは固定済み**（`.tool-versions`: Erlang 29.1.2 / Elixir `ref:v1.20.4`）。CI も同一バージョン。
 - **企業（テナント）境界は company 単位に統一済み**
   - チケット一覧・詳細は自社 company の範囲に制限（`visibility_scope: "global"` は全体公開として例外）。
