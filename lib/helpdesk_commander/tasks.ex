@@ -6,5 +6,6 @@ defmodule HelpdeskCommander.Tasks do
   resources do
     resource HelpdeskCommander.Tasks.Task
     resource HelpdeskCommander.Tasks.TaskEvent
+    resource HelpdeskCommander.Tasks.TicketTaskLink
   end
 end

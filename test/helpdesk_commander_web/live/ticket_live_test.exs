@@ -14,6 +14,9 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
   alias HelpdeskCommander.Helpdesk.Ticket
   alias HelpdeskCommander.Helpdesk.TicketEvent
   alias HelpdeskCommander.Helpdesk.TicketVerification
+  alias HelpdeskCommander.Tasks
+  alias HelpdeskCommander.Tasks.Task
+  alias HelpdeskCommander.Tasks.TicketTaskLink
 
   test "tickets index renders", %{conn: conn} do
     user = create_user!()
@@ -441,6 +444,59 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
              live(conn, ~p"/tickets/#{other_ticket.public_id}")
   end
 
+  test "internal user can link and unlink a task", %{conn: conn} do
+    user = create_user!()
+    ticket = create_ticket!(user)
+    task = create_task!(user.company_id, title: "Linked task")
+
+    conn = log_in(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/tickets/#{ticket.public_id}")
+
+    assert has_element?(view, "#ticket-task-links-empty")
+
+    render_submit(view, "link_task", %{"link" => %{"task_id" => to_string(task.id)}})
+
+    link =
+      TicketTaskLink
+      |> filter(ticket_id == ^ticket.id and task_id == ^task.id)
+      |> Ash.read_one!(domain: Tasks)
+
+    assert has_element?(view, "#ticket-task-link-#{link.id}", task.title)
+
+    view
+    |> element("button[phx-click=\"unlink_task\"][phx-value-link_id=\"#{link.id}\"]")
+    |> render_click()
+
+    assert has_element?(view, "#ticket-task-links-empty")
+    assert Ash.read!(TicketTaskLink, domain: Tasks) == []
+  end
+
+  test "task link options are scoped to the ticket company", %{conn: conn} do
+    user = create_user!()
+    ticket = create_ticket!(user)
+    own_task = create_task!(user.company_id, title: "Own task")
+
+    other_company = create_company!()
+    other_task = create_task!(other_company.id, title: "Other task")
+
+    conn = log_in(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/tickets/#{ticket.public_id}")
+
+    assert has_element?(view, "option[value=\"#{own_task.id}\"]")
+    refute has_element?(view, "option[value=\"#{other_task.id}\"]")
+  end
+
+  test "external user does not see task links", %{conn: conn} do
+    user = create_user!("customer")
+    ticket = create_ticket!(user)
+
+    conn = log_in(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/tickets/#{ticket.public_id}")
+
+    refute has_element?(view, "#ticket-task-links")
+    refute has_element?(view, "#ticket-task-link-form")
+  end
+
   test "external user hides internal sections in ticket detail", %{conn: conn} do
     external_user = create_user!("customer")
     ticket = create_ticket!(external_user)
@@ -564,6 +620,15 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
       company_id: company_id
     })
     |> Ash.create!(domain: Helpdesk)
+  end
+
+  defp create_task!(company_id, opts) do
+    Task
+    |> Ash.Changeset.for_create(:create, %{
+      title: Keyword.fetch!(opts, :title),
+      company_id: company_id
+    })
+    |> Ash.create!(domain: Tasks)
   end
 
   defp get_conversation!(%Ticket{} = ticket, kind) do

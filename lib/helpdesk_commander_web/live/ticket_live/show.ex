@@ -15,6 +15,9 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   alias HelpdeskCommander.Helpdesk.TicketEvent
   alias HelpdeskCommander.Helpdesk.TicketVerification
   alias HelpdeskCommander.Support.Error, as: ErrorLog
+  alias HelpdeskCommander.Tasks
+  alias HelpdeskCommander.Tasks.Task
+  alias HelpdeskCommander.Tasks.TicketTaskLink
   alias HelpdeskCommanderWeb.CurrentUser
 
   @messages_page_size 20
@@ -73,8 +76,18 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     with {:ok, ticket} <- load_ticket(public_id),
          :ok <- authorize_ticket(ticket, current_user, external_user?),
          {:ok, users, users_by_id} <- load_users(ticket.company_id),
-         {:ok, conversations} <- ensure_conversations(ticket) do
-      build_ticket_data(ticket, current_user, external_user?, users, users_by_id, conversations)
+         {:ok, conversations} <- ensure_conversations(ticket),
+         {:ok, task_links, linkable_tasks} <- load_task_links(ticket) do
+      build_ticket_data(
+        ticket,
+        current_user,
+        external_user?,
+        users,
+        users_by_id,
+        conversations,
+        task_links,
+        linkable_tasks
+      )
     else
       {:error, _reason} = error -> error
     end
@@ -125,7 +138,9 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
          external_user?,
          users,
          users_by_id,
-         {public_conversation, private_conversation}
+         {public_conversation, private_conversation},
+         task_links,
+         linkable_tasks
        ) do
     can_post_public? =
       not external_user? or (current_user && ticket.requester_id == current_user.id)
@@ -198,6 +213,9 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
        events_has_more?: events_has_more?,
        events_oldest_id: events_oldest_id,
        verifications: verifications,
+       task_links: task_links,
+       linkable_tasks: linkable_tasks,
+       task_link_form: to_form(%{"task_id" => ""}, as: "link"),
        warnings: warnings
      }}
   end
@@ -227,6 +245,9 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     |> assign(:private_messages_oldest_id, data.private_messages_oldest_id)
     |> assign(:events_has_more?, data.events_has_more?)
     |> assign(:events_oldest_id, data.events_oldest_id)
+    |> assign(:task_links, data.task_links)
+    |> assign(:linkable_tasks, data.linkable_tasks)
+    |> assign(:task_link_form, data.task_link_form)
     |> stream(:public_messages, data.public_messages)
     |> stream(:private_messages, data.private_messages)
     |> stream(:events, data.events)
@@ -293,6 +314,78 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   defp error_message(:load_ticket), do: "チケットの取得に失敗しました"
   defp error_message(:load_users), do: "ユーザー一覧の取得に失敗しました"
   defp error_message(:ensure_conversations), do: "会話の初期化に失敗しました"
+  defp error_message(:load_task_links), do: "関連タスクの取得に失敗しました"
+
+  @impl Phoenix.LiveView
+  def handle_event("link_task", %{"link" => %{"task_id" => task_id}}, socket) do
+    if socket.assigns.current_user_external? do
+      {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
+    else
+      case task_id |> to_string() |> Integer.parse() do
+        {task_id, _rest} ->
+          result =
+            TicketTaskLink
+            |> Ash.Changeset.for_create(:create, %{
+              ticket_id: socket.assigns.ticket.id,
+              task_id: task_id
+            })
+            |> Ash.create(domain: Tasks)
+
+          case result do
+            {:ok, _link} ->
+              {:noreply,
+               socket
+               |> put_flash(:info, "タスクを紐付けました")
+               |> reload_task_links()}
+
+            {:error, error} ->
+              ErrorLog.log_error("ticket_live.show.link_task", error,
+                ticket_id: socket.assigns.ticket.id,
+                task_id: task_id
+              )
+
+              {:noreply, put_flash(socket, :error, "タスクの紐付けに失敗しました")}
+          end
+
+        :error ->
+          {:noreply, put_flash(socket, :error, "タスクを選択してください")}
+      end
+    end
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("unlink_task", %{"link_id" => link_id}, socket) do
+    if socket.assigns.current_user_external? do
+      {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
+    else
+      case Integer.parse(link_id) do
+        {link_id, _rest} ->
+          query = filter(TicketTaskLink, id == ^link_id and ticket_id == ^socket.assigns.ticket.id)
+
+          with {:ok, %TicketTaskLink{} = link} <- Ash.read_one(query, domain: Tasks),
+               :ok <- Ash.destroy(link, domain: Tasks) do
+            {:noreply,
+             socket
+             |> put_flash(:info, "タスクの紐付けを解除しました")
+             |> reload_task_links()}
+          else
+            {:ok, nil} ->
+              {:noreply, put_flash(socket, :error, "紐付けが見つかりません")}
+
+            {:error, error} ->
+              ErrorLog.log_error("ticket_live.show.unlink_task", error,
+                ticket_id: socket.assigns.ticket.id,
+                link_id: link_id
+              )
+
+              {:noreply, put_flash(socket, :error, "紐付けの解除に失敗しました")}
+          end
+
+        :error ->
+          {:noreply, put_flash(socket, :error, "紐付けが見つかりません")}
+      end
+    end
+  end
 
   @impl Phoenix.LiveView
   def handle_event("validate_status", %{"form" => params}, socket) do
@@ -572,6 +665,21 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     end
   end
 
+  defp reload_task_links(socket) do
+    case load_task_links(socket.assigns.ticket) do
+      {:ok, links, tasks} ->
+        socket
+        |> assign(:task_links, links)
+        |> assign(:linkable_tasks, tasks)
+        |> assign(:task_link_form, to_form(%{"task_id" => ""}, as: "link"))
+
+      {:error, error} ->
+        ErrorLog.log_error("ticket_live.show.reload_task_links", error, ticket_id: socket.assigns.ticket.id)
+
+        put_flash(socket, :error, "関連タスクの取得に失敗しました")
+    end
+  end
+
   defp status_options(true) do
     [
       {"new", "new"},
@@ -623,6 +731,12 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   defp selectable_users(users) do
     Enum.filter(users, fn user ->
       Authorization.internal?(user) and user.status == "active"
+    end)
+  end
+
+  defp task_options(tasks) do
+    Enum.map(tasks, fn task ->
+      {"#{task.public_id} #{task.title} (#{task.status})", task.id}
     end)
   end
 
@@ -741,6 +855,20 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
       {:error, error} ->
         {:error, {:load_users, error}}
+    end
+  end
+
+  defp load_task_links(%Ticket{id: ticket_id, company_id: company_id}) do
+    links_query = filter(TicketTaskLink, ticket_id == ^ticket_id)
+    tasks_query = Task |> filter(company_id == ^company_id) |> sort(title: :asc)
+
+    with {:ok, links} <- Ash.read(links_query, domain: Tasks),
+         {:ok, links} <- Ash.load(links, [:task], domain: Tasks),
+         {:ok, tasks} <- Ash.read(tasks_query, domain: Tasks) do
+      linked_ids = MapSet.new(links, & &1.task_id)
+      {:ok, links, Enum.reject(tasks, &MapSet.member?(linked_ids, &1.id))}
+    else
+      {:error, error} -> {:error, {:load_task_links, error}}
     end
   end
 
@@ -938,6 +1066,60 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
             <div class="mt-4">
               <h3 class="font-semibold">詳細</h3>
               <p class="mt-2 whitespace-pre-wrap text-sm opacity-80">{@ticket.description}</p>
+            </div>
+          </div>
+        </div>
+
+        <div :if={!@current_user_external?} class="card bg-base-100 border border-base-200">
+          <div class="card-body">
+            <h3 class="font-semibold">関連タスク</h3>
+
+            <div id="ticket-task-links" class="mt-4 space-y-3">
+              <div :if={@task_links == []} id="ticket-task-links-empty" class="text-sm opacity-70">
+                関連タスクはまだありません。
+              </div>
+
+              <div
+                :for={link <- @task_links}
+                id={"ticket-task-link-#{link.id}"}
+                class="flex flex-wrap items-center justify-between gap-3 rounded-box border border-base-200 p-3 text-sm"
+              >
+                <div>
+                  <.link class="font-medium hover:underline" navigate={~p"/tasks/#{link.task.public_id}"}>
+                    {link.task.title}
+                  </.link>
+                  <div class="mt-1 text-xs opacity-60">{link.task.public_id}</div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="rounded-full bg-base-200 px-3 py-1">{link.task.status}</span>
+                  <span class="rounded-full bg-base-200 px-3 py-1">{link.task.priority}</span>
+                  <button
+                    type="button"
+                    class="link text-error"
+                    phx-click="unlink_task"
+                    phx-value-link_id={link.id}
+                  >
+                    解除
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div :if={@linkable_tasks != []} class="mt-6">
+              <.form for={@task_link_form} id="ticket-task-link-form" phx-submit="link_task">
+                <.input
+                  field={@task_link_form[:task_id]}
+                  type="select"
+                  label="タスクを紐付ける"
+                  prompt="選択してください"
+                  options={task_options(@linkable_tasks)}
+                  required
+                />
+
+                <div class="mt-4 flex justify-end">
+                  <.button type="submit" variant="primary">紐付ける</.button>
+                </div>
+              </.form>
             </div>
           </div>
         </div>

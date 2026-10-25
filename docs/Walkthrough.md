@@ -938,3 +938,29 @@ mix phx.server
   - 13 properties / 145 tests / 0 failures
   - `mix coveralls` 81.3%
   - `mix dialyzer` 0 errors
+
+---
+
+## 2026-10-25 05:23 UTC
+
+### チケットとタスクの紐付け
+
+- `ticket_task_links` を追加
+  - `ticket_id` / `task_id` / `company_id` / `relation_type`
+  - 同一 company のチケット・タスクのみ紐付け可能
+  - 重複紐付けを拒否
+  - チケット/タスク削除時は FK の `ON DELETE CASCADE`
+- チケット詳細に関連タスクセクションを追加（内部ユーザーのみ）
+  - 紐付け済みタスクの表示
+  - 同一 company の未紐付けタスクから選択して追加
+  - 紐付け解除
+- テスト追加
+  - LiveView からの追加・解除
+  - 別 company のタスクが候補に出ない
+  - 社外ユーザーに非表示
+  - リソース単体の同一 company 検証・重複拒否・カスケード削除
+- 検証結果
+  - `mix precommit` 成功
+  - 13 properties / 152 tests / 0 failures
+  - `mix coveralls` 81.2%
+  - `mix dialyzer` 0 errors
