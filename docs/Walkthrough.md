@@ -907,3 +907,34 @@ mix phx.server
   - 13 properties / 139 tests / 0 failures
   - `mix coveralls` 81.1%
   - `mix dialyzer` 0 errors
+
+---
+
+## 2026-10-25 04:28 UTC
+
+### タスク CRUD UI
+
+- `/tasks/new` を追加
+  - タイトル / 説明 / ステータス / 優先度 / 期限 / 担当者
+  - `company_id` はサーバ側で現在のユーザーの会社を設定
+- タスク詳細に編集フォームを追加
+  - タイトル / 説明 / ステータス / 期限 / 担当者
+  - 優先度は従来どおり `set_priority` と履歴に分離
+- タスク削除を追加
+  - `task_events` は FK の `ON DELETE CASCADE` で削除
+- タスクの入力検証
+  - タイトル 1..200、説明 10,000 文字以内
+  - status / priority の allowlist
+  - 前後空白をトリム
+  - 担当者が同一 company のユーザーであることを検証
+- `Task.update` から priority を外し、履歴必須の導線を強制
+- 楽観ロック（`lock_version`）を update / set_priority に追加
+- テスト追加
+  - 作成・編集・削除・空タイトル拒否
+  - 別会社担当者の拒否
+  - タスク削除時の priority event 削除
+- 検証結果
+  - `mix precommit` 成功
+  - 13 properties / 145 tests / 0 failures
+  - `mix coveralls` 81.3%
+  - `mix dialyzer` 0 errors

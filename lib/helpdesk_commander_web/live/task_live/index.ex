@@ -46,6 +46,9 @@ defmodule HelpdeskCommanderWeb.TaskLive.Index do
         Tasks
         <:subtitle>タスクの一覧</:subtitle>
         <:actions>
+          <.button navigate={~p"/tasks/new"} variant="primary">
+            <.icon name="hero-plus" class="size-4" /> 新規作成
+          </.button>
           <.button navigate={~p"/tickets"}>
             Tickets
           </.button>

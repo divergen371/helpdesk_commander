@@ -9,14 +9,26 @@ defmodule HelpdeskCommanderWeb.TaskLive.Show do
   alias HelpdeskCommander.Tasks.Task
   alias HelpdeskCommander.Tasks.TaskEvent
   alias HelpdeskCommanderWeb.CurrentUser
+  alias HelpdeskCommanderWeb.FormOptions
 
   @impl Phoenix.LiveView
   def mount(%{"public_id" => public_id}, session, socket) do
     current_user = CurrentUser.fetch(session)
 
+    {assignees, socket} =
+      case FormOptions.load_internal_users(current_user) do
+        {:ok, assignees} ->
+          {assignees, socket}
+
+        {:error, error} ->
+          ErrorLog.log_error("task_live.show.load_assignees", error)
+
+          {[], put_flash(socket, :error, "担当者一覧の取得に失敗しました")}
+      end
+
     case load_task_data(public_id, current_user) do
       {:ok, data} ->
-        {:ok, assign_task_socket(socket, data, current_user)}
+        {:ok, assign_task_socket(socket, data, current_user, assignees)}
 
       {:error, :not_found} ->
         {:ok,
@@ -67,18 +79,74 @@ defmodule HelpdeskCommanderWeb.TaskLive.Show do
     end
   end
 
-  defp assign_task_socket(socket, data, current_user) do
+  defp assign_task_socket(socket, data, current_user, assignees) do
     priority_form =
       data.task
       |> AshPhoenix.Form.for_update(:set_priority, domain: Tasks)
+      |> to_form()
+
+    edit_form =
+      data.task
+      |> AshPhoenix.Form.for_update(:update, domain: Tasks)
       |> to_form()
 
     socket
     |> assign(:page_title, "Task #{data.task.public_id}")
     |> assign(:current_user, current_user)
     |> assign(:task, data.task)
+    |> assign(:assignees, assignees)
+    |> assign(:edit_form, edit_form)
     |> assign(:priority_form, priority_form)
     |> assign(:priority_events, data.events)
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("validate_edit", %{"form" => params}, socket) do
+    form = AshPhoenix.Form.validate(socket.assigns.edit_form, params)
+    {:noreply, assign(socket, :edit_form, form)}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("save_edit", %{"form" => params}, socket) do
+    case AshPhoenix.Form.submit(socket.assigns.edit_form, params: params) do
+      {:ok, task} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "タスクを更新しました")
+         |> assign(:task, task)
+         |> assign(:edit_form, task |> AshPhoenix.Form.for_update(:update, domain: Tasks) |> to_form())
+         |> assign(
+           :priority_form,
+           task |> AshPhoenix.Form.for_update(:set_priority, domain: Tasks) |> to_form()
+         )}
+
+      {:error, form} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "タスクの更新に失敗しました")
+         |> assign(:edit_form, form)}
+    end
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("delete", _params, socket) do
+    case Ash.destroy(socket.assigns.task, domain: Tasks) do
+      :ok ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "タスクを削除しました")
+         |> push_navigate(to: ~p"/tasks")}
+
+      {:ok, _task} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "タスクを削除しました")
+         |> push_navigate(to: ~p"/tasks")}
+
+      {:error, error} ->
+        ErrorLog.log_error("task_live.show.delete", error, task_id: socket.assigns.task.id)
+        {:noreply, put_flash(socket, :error, "タスクの削除に失敗しました")}
+    end
   end
 
   @impl Phoenix.LiveView
@@ -105,10 +173,16 @@ defmodule HelpdeskCommanderWeb.TaskLive.Show do
           |> AshPhoenix.Form.for_update(:set_priority, domain: Tasks)
           |> to_form()
 
+        edit_form =
+          task
+          |> AshPhoenix.Form.for_update(:update, domain: Tasks)
+          |> to_form()
+
         {:noreply,
          socket
          |> put_flash(:info, "優先度を更新しました")
          |> assign(:task, task)
+         |> assign(:edit_form, edit_form)
          |> assign(:priority_form, priority_form)
          |> assign(:priority_events, events)}
 
@@ -139,6 +213,23 @@ defmodule HelpdeskCommanderWeb.TaskLive.Show do
     ]
   end
 
+  defp status_options do
+    [
+      {"未着手", "todo"},
+      {"進行中", "in_progress"},
+      {"完了", "done"}
+    ]
+  end
+
+  defp assignee_label(nil, _assignees), do: "-"
+
+  defp assignee_label(assignee_id, assignees) do
+    case Enum.find(assignees, &(&1.id == assignee_id)) do
+      nil -> "User #{assignee_id}"
+      user -> CurrentUser.display_label(user)
+    end
+  end
+
   defp actor_label(%TaskEvent{actor: %User{} = user}), do: CurrentUser.display_label(user)
   defp actor_label(%TaskEvent{actor_id: actor_id}), do: "User #{actor_id}"
 
@@ -162,6 +253,13 @@ defmodule HelpdeskCommanderWeb.TaskLive.Show do
         Task {@task.public_id}
         <:subtitle>{@task.title}</:subtitle>
         <:actions>
+          <.button
+            type="button"
+            phx-click="delete"
+            data-confirm="このタスクを削除しますか？"
+          >
+            削除
+          </.button>
           <.button navigate={~p"/tasks"}>
             一覧へ
           </.button>
@@ -174,6 +272,7 @@ defmodule HelpdeskCommanderWeb.TaskLive.Show do
             <:item title="Public ID">{@task.public_id}</:item>
             <:item title="Status">{@task.status}</:item>
             <:item title="Priority">{@task.priority}</:item>
+            <:item title="Assignee">{assignee_label(@task.assignee_id, @assignees)}</:item>
             <:item title="Due date">{@task.due_date || "-"}</:item>
             <:item title="Inserted at">{format_dt(@task.inserted_at)}</:item>
           </.list>
@@ -184,6 +283,41 @@ defmodule HelpdeskCommanderWeb.TaskLive.Show do
               {@task.description || "-"}
             </p>
           </div>
+        </div>
+
+        <div class="rounded-2xl border border-base-200 bg-base-100 p-6 shadow-sm">
+          <h3 class="font-semibold">タスク編集</h3>
+          <.form
+            for={@edit_form}
+            id="task-edit-form"
+            phx-change="validate_edit"
+            phx-submit="save_edit"
+          >
+            <.input field={@edit_form[:title]} label="タイトル" maxlength="200" required />
+            <.input field={@edit_form[:description]} type="textarea" label="説明" />
+
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <.input
+                field={@edit_form[:status]}
+                type="select"
+                label="ステータス"
+                options={status_options()}
+              />
+              <.input field={@edit_form[:due_date]} type="date" label="期限" />
+            </div>
+
+            <.input
+              field={@edit_form[:assignee_id]}
+              type="select"
+              label="担当者"
+              prompt="未割り当て"
+              options={FormOptions.user_options(@assignees)}
+            />
+
+            <div class="mt-6 flex justify-end">
+              <.button type="submit" variant="primary">保存</.button>
+            </div>
+          </.form>
         </div>
 
         <div class="rounded-2xl border border-base-200 bg-base-100 p-6 shadow-sm">

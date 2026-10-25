@@ -132,3 +132,18 @@
 - チケット一覧に通知ボタンと未読件数を表示
 - テスト追加（受信者分離、既読、一括既読、非受信者拒否、未読件数）
 - `mix precommit` 成功、13 properties / 139 tests、カバレッジ 81.1%
+
+## 実装後メモ（2026-10-25 タスク CRUD UI）
+
+- `/tasks/new` とタスク詳細の編集フォームを追加
+  - タイトル / 説明 / ステータス / 期限 / 担当者
+  - 優先度は `set_priority` と履歴表示に分離
+- タスク削除を追加
+  - `task_events` の FK を `ON DELETE CASCADE` に変更
+- 入力検証とテナント検証
+  - タイトル 1..200、説明 10,000 文字以内、status/priority allowlist
+  - 前後空白トリム
+  - 担当者が同一 company のユーザーであることを検証
+- `Task.update` から priority を外し、楽観ロックを追加
+- テスト追加（作成・編集・削除・バリデーション・担当者テナント・event cascade）
+- `mix precommit` 成功、13 properties / 145 tests、カバレッジ 81.3%

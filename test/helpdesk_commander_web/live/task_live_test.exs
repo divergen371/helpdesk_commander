@@ -70,6 +70,102 @@ defmodule HelpdeskCommanderWeb.TaskLiveTest do
     assert {:error, {:live_redirect, %{to: "/tasks"}}} = live(conn, ~p"/tasks/#{other_task.public_id}")
   end
 
+  test "user can create a task", %{conn: conn} do
+    company = create_company!()
+    user = create_user!(company)
+    assignee = create_user!(company)
+
+    conn = log_in(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/tasks/new")
+
+    view
+    |> form("#task-form",
+      form: %{
+        "title" => "New task",
+        "description" => "Task details",
+        "status" => "in_progress",
+        "priority" => "high",
+        "due_date" => "2026-11-01",
+        "assignee_id" => to_string(assignee.id)
+      }
+    )
+    |> render_submit()
+
+    task =
+      Task
+      |> filter(company_id == ^company.id)
+      |> Ash.read_one!(domain: Tasks)
+
+    assert task.title == "New task"
+    assert task.description == "Task details"
+    assert task.status == "in_progress"
+    assert task.priority == "high"
+    assert task.assignee_id == assignee.id
+    assert task.company_id == company.id
+
+    assert_redirect(view, ~p"/tasks/#{task.public_id}")
+  end
+
+  test "user can edit a task", %{conn: conn} do
+    company = create_company!()
+    user = create_user!(company)
+    assignee = create_user!(company)
+    task = create_task!(company, title: "Original")
+
+    conn = log_in(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/tasks/#{task.public_id}")
+
+    view
+    |> form("#task-edit-form",
+      form: %{
+        "title" => "Updated",
+        "description" => "Updated description",
+        "status" => "done",
+        "due_date" => "2026-11-02",
+        "assignee_id" => to_string(assignee.id)
+      }
+    )
+    |> render_submit()
+
+    updated = Ash.get!(Task, %{id: task.id}, domain: Tasks)
+
+    assert updated.title == "Updated"
+    assert updated.description == "Updated description"
+    assert updated.status == "done"
+    assert updated.due_date == ~D[2026-11-02]
+    assert updated.assignee_id == assignee.id
+    assert has_element?(view, "#task-edit-form")
+  end
+
+  test "user can delete a task", %{conn: conn} do
+    company = create_company!()
+    user = create_user!(company)
+    task = create_task!(company, title: "Delete me")
+
+    conn = log_in(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/tasks/#{task.public_id}")
+
+    render_click(view, "delete", %{})
+
+    assert_redirect(view, ~p"/tasks")
+    assert {:error, %Ash.Error.Invalid{}} = Ash.get(Task, %{id: task.id}, domain: Tasks)
+  end
+
+  test "blank task title is rejected", %{conn: conn} do
+    company = create_company!()
+    user = create_user!(company)
+
+    conn = log_in(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/tasks/new")
+
+    view
+    |> form("#task-form", form: %{"title" => "   "})
+    |> render_submit()
+
+    assert has_element?(view, "#task-form")
+    assert Ash.read!(Task, domain: Tasks) == []
+  end
+
   test "unauthenticated user is redirected to sign in", %{conn: conn} do
     company = create_company!()
     task = create_task!(company, title: "Private task")

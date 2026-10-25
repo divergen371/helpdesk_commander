@@ -28,10 +28,25 @@ defmodule HelpdeskCommander.Tasks.Task do
       constraints: [max_length: 32],
       default: &PublicId.generate/0
 
-    attribute :title, :string, allow_nil?: false, public?: true
-    attribute :description, :string
-    attribute :status, :string, allow_nil?: false, default: "todo"
-    attribute :priority, :string, allow_nil?: false, default: "medium"
+    attribute :title, :string,
+      allow_nil?: false,
+      public?: true,
+      constraints: [min_length: 1, max_length: 200]
+
+    attribute :description, :string,
+      public?: true,
+      constraints: [max_length: 10_000]
+
+    attribute :status, :string,
+      allow_nil?: false,
+      default: "todo",
+      constraints: [match: ~r/^(todo|in_progress|done)$/]
+
+    attribute :priority, :string,
+      allow_nil?: false,
+      default: "medium",
+      constraints: [match: ~r/^(low|medium|high)$/]
+
     attribute :due_date, :date
     attribute :lock_version, :integer, allow_nil?: false, default: 1
 
@@ -61,10 +76,19 @@ defmodule HelpdeskCommander.Tasks.Task do
 
     create :create do
       accept [:title, :description, :status, :priority, :due_date, :assignee_id, :company_id]
+
+      change HelpdeskCommander.Tasks.Task.Changes.NormalizeFields
+      change HelpdeskCommander.Tasks.Task.Changes.ValidateAssignee
     end
 
     update :update do
-      accept [:title, :description, :status, :priority, :due_date, :assignee_id]
+      require_atomic? false
+
+      accept [:title, :description, :status, :due_date, :assignee_id]
+
+      change HelpdeskCommander.Tasks.Task.Changes.NormalizeFields
+      change HelpdeskCommander.Tasks.Task.Changes.ValidateAssignee
+      change optimistic_lock(:lock_version)
     end
 
     update :set_priority do
@@ -74,6 +98,7 @@ defmodule HelpdeskCommander.Tasks.Task do
       argument :priority, :string, allow_nil?: false
 
       change set_attribute(:priority, arg(:priority))
+      change optimistic_lock(:lock_version)
 
       change fn changeset, _context ->
         actor_id = Ash.Changeset.get_argument(changeset, :actor_id)

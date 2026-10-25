@@ -57,7 +57,7 @@ defmodule HelpdeskCommander.Tasks.TaskTest do
     assert events == []
   end
 
-  test "regular update can change priority without recording a priority event" do
+  test "regular update rejects priority changes to preserve history" do
     user = create_user!()
 
     task =
@@ -65,12 +65,13 @@ defmodule HelpdeskCommander.Tasks.TaskTest do
       |> Ash.Changeset.for_create(:create, %{title: "Initial task", company_id: user.company_id})
       |> Ash.create!(domain: Tasks)
 
-    updated =
-      task
-      |> Ash.Changeset.for_update(:update, %{priority: "low"})
-      |> Ash.update!(domain: Tasks)
+    assert {:error, %Ash.Error.Invalid{}} =
+             task
+             |> Ash.Changeset.for_update(:update, %{priority: "low"})
+             |> Ash.update(domain: Tasks)
 
-    assert updated.priority == "low"
+    reloaded = Ash.get!(Task, %{id: task.id}, domain: Tasks)
+    assert reloaded.priority == "medium"
 
     events =
       TaskEvent
@@ -98,6 +99,56 @@ defmodule HelpdeskCommander.Tasks.TaskTest do
                priority: "high"
              })
              |> Ash.update(domain: Tasks)
+
+    assert TaskEvent
+           |> filter(task_id == ^task.id)
+           |> Ash.read!(domain: Tasks) == []
+  end
+
+  test "assignee must belong to the task company" do
+    company = create_company!()
+    user = create_user_in_company!(company)
+
+    other_company = create_company!()
+    other_user = create_user_in_company!(other_company)
+
+    assert {:error, _error} =
+             Task
+             |> Ash.Changeset.for_create(:create, %{
+               title: "Invalid assignee",
+               company_id: company.id,
+               assignee_id: other_user.id
+             })
+             |> Ash.create(domain: Tasks)
+
+    task =
+      Task
+      |> Ash.Changeset.for_create(:create, %{title: "Valid task", company_id: company.id})
+      |> Ash.create!(domain: Tasks)
+
+    assert {:ok, updated} =
+             task
+             |> Ash.Changeset.for_update(:update, %{assignee_id: user.id})
+             |> Ash.update(domain: Tasks)
+
+    assert updated.assignee_id == user.id
+  end
+
+  test "deleting a task removes its priority events" do
+    user = create_user!()
+
+    task =
+      Task
+      |> Ash.Changeset.for_create(:create, %{title: "Deletable", company_id: user.company_id})
+      |> Ash.create!(domain: Tasks)
+
+    task
+    |> Ash.Changeset.for_update(:set_priority, %{actor_id: user.id, priority: "high"})
+    |> Ash.update!(domain: Tasks)
+
+    assert :ok = Ash.destroy(task, domain: Tasks)
+
+    assert {:error, %Ash.Error.Invalid{}} = Ash.get(Task, %{id: task.id}, domain: Tasks)
 
     assert TaskEvent
            |> filter(task_id == ^task.id)

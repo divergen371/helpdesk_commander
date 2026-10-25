@@ -37,6 +37,7 @@ defmodule HelpdeskCommanderWeb.Router do
     live_session :internal_required,
       on_mount: {HelpdeskCommanderWeb.LiveUserAuth, :internal_required} do
       live "/tasks", TaskLive.Index, :index
+      live "/tasks/new", TaskLive.New, :new
       live "/tasks/:public_id", TaskLive.Show, :show
     end
 

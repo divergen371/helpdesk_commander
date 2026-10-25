@@ -3,7 +3,7 @@
 作業状況に合わせて随時更新する。
 全体像とフェーズは [ROADMAP.md](ROADMAP.md)、現状の検証結果は [STATUS.md](STATUS.md) を参照。
 
-最終更新: 2026-10-24
+最終更新: 2026-10-25
 
 ## 現在（P0）
 
@@ -12,9 +12,9 @@
 
 ## 次（P1）
 
-- [ ] タスク CRUD UI（作成・編集・削除、担当/期限/状態変更）
 - [ ] チケットとタスクの紐付け
 - [ ] チケット関連リンク UI（`ticket_links` の登録・表示）
+  - [ ] Sigma.js による関係グラフ PoC（ノード/エッジ/座標/スコア、ホバー強調）
 - [ ] 製品マスタ管理 UI
 - [ ] コメントの編集/削除/メタ情報（メッセージ種別など）
 - [ ] 本文系の暗号化導入（`tickets.description` / `inquiries.body` / `conversation_messages.body` / `users.display_name`）
@@ -24,7 +24,7 @@
 - [ ] 検索/フィルタ/ソート仕様の確定と実装
 - [ ] 通知の重複抑制・クールダウン
 - [ ] 外部通知チャネル（メール/チャット）と重複抑制（通知フェーズ拡張）
-- [ ] カバレッジの余裕確保（現在 80.9%。worker / `ticket_live/show.ex` の未テスト分を追加）
+- [ ] カバレッジの余裕確保（現在 81.3%。worker / `ticket_live/show.ex` の未テスト分を追加）
 - [ ] Ash resource snapshot の再生成（`mix ash.codegen --check` の 8 ファイル。`ticket_messages` DROP を含むため手動レビュー）
 
 ## 保留（P2）
@@ -37,9 +37,11 @@
 - [ ] 添付ファイル（保存先・容量・形式・ウイルススキャン）
 - [ ] 監視/チャット/SSO 連携（フェーズ6）
 - [ ] JSON API 化（`DESIGN_API_MIGRATION.md`）
+- [ ] AshAuthentication への一本化（現行 `Accounts.Auth` との差異整理）
 
 ## 完了
 
+- [x] タスク CRUD UI（作成・編集・削除、担当/期限/状態変更、入力検証、担当者の company 検証）
 - [x] 通知 UI（`/notifications`、受信者別一覧、未読件数、既読化、チケット導線）
 - [x] チケット一覧のフィルタ/ソート/ページング（状態/優先度/種別/担当、URL クエリ、20件ページング）
 - [x] Inquiry Web フォーム（`/inquiries/new`、製品選択、依頼者指定、Ticket 自動生成、テナント検証）
