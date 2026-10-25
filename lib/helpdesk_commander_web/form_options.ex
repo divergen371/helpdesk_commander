@@ -29,6 +29,26 @@ defmodule HelpdeskCommanderWeb.FormOptions do
 
   def load_users(_current_user, _external_user?), do: {:ok, []}
 
+  @spec load_internal_users(User.t() | nil) :: {:ok, [User.t()]} | {:error, term()}
+  def load_internal_users(%User{company_id: company_id}) do
+    query = filter(User, company_id == ^company_id)
+
+    case Ash.read(query, domain: Accounts) do
+      {:ok, users} ->
+        {:ok,
+         users
+         |> Enum.filter(fn user ->
+           not CurrentUser.external?(user) and user.role != "system" and user.status == "active"
+         end)
+         |> Enum.sort_by(&CurrentUser.display_label/1)}
+
+      {:error, error} ->
+        {:error, error}
+    end
+  end
+
+  def load_internal_users(_current_user), do: {:ok, []}
+
   @spec load_products(User.t() | nil) :: {:ok, [Product.t()]} | {:error, term()}
   def load_products(%User{company_id: company_id}) do
     case Product

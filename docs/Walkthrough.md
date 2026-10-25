@@ -852,3 +852,30 @@ mix phx.server
   - 13 properties / 130 tests / 0 failures
   - `mix coveralls` 80.5%
   - `mix dialyzer` 0 errors
+
+---
+
+## 2026-10-25 03:52 UTC
+
+### チケット一覧のフィルタ/ソート/ページング
+
+- `/tickets` にフィルタとソートを追加
+  - 状態 / 優先度 / 種別 / 担当者
+  - 並び順: 新しい順 / 古い順 / 優先度順 / ステータス順
+- URL クエリで条件を保持し、再現可能にした
+  - 例: `/tickets?status=resolved&priority=p1&page=2`
+- 20件単位の offset ページングを追加
+  - 総件数、現在ページ、前へ/次へを表示
+  - LiveView streams を `reset: true` で更新
+- 一覧に種別・担当者列を追加
+- 担当者フィルタ用に自社の内部ユーザー一覧を読み込むヘルパーを追加
+- テスト追加
+  - 状態/優先度/種別フィルタ
+  - 担当者フィルタ（担当者あり/未割り当て）
+  - ソート指定
+  - 21件でのページング
+- 検証結果
+  - `mix precommit` 成功
+  - 13 properties / 133 tests / 0 failures
+  - `mix coveralls` 80.9%
+  - `mix dialyzer` 0 errors

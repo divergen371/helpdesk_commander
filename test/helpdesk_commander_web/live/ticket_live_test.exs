@@ -26,6 +26,95 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
     assert has_element?(view, "#tickets tr")
   end
 
+  test "tickets index filters by status, priority, and type", %{conn: conn} do
+    user = create_user!()
+
+    matching =
+      create_ticket!(user,
+        subject: "Matching ticket",
+        status: "resolved",
+        priority: "p1",
+        type: "incident"
+      )
+
+    other =
+      create_ticket!(user,
+        subject: "Other ticket",
+        status: "new",
+        priority: "p3",
+        type: "question"
+      )
+
+    conn = log_in(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/tickets")
+
+    render_change(view, "filter", %{
+      "filters" => %{
+        "status" => "resolved",
+        "priority" => "p1",
+        "type" => "incident"
+      }
+    })
+
+    assert has_element?(view, "#tickets td", matching.public_id)
+    refute has_element?(view, "#tickets td", other.public_id)
+
+    {:ok, url_view, _html} = live(conn, ~p"/tickets?status=resolved&priority=p1&type=incident")
+
+    assert has_element?(url_view, "#tickets td", matching.public_id)
+    refute has_element?(url_view, "#tickets td", other.public_id)
+  end
+
+  test "tickets index paginates results", %{conn: conn} do
+    user = create_user!()
+
+    tickets =
+      for index <- 1..21 do
+        create_ticket!(user, subject: "Ticket #{index}")
+      end
+
+    conn = log_in(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/tickets")
+
+    assert has_element?(view, "p", "21 件")
+    assert has_element?(view, "#tickets td", Enum.at(tickets, 20).public_id)
+    refute has_element?(view, "#tickets td", Enum.at(tickets, 0).public_id)
+
+    {:ok, page_two_view, _html} = live(conn, ~p"/tickets?page=2")
+
+    assert has_element?(page_two_view, "#tickets td", Enum.at(tickets, 0).public_id)
+    refute has_element?(page_two_view, "#tickets td", Enum.at(tickets, 20).public_id)
+    assert has_element?(page_two_view, "p", "21 件")
+  end
+
+  test "tickets index supports assignee filters and sort options", %{conn: conn} do
+    user = create_user!()
+    assignee = create_user!()
+
+    assigned =
+      create_ticket!(user, subject: "Assigned", priority: "p1", assignee_id: assignee.id)
+
+    unassigned = create_ticket!(user, subject: "Unassigned", priority: "p3")
+
+    conn = log_in(conn, user)
+
+    for sort <- ["oldest", "priority", "status"] do
+      {:ok, view, _html} = live(conn, ~p"/tickets?sort=#{sort}")
+      assert has_element?(view, "#tickets td", assigned.public_id)
+      assert has_element?(view, "#tickets td", unassigned.public_id)
+    end
+
+    {:ok, assigned_view, _html} = live(conn, ~p"/tickets?assignee_id=#{assignee.id}")
+
+    assert has_element?(assigned_view, "#tickets td", assigned.public_id)
+    refute has_element?(assigned_view, "#tickets td", unassigned.public_id)
+
+    {:ok, unassigned_view, _html} = live(conn, ~p"/tickets?assignee_id=unassigned")
+
+    assert has_element?(unassigned_view, "#tickets td", unassigned.public_id)
+    refute has_element?(unassigned_view, "#tickets td", assigned.public_id)
+  end
+
   test "create ticket via new form", %{conn: conn} do
     user = create_user!()
     product = create_product!(user.company_id)
@@ -451,13 +540,17 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
     |> Ash.create!(domain: Accounts)
   end
 
-  defp create_ticket!(%User{} = user) do
+  defp create_ticket!(%User{} = user, opts \\ []) do
     product = create_product!(user.company_id)
 
     Ticket
     |> Ash.Changeset.for_create(:create, %{
-      subject: "Test ticket",
-      description: "Test",
+      subject: Keyword.get(opts, :subject, "Test ticket"),
+      description: Keyword.get(opts, :description, "Test"),
+      status: Keyword.get(opts, :status, "new"),
+      priority: Keyword.get(opts, :priority, "p3"),
+      type: Keyword.get(opts, :type, "question"),
+      assignee_id: Keyword.get(opts, :assignee_id),
       product_id: product.id,
       requester_id: user.id
     })
