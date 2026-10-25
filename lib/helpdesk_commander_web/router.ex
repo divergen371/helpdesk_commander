@@ -31,6 +31,7 @@ defmodule HelpdeskCommanderWeb.Router do
       live "/tickets/new", TicketLive.New, :new
       live "/tickets/:public_id", TicketLive.Show, :show
       live "/inquiries/new", InquiryLive.New, :new
+      live "/notifications", NotificationLive.Index, :index
     end
 
     live_session :internal_required,

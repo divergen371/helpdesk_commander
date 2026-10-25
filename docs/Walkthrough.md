@@ -879,3 +879,31 @@ mix phx.server
   - 13 properties / 133 tests / 0 failures
   - `mix coveralls` 80.9%
   - `mix dialyzer` 0 errors
+
+---
+
+## 2026-10-25 04:22 UTC
+
+### 通知 UI
+
+- `/notifications` を追加（ログイン必須）
+  - 受信者本人の通知だけを表示
+  - 未読件数、通知一覧、チケットへの導線
+  - 個別の既読化と「すべて既読にする」
+- `HelpdeskCommander.Helpdesk.Notifications` を追加
+  - `list_for/1`（受信者スコープ + チケット読み込み）
+  - `unread_count/1`
+  - `mark_read/2`
+  - `mark_all_read/1`
+- チケット一覧に通知ボタンと未読件数を表示
+- テスト追加
+  - 受信者だけが通知を閲覧できる
+  - 個別既読 / 一括既読
+  - 非受信者の既読化拒否
+  - チケット一覧の未読件数表示
+  - 未ログインリダイレクト
+- 検証結果
+  - `mix precommit` 成功
+  - 13 properties / 139 tests / 0 failures
+  - `mix coveralls` 81.1%
+  - `mix dialyzer` 0 errors

@@ -51,10 +51,10 @@ elixir ref:v1.20.4
 4. **動作確認**
    - `mix compile --force --warnings-as-errors`: 成功（プロジェクト側の警告 0）
    - `mix precommit`: 成功
-   - `mix test`: **13 properties, 133 tests, 0 failures**
+   - `mix test`: **13 properties, 139 tests, 0 failures**
    - `mix credo --strict`: 指摘なし
    - `mix dialyzer`: **0 errors**
-   - `MIX_ENV=test mix coveralls`: **80.9%**（基準 80% を満たす）
+   - `MIX_ENV=test mix coveralls`: **81.1%**（基準 80% を満たす）
 
 ## ⚠️ 互換性・移行時の注意
 
@@ -97,7 +97,7 @@ mkdir -p "$REBAR_GLOBAL_CONFIG_DIR/.config/rebar3"
 
 - `mix hex.outdated` で依存更新を定期的に確認する
 - `mix precommit` と `mix coveralls` をローカルでも実行する
-- カバレッジは 80.9% のため、新規コードにはテストを同時に追加する
+- カバレッジは 81.1% のため、新規コードにはテストを同時に追加する
 - `docs/ELIXIR_UPGRADE.md`（本ドキュメント）と `docs/STATUS.md` を更新する
 
 ## 📋 アップグレードチェックリスト
@@ -110,7 +110,7 @@ mkdir -p "$REBAR_GLOBAL_CONFIG_DIR/.config/rebar3"
 - [x] Elixir 1.20 の型警告修正
 - [x] `mix dialyzer` 0 errors
 - [x] `mix precommit` 成功
-- [x] テスト成功（13 properties / 133 tests）
+- [x] テスト成功（13 properties / 139 tests）
 - [x] カバレッジ 80% 以上
 - [x] CI のバージョン更新
 - [ ] 本番環境への反映計画

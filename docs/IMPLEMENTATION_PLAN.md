@@ -120,3 +120,15 @@
 - 担当者フィルタ用に `FormOptions.load_internal_users/1` を追加
 - テスト追加（フィルタ、担当者、ソート、21件ページング）
 - `mix precommit` 成功、13 properties / 133 tests、カバレッジ 80.9%
+
+## 実装後メモ（2026-10-25 通知 UI）
+
+- `/notifications` を追加（ログイン必須）
+  - 受信者本人の通知のみ表示（既存 Preparation / ポリシーを利用）
+  - 未読件数、通知一覧、チケットへの導線
+  - 個別既読と一括既読
+- `HelpdeskCommander.Helpdesk.Notifications` に通知操作を集約
+  - `list_for/1` / `unread_count/1` / `mark_read/2` / `mark_all_read/1`
+- チケット一覧に通知ボタンと未読件数を表示
+- テスト追加（受信者分離、既読、一括既読、非受信者拒否、未読件数）
+- `mix precommit` 成功、13 properties / 139 tests、カバレッジ 81.1%

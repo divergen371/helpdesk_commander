@@ -5,6 +5,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Index do
 
   alias HelpdeskCommander.Accounts.User
   alias HelpdeskCommander.Helpdesk
+  alias HelpdeskCommander.Helpdesk.Notifications
   alias HelpdeskCommander.Helpdesk.Ticket
   alias HelpdeskCommander.Support.Error, as: ErrorLog
   alias HelpdeskCommanderWeb.CurrentUser
@@ -21,7 +22,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Index do
     current_user = CurrentUser.fetch(session)
     external_user? = CurrentUser.external?(current_user)
 
-    {assignees, socket} =
+    {assignees, socket_after_assignees} =
       case FormOptions.load_internal_users(current_user) do
         {:ok, assignees} ->
           {assignees, socket}
@@ -32,12 +33,24 @@ defmodule HelpdeskCommanderWeb.TicketLive.Index do
           {[], put_flash(socket, :error, "担当者一覧の取得に失敗しました")}
       end
 
+    {unread_count, socket} =
+      case Notifications.unread_count(current_user) do
+        {:ok, count} ->
+          {count, socket_after_assignees}
+
+        {:error, error} ->
+          ErrorLog.log_error("ticket_live.index.unread_count", error, user_id: CurrentUser.id(current_user))
+
+          {0, socket_after_assignees}
+      end
+
     {:ok,
      socket
      |> assign(:page_title, "Tickets")
      |> assign(:current_user, current_user)
      |> assign(:current_user_external?, external_user?)
      |> assign(:assignees, assignees)
+     |> assign(:unread_notifications_count, unread_count)
      |> assign(:page_size, @page_size)
      |> assign(:filter_form, filter_form(default_filters()))
      |> stream(:tickets, [])}
@@ -254,6 +267,9 @@ defmodule HelpdeskCommanderWeb.TicketLive.Index do
         Tickets
         <:subtitle>チケットの一覧</:subtitle>
         <:actions>
+          <.button navigate={~p"/notifications"}>
+            <.icon name="hero-bell" class="size-4" /> 通知 ({@unread_notifications_count})
+          </.button>
           <.button navigate={~p"/inquiries/new"} variant="primary">
             <.icon name="hero-chat-bubble-left-right" class="size-4" /> 問い合わせ
           </.button>
