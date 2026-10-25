@@ -1,6 +1,8 @@
 defmodule HelpdeskCommanderWeb.AuthControllerTest do
   use HelpdeskCommanderWeb.ConnCase, async: true
 
+  import ExUnit.CaptureLog
+
   alias HelpdeskCommander.Accounts
   alias HelpdeskCommander.Accounts.Company
   alias HelpdeskCommander.Accounts.User
@@ -199,18 +201,23 @@ defmodule HelpdeskCommanderWeb.AuthControllerTest do
     company = create_company!(company_code)
     pending = create_user!(company, status: "pending", login_id: nil, with_password: false)
 
-    conn =
-      post(conn, ~p"/sign-up",
-        registration: %{
-          "company_code" => company_code,
-          "email" => pending.email,
-          "display_name" => "New Name",
-          "password" => @password,
-          "password_confirmation" => "different-password"
-        }
-      )
+    log =
+      capture_log(fn ->
+        conn =
+          post(conn, ~p"/sign-up",
+            registration: %{
+              "company_code" => company_code,
+              "email" => pending.email,
+              "display_name" => "New Name",
+              "password" => @password,
+              "password_confirmation" => "different-password"
+            }
+          )
 
-    assert html_response(conn, 200) =~ "登録に失敗しました"
+        assert html_response(conn, 200) =~ "登録に失敗しました"
+      end)
+
+    assert log =~ "[accounts.auth.register_user]"
   end
 
   test "sign out clears session", %{conn: conn} do

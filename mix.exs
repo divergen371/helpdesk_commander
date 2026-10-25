@@ -18,13 +18,6 @@ defmodule HelpdeskCommander.MixProject do
       listeners: [Phoenix.CodeReloader],
       dialyzer: dialyzer(),
       test_coverage: [tool: ExCoveralls],
-      preferred_cli_env: [
-        coveralls: :test,
-        "coveralls.detail": :test,
-        "coveralls.post": :test,
-        "coveralls.html": :test,
-        "coveralls.github": :test
-      ],
       docs: docs()
     ]
   end
@@ -127,7 +120,14 @@ defmodule HelpdeskCommander.MixProject do
   @spec cli() :: keyword()
   def cli do
     [
-      preferred_envs: [precommit: :test]
+      preferred_envs: [
+        precommit: :test,
+        coveralls: :test,
+        "coveralls.detail": :test,
+        "coveralls.post": :test,
+        "coveralls.html": :test,
+        "coveralls.github": :test
+      ]
     ]
   end
 

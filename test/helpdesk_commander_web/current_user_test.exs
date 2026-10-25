@@ -1,6 +1,8 @@
 defmodule HelpdeskCommanderWeb.CurrentUserTest do
   use HelpdeskCommander.DataCase, async: true
 
+  import ExUnit.CaptureLog
+
   alias HelpdeskCommander.Accounts
   alias HelpdeskCommander.Accounts.Company
   alias HelpdeskCommander.Accounts.User
@@ -89,7 +91,8 @@ defmodule HelpdeskCommanderWeb.CurrentUserTest do
   end
 
   test "fetch returns nil for a missing user id" do
-    assert CurrentUser.fetch(%{"user_id" => "999999999"}) == nil
+    log = capture_log(fn -> assert CurrentUser.fetch(%{"user_id" => "999999999"}) == nil end)
+    assert log =~ "[current_user.fetch]"
   end
 
   test "fetch returns nil for unsupported id types" do

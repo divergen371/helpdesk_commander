@@ -2,6 +2,7 @@ defmodule HelpdeskCommanderWeb.NotificationLiveTest do
   use HelpdeskCommanderWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import ExUnit.CaptureLog
 
   alias HelpdeskCommander.Accounts
   alias HelpdeskCommander.Accounts.User
@@ -77,11 +78,15 @@ defmodule HelpdeskCommanderWeb.NotificationLiveTest do
     conn = log_in(conn, other)
     {:ok, view, _html} = live(conn, ~p"/notifications")
 
-    render_click(view, "mark_read", %{"id" => to_string(notification.id)})
+    log =
+      capture_log(fn ->
+        render_click(view, "mark_read", %{"id" => to_string(notification.id)})
+      end)
 
     reloaded = Ash.get!(TicketNotification, %{id: notification.id}, domain: Helpdesk, actor: recipient)
     assert reloaded.read_at == nil
     assert has_element?(view, "p", "通知の更新に失敗しました")
+    assert log =~ "[notification_live.index.mark_read]"
   end
 
   test "ticket index shows the unread notification count", %{conn: conn} do
