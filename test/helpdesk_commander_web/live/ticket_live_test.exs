@@ -395,6 +395,114 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
     assert Enum.any?(messages, &(&1.body == "Internal note"))
   end
 
+  test "author edits own message and sees metadata", %{conn: conn} do
+    user = create_user!()
+    ticket = create_ticket!(user)
+    conversation = get_conversation!(ticket, "internal_public")
+    message = create_message!(conversation, user, "Before edit")
+
+    conn = log_in(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/tickets/#{ticket.public_id}")
+
+    view
+    |> element("button[phx-click='start_edit_message'][phx-value-message_id='#{message.id}']")
+    |> render_click()
+
+    assert has_element?(view, "#message-edit-#{message.id}")
+
+    view
+    |> form("#message-edit-#{message.id}",
+      message_edit: %{"body" => "After edit", "message_type" => "note"}
+    )
+    |> render_submit()
+
+    assert has_element?(view, "#ticket-messages-public p", "After edit")
+    assert has_element?(view, "#ticket-messages-public", "編集済み")
+    assert has_element?(view, "#ticket-messages-public", "メモ")
+
+    updated = Ash.get!(ConversationMessage, message.id, domain: Helpdesk)
+    assert updated.body == "After edit"
+    assert updated.message_type == "note"
+    assert updated.edited_at != nil
+  end
+
+  test "non-author cannot edit a message", %{conn: conn} do
+    user = create_user!()
+    other = create_user!()
+    ticket = create_ticket!(user)
+    conversation = get_conversation!(ticket, "internal_public")
+    message = create_message!(conversation, user, "Owned message")
+
+    conn = log_in(conn, other)
+    {:ok, view, _html} = live(conn, ~p"/tickets/#{ticket.public_id}")
+
+    refute has_element?(view, "button[phx-click='start_edit_message']")
+
+    render_hook(view, "start_edit_message", %{"message_id" => Integer.to_string(message.id)})
+
+    refute has_element?(view, "#message-edit-#{message.id}")
+  end
+
+  test "author deletes own message", %{conn: conn} do
+    user = create_user!()
+    ticket = create_ticket!(user)
+    conversation = get_conversation!(ticket, "internal_public")
+    message = create_message!(conversation, user, "Delete me")
+
+    conn = log_in(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/tickets/#{ticket.public_id}")
+
+    view
+    |> element("button[phx-click='delete_message'][phx-value-message_id='#{message.id}']")
+    |> render_click()
+
+    refute has_element?(view, "#ticket-messages-public p", "Delete me")
+
+    deleted = Ash.get!(ConversationMessage, message.id, domain: Helpdesk)
+    assert deleted.deleted_at != nil
+    assert deleted.body == ""
+  end
+
+  test "admin deletes another user's message", %{conn: conn} do
+    user = create_user!()
+    admin = create_user!("admin")
+    ticket = create_ticket!(user)
+    conversation = get_conversation!(ticket, "internal_public")
+    message = create_message!(conversation, user, "Admin removes")
+
+    conn = log_in(conn, admin)
+    {:ok, view, _html} = live(conn, ~p"/tickets/#{ticket.public_id}")
+
+    assert has_element?(
+             view,
+             "button[phx-click='delete_message'][phx-value-message_id='#{message.id}']"
+           )
+
+    view
+    |> element("button[phx-click='delete_message'][phx-value-message_id='#{message.id}']")
+    |> render_click()
+
+    refute has_element?(view, "#ticket-messages-public p", "Admin removes")
+  end
+
+  test "non-author non-admin cannot delete a message", %{conn: conn} do
+    user = create_user!()
+    other = create_user!()
+    ticket = create_ticket!(user)
+    conversation = get_conversation!(ticket, "internal_public")
+    message = create_message!(conversation, user, "Protected")
+
+    conn = log_in(conn, other)
+    {:ok, view, _html} = live(conn, ~p"/tickets/#{ticket.public_id}")
+
+    refute has_element?(view, "button[phx-click='delete_message']")
+
+    render_hook(view, "delete_message", %{"message_id" => Integer.to_string(message.id)})
+
+    unchanged = Ash.get!(ConversationMessage, message.id, domain: Helpdesk)
+    assert unchanged.deleted_at == nil
+  end
+
   test "external user posts public message", %{conn: conn} do
     user = create_user!("customer")
     ticket = create_ticket!(user)

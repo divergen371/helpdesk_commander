@@ -245,6 +245,8 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     |> assign(:private_message_form, data.private_message_form)
     |> assign(:verification_form, data.verification_form)
     |> assign(:verifications, data.verifications)
+    |> assign(:editing_message_id, nil)
+    |> assign(:edit_message_form, nil)
     |> assign(:public_conversation, data.public_conversation)
     |> assign(:private_conversation, data.private_conversation)
     |> assign(:public_messages_has_more?, data.public_messages_has_more?)
@@ -725,6 +727,98 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     end
   end
 
+  @impl Phoenix.LiveView
+  def handle_event("start_edit_message", %{"message_id" => message_id}, socket) do
+    with {:ok, id} <- parse_id(message_id),
+         {:ok, %ConversationMessage{} = message} <- fetch_ticket_message(socket, id),
+         true <- can_edit_message?(socket.assigns.current_user, message) do
+      form =
+        message
+        |> AshPhoenix.Form.for_update(:edit, domain: Helpdesk, as: "message_edit")
+        |> to_form()
+
+      {:noreply,
+       socket
+       |> assign(:editing_message_id, message.id)
+       |> assign(:edit_message_form, form)
+       |> stream_insert(message_stream_name(message_kind(socket, message)), message)}
+    else
+      _result ->
+        {:noreply, put_flash(socket, :error, "このメッセージは編集できません")}
+    end
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("cancel_edit_message", %{"message_id" => message_id}, socket) do
+    with {:ok, id} <- parse_id(message_id),
+         {:ok, %ConversationMessage{} = message} <- fetch_ticket_message(socket, id) do
+      {:noreply,
+       socket
+       |> assign(:editing_message_id, nil)
+       |> assign(:edit_message_form, nil)
+       |> stream_insert(message_stream_name(message_kind(socket, message)), message)}
+    else
+      _result -> {:noreply, socket}
+    end
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("validate_edit_message", %{"message_edit" => params}, socket) do
+    form = AshPhoenix.Form.validate(socket.assigns.edit_message_form, params)
+    {:noreply, assign(socket, :edit_message_form, form)}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("save_edit_message", %{"message_edit" => params}, socket) do
+    case AshPhoenix.Form.submit(socket.assigns.edit_message_form, params: params) do
+      {:ok, message} ->
+        kind = message_kind(socket, message)
+
+        {:noreply,
+         socket
+         |> assign(:editing_message_id, nil)
+         |> assign(:edit_message_form, nil)
+         |> put_flash(:info, "メッセージを更新しました")
+         |> stream_insert(message_stream_name(kind), message)}
+
+      {:error, form} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "メッセージの更新に失敗しました")
+         |> assign(:edit_message_form, form)}
+    end
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("delete_message", %{"message_id" => message_id}, socket) do
+    with {:ok, id} <- parse_id(message_id),
+         {:ok, %ConversationMessage{} = message} <- fetch_ticket_message(socket, id),
+         true <- can_delete_message?(socket.assigns.current_user, message),
+         {:ok, deleted} <-
+           message
+           |> Ash.Changeset.for_update(:soft_delete, %{})
+           |> Ash.update(domain: Helpdesk) do
+      kind = message_kind(socket, deleted)
+
+      socket =
+        if socket.assigns.editing_message_id == deleted.id do
+          socket
+          |> assign(:editing_message_id, nil)
+          |> assign(:edit_message_form, nil)
+        else
+          socket
+        end
+
+      {:noreply,
+       socket
+       |> put_flash(:info, "メッセージを削除しました")
+       |> stream_delete(message_stream_name(kind), deleted)}
+    else
+      _result ->
+        {:noreply, put_flash(socket, :error, "このメッセージは削除できません")}
+    end
+  end
+
   defp reload_task_links(socket) do
     case load_task_links(socket.assigns.ticket) do
       {:ok, links, tasks} ->
@@ -1020,7 +1114,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
     base_query =
       ConversationMessage
-      |> filter(conversation_id == ^conversation_id)
+      |> filter(conversation_id == ^conversation_id and is_nil(deleted_at))
       |> sort(id: :desc)
       |> maybe_before_id(before_id)
 
@@ -1083,6 +1177,51 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
   defp conversation_id_for_kind(socket, "public"), do: socket.assigns.public_conversation.id
   defp conversation_id_for_kind(socket, "private"), do: socket.assigns.private_conversation.id
+
+  defp message_kind(socket, %ConversationMessage{conversation_id: conversation_id}) do
+    if conversation_id == socket.assigns.private_conversation.id, do: "private", else: "public"
+  end
+
+  defp fetch_ticket_message(socket, id) do
+    conversation_ids =
+      if socket.assigns.current_user_external? do
+        [socket.assigns.public_conversation.id]
+      else
+        [socket.assigns.public_conversation.id, socket.assigns.private_conversation.id]
+      end
+
+    ConversationMessage
+    |> filter(id == ^id and conversation_id in ^conversation_ids and is_nil(deleted_at))
+    |> Ash.read_one(domain: Helpdesk)
+  end
+
+  defp can_edit_message?(%User{id: user_id}, %ConversationMessage{sender_id: user_id}), do: true
+  defp can_edit_message?(_current_user, _message), do: false
+
+  defp can_delete_message?(%User{id: user_id}, %ConversationMessage{sender_id: user_id}), do: true
+
+  defp can_delete_message?(current_user, message),
+    do: CurrentUser.admin?(current_user) and message.sender_id != nil
+
+  defp parse_id(value) when is_integer(value), do: {:ok, value}
+
+  defp parse_id(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {id, ""} -> {:ok, id}
+      _result -> :error
+    end
+  end
+
+  defp parse_id(_value), do: :error
+
+  defp message_type_options do
+    [{"メッセージ", "message"}, {"メモ", "note"}, {"システム", "system"}]
+  end
+
+  defp message_type_label("message"), do: "メッセージ"
+  defp message_type_label("note"), do: "メモ"
+  defp message_type_label("system"), do: "システム"
+  defp message_type_label(_type), do: "メッセージ"
 
   defp forbidden_read?(socket, "private"), do: socket.assigns.current_user_external?
   defp forbidden_read?(_socket, _kind), do: false
@@ -1462,16 +1601,14 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
                 まだメッセージがありません。
               </div>
 
-              <div
-                :for={{id, message} <- @streams.public_messages}
-                id={id}
-                class="rounded-box border border-base-200 p-4"
-              >
-                <div class="flex items-center justify-between text-xs text-base-content/60">
-                  <span>{sender_label(@users_by_id, message.sender_id)}</span>
-                  <span>{format_dt(message.inserted_at)}</span>
-                </div>
-                <p class="mt-3 whitespace-pre-wrap text-sm">{message.body}</p>
+              <div :for={{id, message} <- @streams.public_messages} id={id}>
+                <.message_item
+                  message={message}
+                  users_by_id={@users_by_id}
+                  current_user={@current_user}
+                  editing_message_id={@editing_message_id}
+                  edit_message_form={@edit_message_form}
+                />
               </div>
             </div>
           </div>
@@ -1497,16 +1634,14 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
                 まだメモがありません。
               </div>
 
-              <div
-                :for={{id, message} <- @streams.private_messages}
-                id={id}
-                class="rounded-box border border-base-200 p-4"
-              >
-                <div class="flex items-center justify-between text-xs text-base-content/60">
-                  <span>{sender_label(@users_by_id, message.sender_id)}</span>
-                  <span>{format_dt(message.inserted_at)}</span>
-                </div>
-                <p class="mt-3 whitespace-pre-wrap text-sm">{message.body}</p>
+              <div :for={{id, message} <- @streams.private_messages} id={id}>
+                <.message_item
+                  message={message}
+                  users_by_id={@users_by_id}
+                  current_user={@current_user}
+                  editing_message_id={@editing_message_id}
+                  edit_message_form={@edit_message_form}
+                />
               </div>
             </div>
           </div>
@@ -1638,6 +1773,89 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
       </div>
     </Layouts.app>
     """
+  end
+
+  attr :message, :map, required: true
+  attr :users_by_id, :map, required: true
+  attr :current_user, :any, required: true
+  attr :editing_message_id, :any, default: nil
+  attr :edit_message_form, :any, default: nil
+
+  defp message_item(assigns) do
+    ~H"""
+    <div class="rounded-box border border-base-200 p-4">
+      <div class="flex items-center justify-between text-xs text-base-content/60">
+        <span>{sender_label(@users_by_id, @message.sender_id)}</span>
+        <span>{format_dt(@message.inserted_at)}</span>
+      </div>
+
+      <%= if @editing_message_id == @message.id and @edit_message_form do %>
+        <.form
+          for={@edit_message_form}
+          id={"message-edit-#{@message.id}"}
+          phx-change="validate_edit_message"
+          phx-submit="save_edit_message"
+        >
+          <.input field={@edit_message_form[:body]} type="textarea" label="本文" />
+          <.input
+            field={@edit_message_form[:message_type]}
+            type="select"
+            label="種別"
+            options={message_type_options()}
+          />
+          <div class="mt-3 flex justify-end gap-2">
+            <.button type="submit" variant="primary">保存</.button>
+            <.button
+              type="button"
+              phx-click="cancel_edit_message"
+              phx-value-message_id={@message.id}
+            >
+              キャンセル
+            </.button>
+          </div>
+        </.form>
+      <% else %>
+        <p class="mt-3 whitespace-pre-wrap text-sm">{@message.body}</p>
+
+        <div :if={map_size(@message.meta || %{}) > 0} class="mt-2 text-xs opacity-70">
+          メタ: {format_meta(@message.meta)}
+        </div>
+
+        <div class="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          <span class="badge badge-ghost badge-sm">{message_type_label(@message.message_type)}</span>
+          <span :if={@message.edited_at} class="opacity-60">
+            編集済み {format_dt(@message.edited_at)}
+          </span>
+          <div class="ml-auto flex gap-1">
+            <.button
+              :if={can_edit_message?(@current_user, @message)}
+              type="button"
+              class="btn btn-ghost btn-xs"
+              phx-click="start_edit_message"
+              phx-value-message_id={@message.id}
+            >
+              編集
+            </.button>
+            <.button
+              :if={can_delete_message?(@current_user, @message)}
+              type="button"
+              class="btn btn-ghost btn-xs text-error"
+              phx-click="delete_message"
+              phx-value-message_id={@message.id}
+            >
+              削除
+            </.button>
+          </div>
+        </div>
+      <% end %>
+    </div>
+    """
+  end
+
+  defp format_meta(meta) when is_map(meta) do
+    meta
+    |> Enum.sort_by(fn {key, _value} -> to_string(key) end)
+    |> Enum.map_join(", ", fn {key, value} -> "#{key}=#{inspect(value)}" end)
   end
 
   defp format_dt(nil), do: "-"

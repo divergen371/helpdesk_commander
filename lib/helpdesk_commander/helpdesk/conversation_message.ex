@@ -28,10 +28,16 @@ defmodule HelpdeskCommander.Helpdesk.ConversationMessage do
       writable?: false,
       public?: true
 
-    attribute :message_type, :string, allow_nil?: false, default: "message", public?: true
+    attribute :message_type, :string,
+      allow_nil?: false,
+      default: "message",
+      public?: true,
+      constraints: [match: ~r/^(message|note|system)$/]
+
     attribute :body, :string, allow_nil?: false, public?: true
     attribute :body_format, :string, allow_nil?: false, default: "plain", public?: true
     attribute :meta, :map, allow_nil?: false, default: %{}, public?: true
+    attribute :edited_at, :utc_datetime_usec, public?: true
     attribute :deleted_at, :utc_datetime_usec
 
     create_timestamp :inserted_at
@@ -93,6 +99,24 @@ defmodule HelpdeskCommander.Helpdesk.ConversationMessage do
 
                {:ok, message}
              end)
+    end
+
+    update :edit do
+      require_atomic? false
+      accept [:body, :message_type]
+
+      change set_attribute(:edited_at, &DateTime.utc_now/0)
+    end
+
+    update :soft_delete do
+      require_atomic? false
+
+      change fn changeset, _context ->
+        changeset
+        |> Ash.Changeset.change_attribute(:deleted_at, DateTime.utc_now())
+        |> Ash.Changeset.change_attribute(:meta, %{})
+        |> AshCloak.encrypt_and_set(:body, "")
+      end
     end
   end
 

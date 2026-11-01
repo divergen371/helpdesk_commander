@@ -1109,3 +1109,27 @@ mix phx.server
   - `mix coveralls.json` 80.9%
   - `mix dialyzer` 0 errors
   - 実サーバーでログイン・チケット詳細の表示を確認
+
+---
+
+## 2026-11-01 コメントの編集・削除・メタ情報
+
+- `ConversationMessage` に `edited_at` を追加
+- アクション追加
+  - `edit`: 本文と種別を更新し、`edited_at` を記録
+  - `soft_delete`: `deleted_at` を立て、本文とメタ情報を消去（論理削除）
+- `message_type` を `message` / `note` / `system` に制限
+- チケット詳細 UI
+  - 送信者のみ編集ボタンを表示
+  - 送信者または管理者に削除ボタンを表示
+  - 種別バッジと「編集済み」日時を表示
+  - 削除済みメッセージは取得・表示しない
+- 権限は LiveView 側で確認し、対象メッセージがチケットの会話に属するかも検証
+- テスト追加
+  - リソース単体（編集・論理削除・種別制約）
+  - LiveView（本人編集、他人の編集拒否、本人/管理者の削除、非権限者の削除拒否）
+- 実サーバーで投稿 → 編集 → 削除を確認
+- 検証結果
+  - `mix precommit` 成功、13 properties / 186 tests
+  - `mix coveralls.json` 80.8%
+  - `mix dialyzer` 0 errors
