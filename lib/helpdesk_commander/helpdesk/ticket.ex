@@ -81,7 +81,15 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
       default: "new",
       constraints: [match: @status_regex]
 
-    attribute :priority, :string, allow_nil?: false, default: "p3"
+    attribute :priority, :string,
+      allow_nil?: false,
+      default: "p3",
+      constraints: [match: ~r/^(p1|p2|p3|p4)$/]
+
+    attribute :priority_source, :string,
+      allow_nil?: false,
+      default: "auto",
+      constraints: [match: ~r/^(auto|manual)$/]
 
     attribute :visibility_scope, :string,
       allow_nil?: false,
@@ -89,8 +97,8 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
       constraints: [match: ~r/^(company|global_pending|global)$/]
 
     attribute :visibility_decided_at, :utc_datetime_usec
-    attribute :impact, :string
-    attribute :urgency, :string
+    attribute :impact, :string, constraints: [match: ~r/^(widespread|significant|moderate|minor)$/]
+    attribute :urgency, :string, constraints: [match: ~r/^(critical|high|medium|low)$/]
     attribute :first_response_at, :utc_datetime_usec
     attribute :resolved_at, :utc_datetime_usec
     attribute :verified_at, :utc_datetime_usec
@@ -213,6 +221,7 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
         :type,
         :status,
         :priority,
+        :priority_source,
         :visibility_scope,
         :visibility_decided_by_id,
         :visibility_decided_at,
@@ -223,6 +232,7 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
       ]
 
       change HelpdeskCommander.Helpdesk.Changes.AssignCompanyFromRequester
+      change HelpdeskCommander.Helpdesk.Changes.ComputePriority
 
       change after_action(fn changeset, ticket, _context ->
                actor_id =
@@ -258,6 +268,7 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
         :description,
         :type,
         :priority,
+        :priority_source,
         :visibility_scope,
         :visibility_decided_by_id,
         :visibility_decided_at,
@@ -272,6 +283,7 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
         :assignee_id
       ]
 
+      change HelpdeskCommander.Helpdesk.Changes.ComputePriority
       change optimistic_lock(:lock_version)
     end
 

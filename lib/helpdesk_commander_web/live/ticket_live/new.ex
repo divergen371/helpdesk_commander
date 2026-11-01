@@ -3,6 +3,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
   alias HelpdeskCommander.Accounts
   alias HelpdeskCommander.Accounts.User
   alias HelpdeskCommander.Helpdesk
+  alias HelpdeskCommander.Helpdesk.Priority
   alias HelpdeskCommander.Helpdesk.Ticket
   alias HelpdeskCommander.Support.Error, as: ErrorLog
   alias HelpdeskCommanderWeb.CurrentUser
@@ -146,15 +147,6 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
     ]
   end
 
-  defp priority_options do
-    [
-      {"p1", "p1"},
-      {"p2", "p2"},
-      {"p3", "p3"},
-      {"p4", "p4"}
-    ]
-  end
-
   defp type_options do
     [
       {"question", "question"},
@@ -203,10 +195,30 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
             <.input field={@form[:subject]} label="件名" />
             <.input field={@form[:description]} type="textarea" label="詳細" />
 
-            <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <.input field={@form[:type]} type="select" label="種別" options={type_options()} />
               <.input field={@form[:status]} type="select" label="ステータス" options={status_options()} />
-              <.input field={@form[:priority]} type="select" label="優先度" options={priority_options()} />
+            </div>
+
+            <p class="text-xs opacity-60">
+              優先度は Impact と Urgency から自動算出し、管理者/リーダーが確定します。
+            </p>
+
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <.input
+                field={@form[:impact]}
+                type="select"
+                label="Impact（影響）"
+                prompt="未設定"
+                options={Priority.impact_options()}
+              />
+              <.input
+                field={@form[:urgency]}
+                type="select"
+                label="Urgency（緊急度）"
+                prompt="未設定"
+                options={Priority.urgency_options()}
+              />
             </div>
 
             <.input

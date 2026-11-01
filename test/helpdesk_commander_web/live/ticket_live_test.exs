@@ -158,7 +158,6 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
       "description" => "Login fails with 500",
       "type" => "incident",
       "status" => "new",
-      "priority" => "p2",
       "product_id" => to_string(product.id),
       "requester_id" => to_string(user.id)
     }

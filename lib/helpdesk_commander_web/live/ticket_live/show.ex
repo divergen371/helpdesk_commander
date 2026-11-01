@@ -8,6 +8,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   alias HelpdeskCommander.Helpdesk
   alias HelpdeskCommander.Helpdesk.ConversationMessage
   alias HelpdeskCommander.Helpdesk.Incident
+  alias HelpdeskCommander.Helpdesk.Priority
   alias HelpdeskCommander.Helpdesk.Product
   alias HelpdeskCommander.Helpdesk.Ticket
   alias HelpdeskCommander.Helpdesk.TicketEvent
@@ -1350,6 +1351,9 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     Map.put_new(params, "sender_id", socket.assigns.ticket.requester_id)
   end
 
+  defp priority_source_label("manual"), do: "手動確定"
+  defp priority_source_label(_source), do: "自動算出"
+
   defp incident_severity_options do
     [{"SEV1 重大", "sev1"}, {"SEV2 高", "sev2"}, {"SEV3 中", "sev3"}, {"SEV4 低", "sev4"}]
   end
@@ -1426,7 +1430,11 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
             <.list>
               <:item title="Public ID">{@ticket.public_id}</:item>
               <:item title="Status">{@ticket.status}</:item>
-              <:item title="Priority">{@ticket.priority}</:item>
+              <:item title="Priority">
+                {@ticket.priority}（{priority_source_label(@ticket.priority_source)}）
+              </:item>
+              <:item title="Impact">{Priority.impact_label(@ticket.impact)}</:item>
+              <:item title="Urgency">{Priority.urgency_label(@ticket.urgency)}</:item>
               <:item title="Type">{@ticket.type}</:item>
               <:item title="Product">{product_label(@ticket.product)}</:item>
               <:item title="Inserted at">{format_dt(@ticket.inserted_at)}</:item>
@@ -1727,12 +1735,32 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
                 phx-change="validate_update"
                 phx-submit="save_update"
               >
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <.input
+                    field={@update_form[:impact]}
+                    type="select"
+                    label="Impact（影響）"
+                    prompt="未設定"
+                    options={Priority.impact_options()}
+                  />
+                  <.input
+                    field={@update_form[:urgency]}
+                    type="select"
+                    label="Urgency（緊急度）"
+                    prompt="未設定"
+                    options={Priority.urgency_options()}
+                  />
+                </div>
                 <.input
                   field={@update_form[:priority]}
                   type="select"
                   label="Priority"
                   options={[{"p1", "p1"}, {"p2", "p2"}, {"p3", "p3"}, {"p4", "p4"}]}
                 />
+                <p class="text-xs opacity-60">
+                  Priority を明示すると手動確定として記録します。Impact / Urgency を変更した場合は、
+                  算出表から優先度を更新します。
+                </p>
                 <.input
                   field={@update_form[:assignee_id]}
                   type="select"

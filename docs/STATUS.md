@@ -24,12 +24,12 @@
 | コマンド | 結果 |
 | --- | --- |
 | `mix precommit` | 成功 |
-| `mix test` | **13 properties, 226 tests, 0 failures** |
+| `mix test` | **13 properties, 237 tests, 0 failures** |
 | `mix credo --strict` | 指摘なし（65 files / 95 checks） |
 | `mix dialyzer` | **0 errors** |
 | `mix compile --warnings-as-errors` | 成功（プロジェクト側の警告 0） |
 | `mix format` | 差分なし |
-| `MIX_ENV=test mix coveralls` | **82.1%**（最低基準 80% を満たす） |
+| `MIX_ENV=test mix coveralls` | **82.5%**（最低基準 80% を満たす） |
 
 ### 環境
 
@@ -56,9 +56,9 @@
 | `workers/create_ticket_notifications_worker.ex` | 81.8% |
 | `live/ticket_live/show.ex` | 77.1% |
 | `accounts/auth.ex` | 85.6% |
-| **合計** | **82.1%**（2086 / 2538 行） |
+| **合計** | **82.5%**（2131 / 2582 行） |
 
-基準 80% に対して 2.6pt の余裕がある。新規コード追加時はテストも同時に追加する。
+基準 80% に対して 2.5pt の余裕がある。新規コード追加時はテストも同時に追加する。
 
 ---
 
@@ -97,7 +97,7 @@
 
 ### 3.2 品質・セキュリティ
 
-- **カバレッジの余裕は 2.1pt**（82.1% / 基準 80%）。新規コード追加時はテストを同時に追加する。
+- **カバレッジの余裕は 2.5pt**（82.5% / 基準 80%）。新規コード追加時はテストを同時に追加する。
 - **ツールチェーンは固定済み**（`.tool-versions`: Erlang 29.1.2 / Elixir `ref:v1.20.4`）。CI も同一バージョン。
 - **企業（テナント）境界は company 単位に統一済み**
   - チケット一覧・詳細は自社 company の範囲に制限（`visibility_scope: "global"` は全体公開として例外）。

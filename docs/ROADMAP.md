@@ -89,13 +89,13 @@
   - 検索・一意制約は hash で維持
 - ✅ **本文系の暗号化**
   - `tickets.description` / `inquiries.body` / `conversation_messages.body` / `users.display_name`
-- ⬜ **Impact × Urgency → 優先度算出**（HC-14）
-  - 現状は `impact` / `urgency` の保持のみ
+- ✅ **Impact × Urgency → 優先度算出**（HC-14）
+  - 4x4 の算出表、`priority_source`（auto/manual）、明示指定の優先と次回再算出
 - ✅ **`code_interface` / `aggregates` / `calculations`**
   - `code_interface` と Domain API（`Accounts` / `Helpdesk` / `Tasks`）を導入
   - aggregates: 未読通知数・チケット検証数・最新イベント時刻
 - ✅ **`multitenancy`（company 境界の強制）**（HC-2: attribute tenant + actor scope + write guard）
-- ✅ **カバレッジの余裕確保**（82.6%）
+- ✅ **カバレッジの余裕確保**（82.5%）
 
 ---
 
