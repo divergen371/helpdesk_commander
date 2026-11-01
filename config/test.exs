@@ -5,6 +5,11 @@ config :helpdesk_commander, :company_code_hmac_secret, "test-company-code-secret
 config :helpdesk_commander, :pii_hmac_secret, "test-pii-hmac-secret"
 config :helpdesk_commander, :notification_cooldown_seconds, 300
 
+config :helpdesk_commander, HelpdeskCommander.Notifications.External,
+  email_enabled: false,
+  chat_enabled: false,
+  chat_webhook_url: nil
+
 config :helpdesk_commander, HelpdeskCommander.Vault,
   ciphers: [
     default: {Cloak.Ciphers.AES.GCM, tag: "AES.GCM.V1", key: :crypto.hash(:sha256, "helpdesk_commander_test_vault")}

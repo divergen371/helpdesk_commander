@@ -24,12 +24,12 @@
 | コマンド | 結果 |
 | --- | --- |
 | `mix precommit` | 成功 |
-| `mix test` | **13 properties, 197 tests, 0 failures** |
+| `mix test` | **13 properties, 200 tests, 0 failures** |
 | `mix credo --strict` | 指摘なし（65 files / 95 checks） |
 | `mix dialyzer` | **0 errors** |
 | `mix compile --warnings-as-errors` | 成功（プロジェクト側の警告 0） |
 | `mix format` | 差分なし |
-| `MIX_ENV=test mix coveralls` | **80.5%**（最低基準 80% を満たす） |
+| `MIX_ENV=test mix coveralls` | **80.4%**（最低基準 80% を満たす） |
 
 ### 環境
 
@@ -56,7 +56,7 @@
 | `workers/create_ticket_notifications_worker.ex` | 70.7% |
 | `live/ticket_live/show.ex` | 75.7% |
 | `accounts/auth.ex` | 77.5% |
-| **合計** | **80.5%**（1856 / 2305 行） |
+| **合計** | **80.4%**（1903 / 2365 行） |
 
 基準は満たしているが余裕がないため、新規コード追加時はテストも同時に追加する。
 
@@ -97,7 +97,7 @@
 
 ### 3.2 品質・セキュリティ
 
-- **カバレッジの余裕がない**（80.5% / 基準 80%）。新規コード追加時に容易に下回る。
+- **カバレッジの余裕がない**（80.4% / 基準 80%）。新規コード追加時に容易に下回る。
 - **ツールチェーンは固定済み**（`.tool-versions`: Erlang 29.1.2 / Elixir `ref:v1.20.4`）。CI も同一バージョン。
 - **企業（テナント）境界は company 単位に統一済み**
   - チケット一覧・詳細は自社 company の範囲に制限（`visibility_scope: "global"` は全体公開として例外）。
@@ -112,8 +112,6 @@
 - **通知 read は受信者に限定済み**。`TicketNotification` の Preparation と read/mark_read ポリシーで保証。
 - **暗号化対象はメール・会社名・表示名・本文系まで完了**。残りは鍵ローテーションと暗号化列の全文検索方針。
 - **`multitenancy` は未導入**（`DESIGN_ASH_REFACTOR.md`）。`code_interface`、Domain API、aggregates は導入済み。
-- **Ash の resource snapshot が古い**
-  - `mix ash.codegen --check` が 8 ファイルの生成待ちを報告する。
   - 差分には `ticket_notifications` / `ticket_verifications` の作成、`tasks` / `task_events` の `company_id` 追加、
     旧 `ticket_messages` テーブルの DROP が含まれる。
   - 既存 DB に適用するには手動レビューが必要なため、自動生成・適用はしていない。

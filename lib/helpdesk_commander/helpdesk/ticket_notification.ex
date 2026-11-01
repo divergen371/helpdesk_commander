@@ -4,8 +4,6 @@ defmodule HelpdeskCommander.Helpdesk.TicketNotification do
     data_layer: AshPostgres.DataLayer,
     authorizers: [Ash.Policy.Authorizer]
 
-  alias HelpdeskCommander.Helpdesk.TicketNotification.Preparations.ForRecipient
-
   postgres do
     table "ticket_notifications"
     repo HelpdeskCommander.Repo
@@ -24,6 +22,8 @@ defmodule HelpdeskCommander.Helpdesk.TicketNotification do
     attribute :body, :string, allow_nil?: false, public?: true
     attribute :meta, :map, allow_nil?: false, default: %{}, public?: true
     attribute :read_at, :utc_datetime_usec, public?: true
+    attribute :email_sent_at, :utc_datetime_usec
+    attribute :chat_sent_at, :utc_datetime_usec
 
     create_timestamp :inserted_at
   end
@@ -55,7 +55,6 @@ defmodule HelpdeskCommander.Helpdesk.TicketNotification do
   end
 
   preparations do
-    prepare ForRecipient
     prepare build(sort: [inserted_at: :desc])
   end
 
@@ -87,6 +86,16 @@ defmodule HelpdeskCommander.Helpdesk.TicketNotification do
         :recipient_id,
         :actor_id
       ]
+    end
+
+    update :mark_email_sent do
+      require_atomic? false
+      change set_attribute(:email_sent_at, &DateTime.utc_now/0)
+    end
+
+    update :mark_chat_sent do
+      require_atomic? false
+      change set_attribute(:chat_sent_at, &DateTime.utc_now/0)
     end
 
     update :mark_read do

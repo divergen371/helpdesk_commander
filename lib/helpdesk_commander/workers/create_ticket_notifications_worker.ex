@@ -13,7 +13,9 @@ defmodule HelpdeskCommander.Workers.CreateTicketNotificationsWorker do
   alias HelpdeskCommander.Accounts.User
   alias HelpdeskCommander.Helpdesk
   alias HelpdeskCommander.Helpdesk.TicketNotification
+  alias HelpdeskCommander.Notifications.External
   alias HelpdeskCommander.Support.Error, as: ErrorLog
+  alias HelpdeskCommander.Workers.DeliverTicketNotificationWorker
 
   @notify_roles ~w(admin leader)
 
@@ -130,7 +132,8 @@ defmodule HelpdeskCommander.Workers.CreateTicketNotificationsWorker do
     case TicketNotification
          |> Ash.Changeset.for_create(:create, params)
          |> Ash.create(domain: Helpdesk) do
-      {:ok, _notification} ->
+      {:ok, notification} ->
+        maybe_enqueue_delivery(notification)
         acc
 
       {:error, error} ->
@@ -140,6 +143,15 @@ defmodule HelpdeskCommander.Workers.CreateTicketNotificationsWorker do
         )
 
         [recipient.id | acc]
+    end
+  end
+
+  defp maybe_enqueue_delivery(notification) do
+    if External.any_enabled?() do
+      _job = DeliverTicketNotificationWorker.enqueue(notification.id)
+      :ok
+    else
+      :ok
     end
   end
 

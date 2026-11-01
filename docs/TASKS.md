@@ -12,9 +12,7 @@
 
 ## 次（P1）
 
-- [ ] 外部通知チャネル（メール/チャット）と重複抑制（通知フェーズ拡張）
 - [ ] カバレッジの余裕確保（現在 80.9%。worker / `ticket_live/show.ex` の未テスト分を追加）
-- [ ] Ash resource snapshot の再生成（`mix ash.codegen --check` の 8 ファイル。`ticket_messages` DROP を含むため手動レビュー）
 - [ ] 関係グラフの調整（`/relations`）
   - [ ] ノード名とエッジ名が重ならないようにする（ラベル密度・エッジラベル位置・間隔）
   - [ ] 画面端でノード名が見切れない余白を確定する（`stagePadding` 90 の実機確認）
@@ -37,6 +35,8 @@
 
 ## 完了
 
+- [x] 外部通知チャネル（メール/チャット）と重複抑制（送信済み記録で再送防止）
+- [x] Ash resource snapshot の再生成（`mix ash.codegen --check` が成功）
 - [x] 検索/フィルタ/ソート仕様の確定と実装（チケット・タスク・製品・通知）
 - [x] 通知の重複抑制・クールダウン
 - [x] Ash ポリシーの横展開（Task / Inquiry / ConversationMessage / TicketLink。TicketNotification は既存ポリシーを維持）

@@ -191,3 +191,4 @@
 - aggregates で未読通知数・チケット検証数・最新イベント時刻を集計し、チケット詳細に表示
 - Task / Inquiry / ConversationMessage / TicketLink にポリシーを追加し、更新・削除をリソース側で制御（読み取りは Domain クエリで会社スコープ）
 - チケット/タスク/製品/通知の検索・フィルタ・ソートを実装し、通知にクールダウンを追加
+- メール/Slack Webhook の外部通知と送信済み記録による再送防止を追加し、Ash snapshot を再生成

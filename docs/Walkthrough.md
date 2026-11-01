@@ -1216,3 +1216,25 @@ mix phx.server
   - `mix coveralls.json` 80.5%
   - `mix dialyzer` 0 errors
   - 実サーバーで各一覧の検索・フィルタを確認
+
+---
+
+## 2026-11-01 外部通知チャネルと snapshot 再生成
+
+- 外部通知
+  - メール: Swoosh 経由で受信者へ送信（`NOTIFICATION_EMAIL_ENABLED`）
+  - チャット: Slack 互換 Webhook へ投稿（`SLACK_WEBHOOK_URL`）
+  - 送信は `DeliverTicketNotificationWorker` に分離し、Oban で再試行
+  - `email_sent_at` / `chat_sent_at` を記録して再送を防止
+  - 通知自体がクールダウンで抑止された場合は外部送信も行われない
+- Ash resource snapshot
+  - `mix ash.codegen regenerate_resource_snapshots` で 13 リソース + extensions を再生成
+  - 生成された移行を確認し、既存 DB に適用済みの差分のみのため破棄
+  - `ash_required` 関数の extensions 移行のみ適用
+  - `ticket_messages` は既に削除済みのためスナップショットを削除
+  - `mix ash.codegen --check` が成功
+  - 開発時の `ash_codegen_check: false` を削除
+- 検証結果
+  - `mix precommit` 成功、13 properties / 200 tests
+  - `mix coveralls.json` 80.4%
+  - `mix dialyzer` 0 errors

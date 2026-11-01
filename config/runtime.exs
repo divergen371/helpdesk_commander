@@ -60,6 +60,14 @@ if config_env() == :prod do
          :notification_cooldown_seconds,
          String.to_integer(System.get_env("NOTIFICATION_COOLDOWN_SECONDS") || "300")
 
+  slack_webhook_url = System.get_env("SLACK_WEBHOOK_URL")
+
+  config :helpdesk_commander, HelpdeskCommander.Notifications.External,
+    email_enabled: System.get_env("NOTIFICATION_EMAIL_ENABLED") in ["true", "1"],
+    chat_enabled: is_binary(slack_webhook_url) and slack_webhook_url != "",
+    chat_webhook_url: slack_webhook_url,
+    from_email: System.get_env("NOTIFICATION_FROM_EMAIL") || "noreply@helpdesk.local"
+
   cloak_key =
     System.get_env("CLOAK_KEY") ||
       raise """

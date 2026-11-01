@@ -4,6 +4,11 @@ config :helpdesk_commander, :company_code_hmac_secret, "dev-company-code-secret"
 config :helpdesk_commander, :pii_hmac_secret, "dev-pii-hmac-secret"
 config :helpdesk_commander, :notification_cooldown_seconds, 300
 
+config :helpdesk_commander, HelpdeskCommander.Notifications.External,
+  email_enabled: false,
+  chat_enabled: false,
+  chat_webhook_url: nil
+
 # 開発専用の固定鍵。本番では CLOAK_KEY を環境変数で渡す。
 config :helpdesk_commander, HelpdeskCommander.Vault,
   ciphers: [
@@ -109,10 +114,6 @@ config :helpdesk_commander, HelpdeskCommanderWeb.Endpoint,
 
 # Enable dev routes for dashboard and mailbox
 config :helpdesk_commander, dev_routes: true
-
-# Ash の resource snapshot 再生成は未完了のため、開発時チェックのみ無効化する。
-# snapshot 再生成後にこの設定を削除する（docs/TASKS.md 参照）。
-config :helpdesk_commander, ash_codegen_check: false
 
 # Do not include metadata nor timestamps in development logs
 config :logger, :default_formatter, format: "[$level] $message\n"
