@@ -1,11 +1,20 @@
 defmodule HelpdeskCommander.Accounts.User do
   use Ash.Resource,
     domain: HelpdeskCommander.Accounts,
-    data_layer: AshPostgres.DataLayer
+    data_layer: AshPostgres.DataLayer,
+    extensions: [AshCloak]
+
+  alias HelpdeskCommander.Support.PiiHash
 
   postgres do
     table "users"
     repo HelpdeskCommander.Repo
+  end
+
+  cloak do
+    vault(HelpdeskCommander.Vault)
+    attributes([:email])
+    decrypt_by_default([:email])
   end
 
   attributes do
@@ -31,6 +40,11 @@ defmodule HelpdeskCommander.Accounts.User do
       public?: true,
       constraints: [min_length: 1, max_length: 100]
 
+    attribute :email_hash, :binary,
+      allow_nil?: false,
+      sensitive?: true,
+      public?: false
+
     attribute :password_hash, :string, allow_nil?: true, sensitive?: true
 
     attribute :status, :string,
@@ -46,7 +60,7 @@ defmodule HelpdeskCommander.Accounts.User do
   end
 
   identities do
-    identity :unique_company_email, [:company_id, :email]
+    identity :unique_company_email, [:company_id, :email_hash]
     identity :unique_company_login_id, [:company_id, :login_id]
   end
 
@@ -57,6 +71,7 @@ defmodule HelpdeskCommander.Accounts.User do
       accept [:company_id, :email, :display_name, :role, :status, :login_id]
 
       change HelpdeskCommander.Accounts.User.Changes.NormalizeFields
+      change HelpdeskCommander.Accounts.User.Changes.HashEmail
       change HelpdeskCommander.Accounts.User.Changes.DefaultDisplayName
     end
 
@@ -65,6 +80,7 @@ defmodule HelpdeskCommander.Accounts.User do
       accept [:email, :display_name, :role, :status, :login_id]
 
       change HelpdeskCommander.Accounts.User.Changes.NormalizeFields
+      change HelpdeskCommander.Accounts.User.Changes.HashEmail
     end
 
     update :register do
@@ -115,7 +131,8 @@ defmodule HelpdeskCommander.Accounts.User do
 
         changeset
         |> Ash.Changeset.change_attribute(:status, "anonymized")
-        |> Ash.Changeset.change_attribute(:email, anon_email)
+        |> AshCloak.encrypt_and_set(:email, anon_email)
+        |> Ash.Changeset.change_attribute(:email_hash, PiiHash.email(anon_email))
         |> Ash.Changeset.change_attribute(:display_name, "削除済みユーザー")
         |> Ash.Changeset.change_attribute(:login_id, nil)
         |> Ash.Changeset.change_attribute(:password_hash, nil)

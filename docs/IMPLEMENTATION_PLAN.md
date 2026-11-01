@@ -184,3 +184,4 @@
 - dev 環境は Ash snapshot 未再生成のため `ash_codegen_check: false`
 - `mix precommit` 成功、13 properties / 164 tests
 - 共通 Change として `EnsureTicketResolved` / `SetTimestampIfNil` を追加し、検証制約と日時補完を再利用化
+- `ash_cloak` + `cloak` で `users.email` / `companies.name` を暗号化し、`email_hash` / `name_hash` で検索・一意制約を維持

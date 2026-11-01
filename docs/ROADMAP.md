@@ -13,7 +13,7 @@
 | --- | --- | --- | --- |
 | 0 | 基盤・開発環境 | ✅ | — |
 | 1 | 受付〜チケット運用（MVP） | ✅ | — |
-| 2 | 認証・権限・検証/承認 | 🟡 | リソース横断ポリシー、PII 暗号化、カバレッジの余裕確保 |
+| 2 | 認証・権限・検証/承認 | 🟡 | リソース横断ポリシー、カバレッジの余裕確保（PII 暗号化は完了） |
 | 3 | 障害管理（Incident） | ⬜ | Incident リソース・昇格/降格・タイムライン |
 | 4 | コラボレーション強化 | 🟡 | 添付、通知 UI、コメント編集/削除、関連リンク UI |
 | 5 | SLA・分析・レポート | 🟡 | SLA 定義/監視、統計・レポート（簡易ダッシュボードは実装済み） |
@@ -83,9 +83,9 @@
   - `EnsureTicketResolved` / `SetTimestampIfNil` を追加し、検証の `resolved` 制約と日時補完を再利用化
 - ⬜ **TicketNotification read の Preparation**
   - 受信者で絞り、`inserted_at desc` を統一
-- ⬜ **PII 暗号化（段階導入）**
-  - `users.email` / `companies.name` を `*_enc + *_hash` へ
-  - 検索・一意制約を維持
+- ✅ **PII 暗号化（段階導入）**
+  - `users.email` / `companies.name` を `encrypted_* + *_hash` へ（AshCloak + Cloak）
+  - 検索・一意制約は hash で維持
 - ⬜ **本文系の暗号化**
   - `tickets.description` / `inquiries.body` / `conversation_messages.body` / `users.display_name`
 - ⬜ **Impact × Urgency → 優先度算出**
@@ -160,7 +160,7 @@
 | 9 | ~~タスク CRUD UI~~ | ✅ 完了（作成・編集・削除・担当/期限/状態変更） |
 | 10 | ~~チケットとタスクの紐付け~~ | ✅ 完了（チケット詳細から追加・解除） |
 | 11 | ~~チケット関連リンク UI + Sigma.js グラフ PoC~~ | ✅ 完了（関連リンク登録・解除、関係グラフ表示） |
-| 12 | PII 暗号化（第1段） | email / company name が暗号化され、検索と一意制約が維持される |
+| 12 | ~~PII 暗号化（第1段）~~ | ✅ 完了（AshCloak、email/name の暗号化と hash 検索・一意制約） |
 | 13 | `code_interface` / aggregates | LiveView から Domain API 経由に整理。未読数・検証数を集計 |
 | 14 | カバレッジの継続運用 | 新規コード追加時に 80% を下回らない |
 | 15 | Ash snapshot 再生成 | `mix ash.codegen --check` が成功。`ticket_messages` DROP は手動承認のうえ適用 |

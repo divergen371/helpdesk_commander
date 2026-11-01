@@ -585,7 +585,7 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
 
     sample =
       User
-      |> filter(company_id == ^company.id and email != ^user.email)
+      |> filter(company_id == ^company.id and id != ^user.id)
       |> Ash.read_one!(domain: Accounts)
 
     assert sample.company_id == company.id

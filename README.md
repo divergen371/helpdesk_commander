@@ -265,18 +265,34 @@ MIX_ENV=test mix propcheck.clean
 推奨（URLで指定）:
 
 ```bash
-export DATABASE_URL=postgres://postgres:postgres@localhost:5432/helpdesk_commander_dev
-export TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/helpdesk_commander_test
+export DATABASE_URL=postgres://postgres:postgres@localhost:5433/helpdesk_commander_dev
+export TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5433/helpdesk_commander_test
 ```
 
 URLを使わない場合（個別指定）:
 
 ```bash
 export POSTGRES_HOST=localhost
-export POSTGRES_PORT=5432
+export POSTGRES_PORT=5433
 export POSTGRES_USER=postgres
 export POSTGRES_PASSWORD=postgres
 ```
+
+`docker-compose.yml` はホスト側 **5433** を既定にしています（5432 が他用途で埋まっている環境向け）。変更する場合は `POSTGRES_HOST_PORT` と `POSTGRES_PORT` を揃えてください。
+
+### PII 暗号化（本番必須）
+
+本番環境では以下の環境変数が必要です。
+
+```bash
+# Base64 エンコードした 32 バイト鍵
+# elixir -e ':crypto.strong_rand_bytes(32) |> Base.encode64() |> IO.puts()'
+export CLOAK_KEY=...
+export PII_HMAC_SECRET=...
+export COMPANY_CODE_HMAC_SECRET=...
+```
+
+`CLOAK_KEY` を失うと暗号化済みのメールアドレス・会社名を復号できません。secret manager で保管してください。
 
 ## 📚 Ashフレームワークについて
 
@@ -348,7 +364,7 @@ end
 - [ ] 優先度（Impact×Urgency）の算出とSLA
 - [x] 検証（一般ユーザーも可能）と最終承認（リーダー/管理者のみ）
 - [ ] テナント境界・Ash ポリシーの横展開
-- [ ] PII 暗号化
+- [x] PII 暗号化（メールアドレス・会社名。検索と一意制約は HMAC ハッシュで維持）
 
 ### フェーズ3: 障害管理（Incident）
 

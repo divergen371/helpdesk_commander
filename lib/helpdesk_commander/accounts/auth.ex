@@ -8,6 +8,7 @@ defmodule HelpdeskCommander.Accounts.Auth do
   alias HelpdeskCommander.Accounts.User
   alias HelpdeskCommander.Support.CompanyCode
   alias HelpdeskCommander.Support.Error, as: ErrorLog
+  alias HelpdeskCommander.Support.PiiHash
 
   @type auth_error ::
           :invalid_credentials
@@ -57,7 +58,9 @@ defmodule HelpdeskCommander.Accounts.Auth do
 
   @spec default_company() :: {:ok, Company.t()} | {:error, term()}
   def default_company do
-    case Company |> filter(name == ^default_company_name()) |> Ash.read_one(domain: Accounts) do
+    name_hash = PiiHash.company_name(default_company_name())
+
+    case Company |> filter(name_hash == ^name_hash) |> Ash.read_one(domain: Accounts) do
       {:ok, %Company{} = company} ->
         {:ok, company}
 
@@ -119,7 +122,7 @@ defmodule HelpdeskCommander.Accounts.Auth do
 
     query =
       if used_email? do
-        filter(User, company_id == ^company_id and email == ^normalized)
+        filter(User, company_id == ^company_id and email_hash == ^PiiHash.email(normalized))
       else
         filter(User, company_id == ^company_id and login_id == ^normalized)
       end
@@ -140,7 +143,7 @@ defmodule HelpdeskCommander.Accounts.Auth do
   defp fetch_pending_user(company_id, email) do
     normalized = email |> String.trim() |> String.downcase()
 
-    query = filter(User, company_id == ^company_id and email == ^normalized)
+    query = filter(User, company_id == ^company_id and email_hash == ^PiiHash.email(normalized))
 
     case Ash.read_one(query, domain: Accounts) do
       {:ok, %User{status: "pending"} = user} ->

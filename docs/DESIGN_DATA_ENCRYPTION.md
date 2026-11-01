@@ -86,3 +86,26 @@
 ## 非目標（初期フェーズ）
 - 暗号化本文に対する全文検索
 - 過去ログの即時完全再暗号化（鍵ローテーションの自動化は次フェーズ）
+
+---
+
+## 実装状況（2026-11-01）
+
+### 完了
+- `ash_cloak` + `cloak`（AES-256-GCM）を導入
+- `users.email` / `companies.name` を暗号化属性へ移行
+  - DB カラムは AshCloak の命名で `encrypted_email` / `encrypted_name`
+  - 既存データはマイグレーションでバックフィル
+- 検索・一意制約用に `email_hash` / `name_hash`（HMAC-SHA256）を追加
+  - `users`: unique `(company_id, email_hash)`
+  - `companies`: unique `(name_hash)`
+- 認証・シード・管理画面のメール参照を hash 経由に変更
+- 匿名化時も `email_hash` を更新
+- 鍵設定
+  - 本番: `CLOAK_KEY`（Base64 32byte）と `PII_HMAC_SECRET` が必須
+  - dev/test: ローカル専用の派生鍵を使用
+
+### 未対応（次フェーズ）
+- `users.display_name`、`tickets.description`、`inquiries.body`、`conversation_messages.body`
+- 鍵ローテーション
+- 暗号化列に対する全文検索

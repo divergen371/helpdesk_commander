@@ -2,6 +2,12 @@ import Config
 config :ash, disable_async?: true
 
 config :helpdesk_commander, :company_code_hmac_secret, "test-company-code-secret"
+config :helpdesk_commander, :pii_hmac_secret, "test-pii-hmac-secret"
+
+config :helpdesk_commander, HelpdeskCommander.Vault,
+  ciphers: [
+    default: {Cloak.Ciphers.AES.GCM, tag: "AES.GCM.V1", key: :crypto.hash(:sha256, "helpdesk_commander_test_vault")}
+  ]
 
 # Configure your database
 #
@@ -13,7 +19,7 @@ config :helpdesk_commander, :company_code_hmac_secret, "test-company-code-secret
 # the database name in the URL's path.
 #
 # Example:
-#   export TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/helpdesk_commander_test
+#   export TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5433/helpdesk_commander_test
 
 test_database_url = System.get_env("TEST_DATABASE_URL")
 
@@ -30,7 +36,7 @@ repo_base =
     username = System.get_env("POSTGRES_USER", "postgres")
     password = System.get_env("POSTGRES_PASSWORD", "postgres")
     hostname = System.get_env("POSTGRES_HOST", "localhost")
-    port = String.to_integer(System.get_env("POSTGRES_PORT", "5432"))
+    port = String.to_integer(System.get_env("POSTGRES_PORT", "5433"))
 
     [
       username: username,

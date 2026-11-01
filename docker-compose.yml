@@ -11,7 +11,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-postgres}
     ports:
-      - "127.0.0.1:5432:5432"
+      # ホスト側は 5433 を既定にする（5432 が他用途で埋まっている環境向け）
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
       - postgres_data_18:/var/lib/postgresql
     healthcheck:

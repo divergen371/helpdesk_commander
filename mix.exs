@@ -162,6 +162,7 @@ defmodule HelpdeskCommander.MixProject do
     env = mix_env()
 
     [
+      {:ash_cloak, "~> 0.5"},
       {:ash_phoenix, "~> 2.3"},
       {:ash_postgres, "~> 2.15"},
       {:ash_authentication, "~> 4.15"},
@@ -183,6 +184,7 @@ defmodule HelpdeskCommander.MixProject do
       {:heroicons,
        github: "tailwindlabs/heroicons", tag: "v2.2.0", sparse: "optimized", app: false, compile: false, depth: 1},
       {:bcrypt_elixir, "~> 3.0"},
+      {:cloak, "~> 1.1"},
       {:swoosh, "~> 1.29"},
       {:req, "~> 0.5"},
       {:telemetry_metrics, "~> 1.0"},

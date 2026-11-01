@@ -1055,3 +1055,35 @@ mix phx.server
   - `mix precommit` 成功、13 properties / 168 tests
   - `mix coveralls.json` 80.9%（1668 / 2060 行）
   - `mix dialyzer` 0 errors
+
+---
+
+## 2026-11-01 PII 暗号化（第1段）
+
+- `ash_cloak` と `cloak` を追加し、`HelpdeskCommander.Vault` を起動
+- `users.email` / `companies.name` を暗号化属性へ移行
+  - DB カラムは `encrypted_email` / `encrypted_name`
+  - 既存行はマイグレーション内でバックフィル（Vault を一時起動）
+- 検索・一意制約を hash 化
+  - `email_hash`（unique: company_id + email_hash）
+  - `name_hash`（unique: name_hash）
+  - `HelpdeskCommander.Support.PiiHash` で正規化と HMAC-SHA256 を共通化
+- 認証・シード・匿名化を hash / 暗号化属性に対応
+- 環境変数
+  - 本番: `CLOAK_KEY`、`PII_HMAC_SECRET`
+  - dev/test: ローカル専用の派生鍵
+- テスト追加（`test/helpdesk_commander/accounts/pii_encryption_test.exs`）
+  - 暗号化保存と復号
+  - hash による一意制約（company 境界）
+  - 匿名化後の hash 整合性
+- 検証結果
+  - `mix precommit` 成功、13 properties / 173 tests
+  - `mix coveralls.json` 80.8%
+  - `mix dialyzer` 0 errors
+
+### ローカル DB ポート
+
+- 5432 は Hindsight API の埋め込み PostgreSQL（`~/.pg0/instances/hindsight-embed-hermes`）が使用中
+- `docker-compose.yml` のホスト側ポートを `POSTGRES_HOST_PORT`（既定 5433）に変更
+- `config/dev.exs` / `config/test.exs` の既定 `POSTGRES_PORT` も 5433 に変更
+- CI はサービスコンテナが 5432 のため、ワークフローで `POSTGRES_PORT: 5432` を明示

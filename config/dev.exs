@@ -1,6 +1,13 @@
 import Config
 
 config :helpdesk_commander, :company_code_hmac_secret, "dev-company-code-secret"
+config :helpdesk_commander, :pii_hmac_secret, "dev-pii-hmac-secret"
+
+# 開発専用の固定鍵。本番では CLOAK_KEY を環境変数で渡す。
+config :helpdesk_commander, HelpdeskCommander.Vault,
+  ciphers: [
+    default: {Cloak.Ciphers.AES.GCM, tag: "AES.GCM.V1", key: :crypto.hash(:sha256, "helpdesk_commander_dev_vault")}
+  ]
 
 # Configure your database
 #
@@ -8,7 +15,7 @@ config :helpdesk_commander, :company_code_hmac_secret, "dev-company-code-secret"
 # to individual connection settings.
 #
 # Example:
-#   export DATABASE_URL=postgres://postgres:postgres@localhost:5432/helpdesk_commander_dev
+#   export DATABASE_URL=postgres://postgres:postgres@localhost:5433/helpdesk_commander_dev
 #
 # NOTE: These defaults are intended for local development only.
 database_url = System.get_env("DATABASE_URL")
@@ -22,7 +29,7 @@ repo_base =
     username = System.get_env("POSTGRES_USER", "postgres")
     password = System.get_env("POSTGRES_PASSWORD", "postgres")
     hostname = System.get_env("POSTGRES_HOST", "localhost")
-    port = String.to_integer(System.get_env("POSTGRES_PORT", "5432"))
+    port = String.to_integer(System.get_env("POSTGRES_PORT", "5433"))
 
     [
       username: username,

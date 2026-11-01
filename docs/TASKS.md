@@ -7,7 +7,8 @@
 
 ## 現在（P0）
 
-- [ ] PII保護の段階導入（`users.email` / `companies.name` を `*_enc + *_hash` へ移行し検索・一意制約を維持）
+- なし（P0 は完了）
+
 
 ## 次（P1）
 
@@ -43,6 +44,7 @@
 
 ## 完了
 
+- [x] PII保護の段階導入（`users.email` / `companies.name` を `encrypted_* + *_hash` へ移行し、検索・一意制約を維持）
 - [x] 共通 Change 抽出（`EnsureTicketResolved` / `SetTimestampIfNil`、ステータス日時と検証日時の補完を共通化）
 - [x] 簡易ダッシュボード（`/`、チケット・タスク・製品・通知の概要、最近の項目）
 - [x] チケット関連リンク UI + Sigma.js 関係グラフ PoC（登録・解除、`/relations` で俯瞰）

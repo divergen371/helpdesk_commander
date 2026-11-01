@@ -11,11 +11,13 @@ import Ash.Query
 alias HelpdeskCommander.Accounts
 alias HelpdeskCommander.Accounts.User
 alias HelpdeskCommander.Helpdesk.Product
+alias HelpdeskCommander.Support.PiiHash
 company = Accounts.Auth.default_company!()
 
-users = Ash.read!(User, domain: Accounts)
+admin_email = "admin@example.com"
+system_email = "system@helpdesk.local"
 
-if Enum.any?(users, &(&1.email == "admin@example.com")) do
+if User |> filter(email_hash == ^PiiHash.email(admin_email)) |> Ash.exists?(domain: Accounts) do
   :ok
 else
   _user =
@@ -35,7 +37,7 @@ end
 admin_password = System.get_env("DEFAULT_ADMIN_PASSWORD")
 
 if admin_password do
-  case User |> filter(email == "admin@example.com") |> Ash.read_one(domain: Accounts) do
+  case User |> filter(email_hash == ^PiiHash.email(admin_email)) |> Ash.read_one(domain: Accounts) do
     {:ok, %User{password_hash: nil} = admin} ->
       admin
       |> Ash.Changeset.for_update(:set_password, %{
@@ -51,9 +53,7 @@ if admin_password do
   end
 end
 
-system_email = "system@helpdesk.local"
-
-if Enum.any?(users, &(&1.email == system_email)) do
+if User |> filter(email_hash == ^PiiHash.email(system_email)) |> Ash.exists?(domain: Accounts) do
   :ok
 else
   _system =

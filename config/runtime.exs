@@ -48,6 +48,26 @@ if config_env() == :prod do
 
   config :helpdesk_commander, :company_code_hmac_secret, company_code_secret
 
+  pii_hmac_secret =
+    System.get_env("PII_HMAC_SECRET") ||
+      raise """
+      environment variable PII_HMAC_SECRET is missing.
+      """
+
+  config :helpdesk_commander, :pii_hmac_secret, pii_hmac_secret
+
+  cloak_key =
+    System.get_env("CLOAK_KEY") ||
+      raise """
+      environment variable CLOAK_KEY is missing.
+      It must be a Base64 encoded 32 byte key.
+      """
+
+  config :helpdesk_commander, HelpdeskCommander.Vault,
+    ciphers: [
+      default: {Cloak.Ciphers.AES.GCM, tag: "AES.GCM.V1", key: Base.decode64!(cloak_key)}
+    ]
+
   maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
   config :helpdesk_commander, HelpdeskCommander.Repo,

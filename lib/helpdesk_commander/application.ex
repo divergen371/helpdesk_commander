@@ -10,6 +10,7 @@ defmodule HelpdeskCommander.Application do
   def start(_type, _args) do
     children = [
       HelpdeskCommanderWeb.Telemetry,
+      HelpdeskCommander.Vault,
       HelpdeskCommander.Repo,
       HelpdeskCommander.Cache,
       {HelpdeskCommander.RateLimiter, clean_period: :timer.minutes(1)},
