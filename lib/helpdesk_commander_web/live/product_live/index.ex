@@ -11,9 +11,27 @@ defmodule HelpdeskCommanderWeb.ProductLive.Index do
       socket
       |> assign(:page_title, "Products")
       |> assign(:form, new_product_form())
-      |> reload_products()
+      |> assign(:q, nil)
+      |> assign(:filter_form, filter_form(nil))
 
     {:ok, socket}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_params(params, _uri, socket) do
+    q = normalize_search(params["q"])
+
+    {:noreply,
+     socket
+     |> assign(:q, q)
+     |> assign(:filter_form, filter_form(q))
+     |> reload_products()}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("filter", %{"filters" => %{"q" => q}}, socket) do
+    params = if q in [nil, ""], do: %{}, else: %{"q" => q}
+    {:noreply, push_patch(socket, to: ~p"/products?#{params}")}
   end
 
   @impl Phoenix.LiveView
@@ -73,7 +91,7 @@ defmodule HelpdeskCommanderWeb.ProductLive.Index do
   end
 
   defp reload_products(socket) do
-    case Helpdesk.list_products(socket.assigns.current_user.company_id) do
+    case Helpdesk.list_products(socket.assigns.current_user.company_id, query: socket.assigns.q) do
       {:ok, products} ->
         assign(socket, :products, products)
 
@@ -82,6 +100,17 @@ defmodule HelpdeskCommanderWeb.ProductLive.Index do
         put_flash(socket, :error, "製品一覧の取得に失敗しました")
     end
   end
+
+  defp filter_form(q), do: to_form(%{"q" => q || ""}, as: "filters")
+
+  defp normalize_search(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> String.slice(trimmed, 0, 100)
+    end
+  end
+
+  defp normalize_search(_value), do: nil
 
   defp load_product(company_id, id) do
     case id |> to_string() |> Integer.parse() do
@@ -117,6 +146,14 @@ defmodule HelpdeskCommanderWeb.ProductLive.Index do
             <div class="mt-6 flex justify-end">
               <.button type="submit" variant="primary">作成</.button>
             </div>
+          </.form>
+        </div>
+      </div>
+
+      <div class="card bg-base-100 border border-base-200">
+        <div class="card-body">
+          <.form for={@filter_form} id="product-filters" phx-change="filter">
+            <.input field={@filter_form[:q]} type="search" label="検索" placeholder="名称" />
           </.form>
         </div>
       </div>

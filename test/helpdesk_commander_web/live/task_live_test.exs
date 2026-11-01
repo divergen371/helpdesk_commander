@@ -28,6 +28,27 @@ defmodule HelpdeskCommanderWeb.TaskLiveTest do
     refute has_element?(view, "#task-#{other_task.public_id}")
   end
 
+  test "task list filters and searches", %{conn: conn} do
+    company = create_company!()
+    user = create_user!(company)
+    alpha = create_task!(company, title: "Alpha task")
+    beta = create_task!(company, title: "Beta task")
+
+    beta
+    |> Ash.Changeset.for_update(:update, %{status: "done"})
+    |> Ash.update!(domain: Tasks)
+
+    conn = log_in(conn, user)
+
+    {:ok, view, _html} = live(conn, ~p"/tasks?q=Alpha")
+    assert has_element?(view, "#task-#{alpha.public_id}")
+    refute has_element?(view, "#task-#{beta.public_id}")
+
+    {:ok, view, _html} = live(conn, ~p"/tasks?status=done")
+    refute has_element?(view, "#task-#{alpha.public_id}")
+    assert has_element?(view, "#task-#{beta.public_id}")
+  end
+
   test "user can update priority through set_priority and see the event history", %{conn: conn} do
     company = create_company!()
     user = create_user!(company)

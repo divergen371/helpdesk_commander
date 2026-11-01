@@ -112,19 +112,10 @@ defmodule HelpdeskCommander.Workers.CreateTicketNotificationsWorker do
           actor_id: actor_id
         }
 
-        case TicketNotification
-             |> Ash.Changeset.for_create(:create, params)
-             |> Ash.create(domain: Helpdesk) do
-          {:ok, _notification} ->
-            acc
-
-          {:error, error} ->
-            ErrorLog.log_error("workers.create_ticket_notifications.create", error,
-              recipient_id: recipient.id,
-              ticket_id: ticket_id
-            )
-
-            [recipient.id | acc]
+        if cooldown_active?(recipient, ticket_id, notification_type) do
+          acc
+        else
+          create_notification(params, recipient, ticket_id, acc)
         end
       end)
 
@@ -133,6 +124,54 @@ defmodule HelpdeskCommander.Workers.CreateTicketNotificationsWorker do
     else
       {:error, {:create_failed, Enum.reverse(failures)}}
     end
+  end
+
+  defp create_notification(params, recipient, ticket_id, acc) do
+    case TicketNotification
+         |> Ash.Changeset.for_create(:create, params)
+         |> Ash.create(domain: Helpdesk) do
+      {:ok, _notification} ->
+        acc
+
+      {:error, error} ->
+        ErrorLog.log_error("workers.create_ticket_notifications.create", error,
+          recipient_id: recipient.id,
+          ticket_id: ticket_id
+        )
+
+        [recipient.id | acc]
+    end
+  end
+
+  defp cooldown_active?(recipient, ticket_id, notification_type) do
+    recipient_id = recipient.id
+    cutoff = DateTime.add(DateTime.utc_now(), -cooldown_seconds(), :second)
+
+    query =
+      filter(
+        TicketNotification,
+        recipient_id == ^recipient_id and
+          ticket_id == ^ticket_id and
+          notification_type == ^notification_type and
+          inserted_at >= ^cutoff
+      )
+
+    case Ash.exists(query, domain: Helpdesk, actor: recipient) do
+      {:ok, exists?} ->
+        exists?
+
+      {:error, error} ->
+        ErrorLog.log_warn("workers.create_ticket_notifications.cooldown", error,
+          recipient_id: recipient_id,
+          ticket_id: ticket_id
+        )
+
+        false
+    end
+  end
+
+  defp cooldown_seconds do
+    Application.get_env(:helpdesk_commander, :notification_cooldown_seconds, 300)
   end
 
   defp fetch_string(map, key) do

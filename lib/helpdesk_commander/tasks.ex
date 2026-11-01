@@ -24,11 +24,66 @@ defmodule HelpdeskCommander.Tasks do
 
   @spec list_tasks(integer(), keyword()) :: {:ok, [Task.t()]} | {:error, term()}
   def list_tasks(company_id, opts \\ []) do
+    filters = Keyword.get(opts, :filters, %{})
+
     Task
     |> filter(company_id == ^company_id)
-    |> sort(inserted_at: :desc)
-    |> Ash.read(Keyword.put(opts, :domain, __MODULE__))
+    |> apply_task_filters(filters)
+    |> sort_tasks(filters[:sort])
+    |> Ash.read(opts |> Keyword.delete(:filters) |> Keyword.put(:domain, __MODULE__))
   end
+
+  @statuses ~w(todo in_progress done)
+  @priorities ~w(low medium high)
+
+  defp apply_task_filters(query, filters) do
+    query
+    |> filter_task_query(filters[:q])
+    |> filter_task_field(:status, filters[:status], @statuses)
+    |> filter_task_field(:priority, filters[:priority], @priorities)
+    |> filter_task_assignee(filters[:assignee_id])
+  end
+
+  defp filter_task_query(query, value) when is_binary(value) and value != "" do
+    escaped =
+      value
+      |> String.replace("\\", "\\\\")
+      |> String.replace("%", "\\%")
+      |> String.replace("_", "\\_")
+
+    pattern = "%#{escaped}%"
+    filter(query, ilike(title, ^pattern))
+  end
+
+  defp filter_task_query(query, _value), do: query
+
+  defp filter_task_field(query, field, value, allowed) do
+    if value in allowed do
+      case field do
+        :status -> filter(query, status == ^value)
+        :priority -> filter(query, priority == ^value)
+      end
+    else
+      query
+    end
+  end
+
+  defp filter_task_assignee(query, "unassigned"), do: filter(query, is_nil(assignee_id))
+
+  defp filter_task_assignee(query, value) when is_binary(value) do
+    case Integer.parse(value) do
+      {assignee_id, _rest} -> filter(query, assignee_id == ^assignee_id)
+      :error -> query
+    end
+  end
+
+  defp filter_task_assignee(query, _value), do: query
+
+  defp sort_tasks(query, "oldest"), do: sort(query, inserted_at: :asc)
+  defp sort_tasks(query, "priority"), do: sort(query, priority: :desc, inserted_at: :desc)
+  defp sort_tasks(query, "status"), do: sort(query, status: :asc, inserted_at: :desc)
+  defp sort_tasks(query, "due_date"), do: sort(query, due_date: :asc, inserted_at: :desc)
+  defp sort_tasks(query, _sort), do: sort(query, inserted_at: :desc)
 
   @spec count_tasks(integer(), keyword()) :: {:ok, non_neg_integer()} | {:error, term()}
   def count_tasks(company_id, opts \\ []) do

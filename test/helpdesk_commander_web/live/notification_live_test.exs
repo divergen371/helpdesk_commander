@@ -27,6 +27,26 @@ defmodule HelpdeskCommanderWeb.NotificationLiveTest do
     assert has_element?(view, "h1", "通知")
   end
 
+  test "recipient can filter to unread notifications", %{conn: conn} do
+    recipient = create_user!("admin")
+    ticket = create_ticket!(recipient)
+    unread = create_notification!(ticket, recipient, "未読の通知")
+    read = create_notification!(ticket, recipient, "既読の通知")
+
+    read
+    |> Ash.Changeset.for_update(:mark_read, %{})
+    |> Ash.update!(domain: Helpdesk, actor: recipient)
+
+    conn = log_in(conn, recipient)
+
+    {:ok, view, _html} = live(conn, ~p"/notifications?filter=unread")
+    assert has_element?(view, "#notifications", unread.title)
+    refute has_element?(view, "#notifications", read.title)
+
+    {:ok, view, _html} = live(conn, ~p"/notifications")
+    assert has_element?(view, "#notifications", read.title)
+  end
+
   test "recipient can mark a notification as read", %{conn: conn} do
     recipient = create_user!("admin")
     ticket = create_ticket!(recipient)

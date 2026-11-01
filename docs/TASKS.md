@@ -12,8 +12,6 @@
 
 ## 次（P1）
 
-- [ ] 検索/フィルタ/ソート仕様の確定と実装
-- [ ] 通知の重複抑制・クールダウン
 - [ ] 外部通知チャネル（メール/チャット）と重複抑制（通知フェーズ拡張）
 - [ ] カバレッジの余裕確保（現在 80.9%。worker / `ticket_live/show.ex` の未テスト分を追加）
 - [ ] Ash resource snapshot の再生成（`mix ash.codegen --check` の 8 ファイル。`ticket_messages` DROP を含むため手動レビュー）
@@ -39,6 +37,8 @@
 
 ## 完了
 
+- [x] 検索/フィルタ/ソート仕様の確定と実装（チケット・タスク・製品・通知）
+- [x] 通知の重複抑制・クールダウン
 - [x] Ash ポリシーの横展開（Task / Inquiry / ConversationMessage / TicketLink。TicketNotification は既存ポリシーを維持）
 - [x] `aggregates` / `calculations` 導入（未読通知数・チケット検証数・最新イベント時刻）
 - [x] `code_interface` 導入（Domain API 経由に整理し、Web 層から Ash 呼び出しを除去）

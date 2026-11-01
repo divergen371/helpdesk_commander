@@ -51,6 +51,64 @@ defmodule HelpdeskCommander.Workers.CreateTicketNotificationsWorkerTest do
     assert recipient_ids == Enum.sort([admin.id, leader.id])
   end
 
+  test "worker suppresses duplicate notifications within the cooldown" do
+    requester = create_user!("user")
+    admin = create_user!("admin")
+    ticket = create_ticket!(requester)
+
+    args = %{
+      notification_type: "ticket_resolved_review_required",
+      title: "検証待ちチケット",
+      body: "検証/承認を確認してください",
+      company_id: requester.company_id,
+      ticket_id: ticket.id,
+      actor_id: requester.id
+    }
+
+    assert :ok = perform_job(CreateTicketNotificationsWorker, args)
+    assert :ok = perform_job(CreateTicketNotificationsWorker, args)
+
+    notifications =
+      TicketNotification
+      |> filter(ticket_id == ^ticket.id and recipient_id == ^admin.id)
+      |> Ash.read!(domain: Helpdesk, actor: admin, authorize?: false)
+
+    assert length(notifications) == 1
+  end
+
+  test "worker keeps notifications with a different type" do
+    requester = create_user!("user")
+    admin = create_user!("admin")
+    ticket = create_ticket!(requester)
+
+    base = %{
+      title: "通知",
+      body: "本文",
+      company_id: requester.company_id,
+      ticket_id: ticket.id,
+      actor_id: requester.id
+    }
+
+    assert :ok =
+             perform_job(
+               CreateTicketNotificationsWorker,
+               Map.put(base, :notification_type, "ticket_resolved_review_required")
+             )
+
+    assert :ok =
+             perform_job(
+               CreateTicketNotificationsWorker,
+               Map.put(base, :notification_type, "ticket_verification_submitted")
+             )
+
+    notifications =
+      TicketNotification
+      |> filter(ticket_id == ^ticket.id and recipient_id == ^admin.id)
+      |> Ash.read!(domain: Helpdesk, actor: admin, authorize?: false)
+
+    assert length(notifications) == 2
+  end
+
   test "worker discards invalid args" do
     log =
       capture_log(fn ->

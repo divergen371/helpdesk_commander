@@ -56,6 +56,10 @@ if config_env() == :prod do
 
   config :helpdesk_commander, :pii_hmac_secret, pii_hmac_secret
 
+  config :helpdesk_commander,
+         :notification_cooldown_seconds,
+         String.to_integer(System.get_env("NOTIFICATION_COOLDOWN_SECONDS") || "300")
+
   cloak_key =
     System.get_env("CLOAK_KEY") ||
       raise """

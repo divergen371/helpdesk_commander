@@ -30,6 +30,22 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
     assert has_element?(view, "#tickets tr")
   end
 
+  test "tickets index searches by subject and public id", %{conn: conn} do
+    user = create_user!()
+    alpha = create_ticket!(user, subject: "Alpha login issue")
+    beta = create_ticket!(user, subject: "Beta billing issue")
+
+    conn = log_in(conn, user)
+
+    {:ok, view, _html} = live(conn, ~p"/tickets?q=Alpha")
+    assert has_element?(view, "#tickets", alpha.subject)
+    refute has_element?(view, "#tickets", beta.subject)
+
+    {:ok, view, _html} = live(conn, ~p"/tickets?q=#{alpha.public_id}")
+    assert has_element?(view, "#tickets", alpha.subject)
+    refute has_element?(view, "#tickets", beta.subject)
+  end
+
   test "tickets index filters by status, priority, and type", %{conn: conn} do
     user = create_user!()
 

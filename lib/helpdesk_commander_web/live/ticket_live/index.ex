@@ -107,7 +107,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Index do
   end
 
   defp default_filters do
-    %{status: nil, priority: nil, type: nil, assignee_id: nil, sort: "newest"}
+    %{q: nil, status: nil, priority: nil, type: nil, assignee_id: nil, sort: "newest"}
   end
 
   defp filter_form(filters) do
@@ -117,6 +117,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Index do
 
   defp parse_filters(params) do
     %{
+      q: normalize_search(params["q"]),
       status: allow(params["status"], @statuses),
       priority: allow(params["priority"], @priorities),
       type: allow(params["type"], @types),
@@ -124,6 +125,15 @@ defmodule HelpdeskCommanderWeb.TicketLive.Index do
       sort: allow(params["sort"], @sorts) || "newest"
     }
   end
+
+  defp normalize_search(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> String.slice(trimmed, 0, 100)
+    end
+  end
+
+  defp normalize_search(_value), do: nil
 
   defp allow(value, allowed) do
     if value in allowed, do: value, else: nil
@@ -223,7 +233,13 @@ defmodule HelpdeskCommanderWeb.TicketLive.Index do
       <div class="card bg-base-100 border border-base-200">
         <div class="card-body">
           <.form for={@filter_form} id="ticket-filters" phx-change="filter">
-            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
+              <.input
+                field={@filter_form[:q]}
+                type="search"
+                label="検索"
+                placeholder="件名・Public ID"
+              />
               <.input
                 field={@filter_form[:status]}
                 type="select"

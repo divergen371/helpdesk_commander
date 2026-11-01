@@ -117,10 +117,26 @@ defmodule HelpdeskCommander.Helpdesk do
 
   defp apply_ticket_filters(query, filters) do
     query
+    |> filter_ticket_query(filters[:q])
     |> filter_ticket_status(filters[:status])
     |> filter_ticket_priority(filters[:priority])
     |> filter_ticket_type(filters[:type])
     |> filter_ticket_assignee(filters[:assignee_id])
+  end
+
+  defp filter_ticket_query(query, value) when is_binary(value) and value != "" do
+    pattern = "%#{escape_like(value)}%"
+
+    filter(query, ilike(subject, ^pattern) or public_id == ^value)
+  end
+
+  defp filter_ticket_query(query, _value), do: query
+
+  defp escape_like(value) do
+    value
+    |> String.replace("\\", "\\\\")
+    |> String.replace("%", "\\%")
+    |> String.replace("_", "\\_")
   end
 
   defp filter_ticket_status(query, value) when value in @statuses,
@@ -172,9 +188,16 @@ defmodule HelpdeskCommander.Helpdesk do
     Product
     |> filter(company_id == ^company_id)
     |> filter_active_products(Keyword.get(opts, :active_only, false))
+    |> filter_product_query(Keyword.get(opts, :query))
     |> sort(name: :asc)
     |> Ash.read(domain: __MODULE__)
   end
+
+  defp filter_product_query(query, value) when is_binary(value) and value != "" do
+    filter(query, ilike(name, ^"%#{escape_like(value)}%"))
+  end
+
+  defp filter_product_query(query, _value), do: query
 
   defp filter_active_products(query, true), do: filter(query, active == true)
   defp filter_active_products(query, _active_only?), do: query

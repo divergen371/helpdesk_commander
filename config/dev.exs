@@ -2,6 +2,7 @@ import Config
 
 config :helpdesk_commander, :company_code_hmac_secret, "dev-company-code-secret"
 config :helpdesk_commander, :pii_hmac_secret, "dev-pii-hmac-secret"
+config :helpdesk_commander, :notification_cooldown_seconds, 300
 
 # 開発専用の固定鍵。本番では CLOAK_KEY を環境変数で渡す。
 config :helpdesk_commander, HelpdeskCommander.Vault,

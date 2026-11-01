@@ -7,9 +7,12 @@ defmodule HelpdeskCommander.Helpdesk.Notifications do
   alias HelpdeskCommander.Helpdesk
   alias HelpdeskCommander.Helpdesk.TicketNotification
 
-  @spec list_for(User.t()) :: {:ok, [TicketNotification.t()]} | {:error, term()}
-  def list_for(%User{} = user) do
-    with {:ok, notifications} <- Ash.read(TicketNotification, domain: Helpdesk, actor: user) do
+  @spec list_for(User.t(), :all | :unread) ::
+          {:ok, [TicketNotification.t()]} | {:error, term()}
+  def list_for(%User{} = user, filter \\ :all) do
+    query = if filter == :unread, do: filter(TicketNotification, is_nil(read_at)), else: TicketNotification
+
+    with {:ok, notifications} <- Ash.read(query, domain: Helpdesk, actor: user) do
       Ash.load(notifications, [:ticket], domain: Helpdesk)
     end
   end

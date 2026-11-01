@@ -6,13 +6,27 @@ defmodule HelpdeskCommanderWeb.NotificationLive.Index do
 
   @impl Phoenix.LiveView
   def mount(_params, _session, socket) do
-    socket =
-      socket
-      |> assign(:page_title, "Notifications")
-      |> stream(:notifications, [])
-      |> reload_notifications()
+    {:ok,
+     socket
+     |> assign(:page_title, "Notifications")
+     |> assign(:filter, :all)
+     |> stream(:notifications, [])}
+  end
 
-    {:ok, socket}
+  @impl Phoenix.LiveView
+  def handle_params(params, _uri, socket) do
+    filter = if params["filter"] == "unread", do: :unread, else: :all
+
+    {:noreply,
+     socket
+     |> assign(:filter, filter)
+     |> reload_notifications()}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("set_filter", %{"filter" => filter}, socket) do
+    params = if filter == "unread", do: %{"filter" => "unread"}, else: %{}
+    {:noreply, push_patch(socket, to: ~p"/notifications?#{params}")}
   end
 
   @impl Phoenix.LiveView
@@ -54,7 +68,7 @@ defmodule HelpdeskCommanderWeb.NotificationLive.Index do
   end
 
   defp reload_notifications(socket) do
-    case Notifications.list_for(socket.assigns.current_user) do
+    case Notifications.list_for(socket.assigns.current_user, socket.assigns.filter) do
       {:ok, notifications} ->
         unread_count = Enum.count(notifications, &is_nil(&1.read_at))
 
@@ -88,6 +102,24 @@ defmodule HelpdeskCommanderWeb.NotificationLive.Index do
         通知
         <:subtitle>{@unread_count} 件の未読通知</:subtitle>
         <:actions>
+          <div class="join">
+            <.button
+              type="button"
+              class={["join-item btn-sm", @filter == :all && "btn-active"]}
+              phx-click="set_filter"
+              phx-value-filter="all"
+            >
+              すべて
+            </.button>
+            <.button
+              type="button"
+              class={["join-item btn-sm", @filter == :unread && "btn-active"]}
+              phx-click="set_filter"
+              phx-value-filter="unread"
+            >
+              未読のみ
+            </.button>
+          </div>
           <.button
             :if={@unread_count > 0}
             type="button"
