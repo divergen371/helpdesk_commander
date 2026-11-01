@@ -1,7 +1,8 @@
 defmodule HelpdeskCommander.Helpdesk.TicketLink do
   use Ash.Resource,
     domain: HelpdeskCommander.Helpdesk,
-    data_layer: AshPostgres.DataLayer
+    data_layer: AshPostgres.DataLayer,
+    authorizers: [Ash.Policy.Authorizer]
 
   alias HelpdeskCommander.Helpdesk.Changes.AssignCompanyFromTicket
 
@@ -56,6 +57,21 @@ defmodule HelpdeskCommander.Helpdesk.TicketLink do
 
   identities do
     identity :unique_relation, [:ticket_id, :related_ticket_id, :relation_type]
+  end
+
+  policies do
+    policy action_type(:read) do
+      authorize_if always()
+    end
+
+    policy action_type([:create, :destroy]) do
+      authorize_if actor_absent()
+
+      authorize_if expr(
+                     company_id == ^actor(:company_id) and
+                       ^actor(:role) in ["admin", "leader", "user", "system"]
+                   )
+    end
   end
 
   actions do

@@ -73,7 +73,10 @@ defmodule HelpdeskCommanderWeb.InquiryLive.New do
   end
 
   defp submit_inquiry(socket, params) do
-    case AshPhoenix.Form.submit(socket.assigns.form, params: params) do
+    case AshPhoenix.Form.submit(socket.assigns.form,
+           params: params,
+           action_opts: [actor: socket.assigns.current_user]
+         ) do
       {:ok, inquiry} ->
         case Ash.load(inquiry, [:ticket], domain: Helpdesk) do
           {:ok, %Inquiry{ticket: %Ticket{public_id: public_id}}} ->

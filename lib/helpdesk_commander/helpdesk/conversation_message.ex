@@ -2,6 +2,7 @@ defmodule HelpdeskCommander.Helpdesk.ConversationMessage do
   use Ash.Resource,
     domain: HelpdeskCommander.Helpdesk,
     data_layer: AshPostgres.DataLayer,
+    authorizers: [Ash.Policy.Authorizer],
     extensions: [AshCloak]
 
   alias HelpdeskCommander.Helpdesk
@@ -60,6 +61,30 @@ defmodule HelpdeskCommander.Helpdesk.ConversationMessage do
       attribute_type HelpdeskCommander.Types.BigInt
       allow_nil? false
       public? true
+    end
+  end
+
+  policies do
+    policy action_type(:read) do
+      authorize_if always()
+    end
+
+    policy action_type(:create) do
+      authorize_if always()
+    end
+
+    policy action(:edit) do
+      authorize_if actor_absent()
+      authorize_if expr(^actor(:id) == sender_id)
+    end
+
+    policy action(:soft_delete) do
+      authorize_if actor_absent()
+
+      authorize_if expr(
+                     ^actor(:id) == sender_id or
+                       (company_id == ^actor(:company_id) and ^actor(:role) in ["admin", "leader"])
+                   )
     end
   end
 

@@ -2,6 +2,7 @@ defmodule HelpdeskCommander.Helpdesk.Inquiry do
   use Ash.Resource,
     domain: HelpdeskCommander.Helpdesk,
     data_layer: AshPostgres.DataLayer,
+    authorizers: [Ash.Policy.Authorizer],
     extensions: [AshCloak]
 
   alias HelpdeskCommander.Helpdesk.Inquiry.Changes.CreateTicket
@@ -63,6 +64,16 @@ defmodule HelpdeskCommander.Helpdesk.Inquiry do
       attribute_type HelpdeskCommander.Types.BigInt
       allow_nil? false
       public? true
+    end
+  end
+
+  policies do
+    policy action_type(:read) do
+      authorize_if always()
+    end
+
+    policy action_type(:create) do
+      authorize_if always()
     end
   end
 

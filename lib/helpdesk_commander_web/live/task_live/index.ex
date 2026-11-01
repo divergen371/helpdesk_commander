@@ -26,7 +26,8 @@ defmodule HelpdeskCommanderWeb.TaskLive.Index do
      |> stream(:tasks, tasks, dom_id: &"task-#{&1.public_id}")}
   end
 
-  defp load_tasks(%{company_id: company_id}), do: Tasks.list_tasks(company_id)
+  defp load_tasks(%{company_id: company_id} = current_user),
+    do: Tasks.list_tasks(company_id, actor: current_user)
 
   defp load_tasks(_current_user), do: {:ok, []}
 

@@ -1168,3 +1168,28 @@ mix phx.server
   - `mix coveralls.json` 80.9%
   - `mix dialyzer` 0 errors
   - 実サーバーでダッシュボードとチケット詳細の表示を確認
+
+---
+
+## 2026-11-01 Ash ポリシーの横展開
+
+- `Ash.Policy.Authorizer` を Task / Inquiry / ConversationMessage / TicketLink に追加
+- 更新・削除系の制御をリソース側へ移動
+  - Task: 同一会社の内部ユーザーのみ update/destroy
+  - ConversationMessage: edit は送信者のみ、soft_delete は送信者または管理者
+  - TicketLink: 同一会社の内部ユーザーのみ create/destroy
+  - Inquiry: create は公開、read は Domain の会社スコープ
+- Web から actor を渡すよう変更
+  - Domain API の読み取り・書き込みに `actor:` を追加
+  - タスク/問い合わせ/メッセージのフォーム送信に `action_opts: [actor: ...]`
+  - 外部ユーザーはタスク・関連チケットを読み込まない
+- 読み取りは既存の Ticket と同じく開放し、会社スコープは Domain クエリで維持
+- テスト追加（`test/helpdesk_commander/policies_test.exs`）
+  - Task 更新の社外・他社拒否
+  - メッセージ編集（送信者のみ）と削除（送信者/管理者）
+  - TicketLink 作成の社外・他社拒否
+- 検証結果
+  - `mix precommit` 成功、13 properties / 191 tests
+  - `mix coveralls.json` 81.0%
+  - `mix dialyzer` 0 errors
+  - 実サーバーでチケット詳細・タスク一覧/詳細を確認

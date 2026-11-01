@@ -14,7 +14,7 @@ defmodule HelpdeskCommanderWeb.DashboardLive do
     company_id = current_user.company_id
 
     {ticket_count, recent_tickets} = load_tickets(company_id, current_user, external_user?)
-    {task_count, recent_tasks} = load_tasks(company_id, external_user?)
+    {task_count, recent_tasks} = load_tasks(company_id, external_user?, current_user)
     product_count = load_product_count(company_id, external_user?)
     unread_count = load_unread_count(current_user, external_user?)
 
@@ -43,9 +43,9 @@ defmodule HelpdeskCommanderWeb.DashboardLive do
     end
   end
 
-  defp load_tasks(company_id, false) do
-    with {:ok, count} <- Tasks.count_tasks(company_id),
-         {:ok, tasks} <- Tasks.list_recent_tasks(company_id, 5) do
+  defp load_tasks(company_id, false, current_user) do
+    with {:ok, count} <- Tasks.count_tasks(company_id, actor: current_user),
+         {:ok, tasks} <- Tasks.list_recent_tasks(company_id, 5, actor: current_user) do
       {count, tasks}
     else
       {:error, error} ->
@@ -54,7 +54,7 @@ defmodule HelpdeskCommanderWeb.DashboardLive do
     end
   end
 
-  defp load_tasks(_company_id, true), do: {0, []}
+  defp load_tasks(_company_id, true, _current_user), do: {0, []}
 
   defp load_product_count(company_id, false) do
     case Helpdesk.count_active_products(company_id) do

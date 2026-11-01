@@ -1,7 +1,8 @@
 defmodule HelpdeskCommander.Tasks.Task do
   use Ash.Resource,
     domain: HelpdeskCommander.Tasks,
-    data_layer: AshPostgres.DataLayer
+    data_layer: AshPostgres.DataLayer,
+    authorizers: [Ash.Policy.Authorizer]
 
   alias HelpdeskCommander.Accounts.User
   alias HelpdeskCommander.Authorization
@@ -69,6 +70,25 @@ defmodule HelpdeskCommander.Tasks.Task do
 
   identities do
     identity :unique_public_id, [:public_id]
+  end
+
+  policies do
+    policy action_type(:read) do
+      authorize_if always()
+    end
+
+    policy action_type(:create) do
+      authorize_if always()
+    end
+
+    policy action_type([:update, :destroy]) do
+      authorize_if actor_absent()
+
+      authorize_if expr(
+                     company_id == ^actor(:company_id) and
+                       ^actor(:role) in ["admin", "leader", "user", "system"]
+                   )
+    end
   end
 
   code_interface do

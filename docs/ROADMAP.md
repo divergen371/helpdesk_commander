@@ -13,7 +13,7 @@
 | --- | --- | --- | --- |
 | 0 | 基盤・開発環境 | ✅ | — |
 | 1 | 受付〜チケット運用（MVP） | ✅ | — |
-| 2 | 認証・権限・検証/承認 | 🟡 | リソース横断ポリシー、カバレッジの余裕確保（PII 暗号化は完了） |
+| 2 | 認証・権限・検証/承認 | 🟡 | ポリシー横展開は完了。カバレッジの余裕確保が残り |
 | 3 | 障害管理（Incident） | ⬜ | Incident リソース・昇格/降格・タイムライン |
 | 4 | コラボレーション強化 | 🟡 | 添付、通知 UI、関連リンク UI（コメント編集/削除は完了） |
 | 5 | SLA・分析・レポート | 🟡 | SLA 定義/監視、統計・レポート（簡易ダッシュボードは実装済み） |
@@ -76,9 +76,9 @@
 - ⬜ **テナント境界の監査と統一**
   - 全社横断の閲覧・操作が要件通りか確定する
   - 担当者候補、通知受信者、管理操作を `company_id` で制約する
-- ⬜ **Ash ポリシーの横展開**
-  - Task / Inquiry / ConversationMessage / TicketNotification / TicketLink
-  - LiveView の手動チェックからリソース側へ寄せる
+- ✅ **Ash ポリシーの横展開**
+  - Task / Inquiry / ConversationMessage / TicketLink（TicketNotification は既存）
+  - 更新・削除・メッセージ編集をリソース側で制御し、画面から actor を渡す
 - ✅ **共通 Change / Validation の抽出**
   - `EnsureTicketResolved` / `SetTimestampIfNil` を追加し、検証の `resolved` 制約と日時補完を再利用化
 - ⬜ **TicketNotification read の Preparation**

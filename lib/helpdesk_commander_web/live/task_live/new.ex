@@ -42,7 +42,10 @@ defmodule HelpdeskCommanderWeb.TaskLive.New do
 
   @impl Phoenix.LiveView
   def handle_event("save", %{"form" => params}, socket) do
-    case AshPhoenix.Form.submit(socket.assigns.form, params: put_company_id(params, socket)) do
+    case AshPhoenix.Form.submit(socket.assigns.form,
+           params: put_company_id(params, socket),
+           action_opts: [actor: socket.assigns.current_user]
+         ) do
       {:ok, task} ->
         {:noreply,
          socket

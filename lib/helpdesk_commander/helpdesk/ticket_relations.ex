@@ -7,13 +7,14 @@ defmodule HelpdeskCommander.Helpdesk.TicketRelations do
   alias HelpdeskCommander.Helpdesk.Ticket
   alias HelpdeskCommander.Helpdesk.TicketLink
 
-  @spec list_links(Ticket.t()) ::
+  @spec list_links(Ticket.t(), keyword()) ::
           {:ok, [%{link: TicketLink.t(), direction: :incoming | :outgoing, ticket: Ticket.t()}]}
           | {:error, term()}
-  def list_links(%Ticket{id: ticket_id}) do
+  def list_links(%Ticket{id: ticket_id}, opts \\ []) do
     query = filter(TicketLink, ticket_id == ^ticket_id or related_ticket_id == ^ticket_id)
+    opts = Keyword.put(opts, :domain, Helpdesk)
 
-    with {:ok, links} <- Ash.read(query, domain: Helpdesk),
+    with {:ok, links} <- Ash.read(query, opts),
          {:ok, links} <- Ash.load(links, [:ticket, :related_ticket], domain: Helpdesk) do
       links =
         links
@@ -63,7 +64,7 @@ defmodule HelpdeskCommander.Helpdesk.TicketRelations do
             relation_type: relation_type,
             created_by_id: current_user.id
           })
-          |> Ash.create(domain: Helpdesk)
+          |> Ash.create(domain: Helpdesk, actor: current_user)
       end
     else
       :error -> {:error, :invalid_ticket}
@@ -71,8 +72,8 @@ defmodule HelpdeskCommander.Helpdesk.TicketRelations do
     end
   end
 
-  @spec delete_link(Ticket.t(), term()) :: :ok | {:error, term()}
-  def delete_link(%Ticket{id: ticket_id}, link_id) do
+  @spec delete_link(Ticket.t(), term(), term()) :: :ok | {:error, term()}
+  def delete_link(%Ticket{id: ticket_id}, link_id, actor \\ nil) do
     with {link_id, _rest} <- link_id |> to_string() |> Integer.parse(),
          {:ok, %TicketLink{} = link} <-
            TicketLink
@@ -81,7 +82,7 @@ defmodule HelpdeskCommander.Helpdesk.TicketRelations do
                (ticket_id == ^ticket_id or related_ticket_id == ^ticket_id)
            )
            |> Ash.read_one(domain: Helpdesk) do
-      Ash.destroy(link, domain: Helpdesk)
+      Ash.destroy(link, domain: Helpdesk, actor: actor)
     else
       :error -> {:error, :invalid_link}
       {:ok, nil} -> {:error, :not_found}

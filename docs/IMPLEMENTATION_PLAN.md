@@ -189,3 +189,4 @@
 - コメントの編集（`edited_at`）と論理削除（本文・メタ消去）、種別バッジを追加
 - `code_interface` と Domain API（Accounts/Helpdesk/Tasks）を導入し、Web 層の Ash 呼び出しを除去
 - aggregates で未読通知数・チケット検証数・最新イベント時刻を集計し、チケット詳細に表示
+- Task / Inquiry / ConversationMessage / TicketLink にポリシーを追加し、更新・削除をリソース側で制御（読み取りは Domain クエリで会社スコープ）

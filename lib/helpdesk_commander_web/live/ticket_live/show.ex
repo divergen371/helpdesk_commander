@@ -74,8 +74,8 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
          :ok <- authorize_ticket(ticket, current_user, external_user?),
          {:ok, users, users_by_id} <- load_users(ticket.company_id),
          {:ok, conversations} <- ensure_conversations(ticket),
-         {:ok, task_links, linkable_tasks} <- load_task_links(ticket),
-         {:ok, ticket_links, linkable_tickets} <- load_ticket_relations(ticket) do
+         {:ok, task_links, linkable_tasks} <- load_task_links(ticket, current_user),
+         {:ok, ticket_links, linkable_tickets} <- load_ticket_relations(ticket, current_user) do
       build_ticket_data(
         ticket,
         current_user,
@@ -152,10 +152,10 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     assignable_users = selectable_users(users)
 
     {public_messages, public_has_more?, public_oldest_id, public_warnings} =
-      load_messages(public_conversation.id, ticket.id, :public)
+      load_messages(public_conversation.id, ticket.id, :public, current_user)
 
     {private_messages, private_has_more?, private_oldest_id, private_warnings} =
-      load_private_messages(external_user?, private_conversation.id, ticket.id)
+      load_private_messages(external_user?, private_conversation.id, ticket.id, current_user)
 
     {events, events_has_more?, events_oldest_id, event_warnings} =
       load_events(external_user?, ticket.id)
@@ -271,8 +271,8 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     end)
   end
 
-  defp load_messages(conversation_id, ticket_id, kind) do
-    case fetch_messages(conversation_id) do
+  defp load_messages(conversation_id, ticket_id, kind, current_user) do
+    case fetch_messages(conversation_id, nil, current_user) do
       {:ok, {messages, has_more?, oldest_id}} ->
         {messages, has_more?, oldest_id, []}
 
@@ -286,10 +286,11 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     end
   end
 
-  defp load_private_messages(true, _conversation_id, _ticket_id), do: {[], false, nil, []}
+  defp load_private_messages(true, _conversation_id, _ticket_id, _current_user),
+    do: {[], false, nil, []}
 
-  defp load_private_messages(false, conversation_id, ticket_id) do
-    load_messages(conversation_id, ticket_id, :private)
+  defp load_private_messages(false, conversation_id, ticket_id, current_user) do
+    load_messages(conversation_id, ticket_id, :private, current_user)
   end
 
   defp load_events(true, _ticket_id), do: {[], false, nil, []}
@@ -330,10 +331,13 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
       case task_id |> to_string() |> Integer.parse() do
         {task_id, _rest} ->
           result =
-            Tasks.create_ticket_task_link(%{
-              ticket_id: socket.assigns.ticket.id,
-              task_id: task_id
-            })
+            Tasks.create_ticket_task_link(
+              %{
+                ticket_id: socket.assigns.ticket.id,
+                task_id: task_id
+              },
+              actor: socket.assigns.current_user
+            )
 
           case result do
             {:ok, _link} ->
@@ -365,8 +369,9 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
       case Integer.parse(link_id) do
         {link_id, _rest} ->
           with {:ok, %TicketTaskLink{} = link} <-
-                 Tasks.get_ticket_task_link(link_id, socket.assigns.ticket.id),
-               :ok <- Tasks.destroy_ticket_task_link(link) do
+                 Tasks.get_ticket_task_link(link_id, socket.assigns.ticket.id, actor: socket.assigns.current_user),
+               :ok <-
+                 Tasks.destroy_ticket_task_link(link, actor: socket.assigns.current_user) do
             {:noreply,
              socket
              |> put_flash(:info, "タスクの紐付けを解除しました")
@@ -503,7 +508,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
       before_id = message_oldest_id(socket, kind)
       conversation_id = conversation_id_for_kind(socket, kind)
 
-      case fetch_messages(conversation_id, before_id) do
+      case fetch_messages(conversation_id, before_id, socket.assigns.current_user) do
         {:ok, {messages, has_more?, oldest_id}} ->
           next_oldest_id = oldest_id || before_id
 
@@ -677,7 +682,10 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
       submission =
         socket
         |> message_form_for_kind(kind)
-        |> AshPhoenix.Form.submit(params: message_params)
+        |> AshPhoenix.Form.submit(
+          params: message_params,
+          action_opts: [actor: socket.assigns.current_user]
+        )
 
       case submission do
         {:ok, message} ->
@@ -759,7 +767,10 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
   @impl Phoenix.LiveView
   def handle_event("save_edit_message", %{"message_edit" => params}, socket) do
-    case AshPhoenix.Form.submit(socket.assigns.edit_message_form, params: params) do
+    case AshPhoenix.Form.submit(socket.assigns.edit_message_form,
+           params: params,
+           action_opts: [actor: socket.assigns.current_user]
+         ) do
       {:ok, message} ->
         kind = message_kind(socket, message)
 
@@ -783,7 +794,8 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     with {:ok, id} <- parse_id(message_id),
          {:ok, %ConversationMessage{} = message} <- fetch_ticket_message(socket, id),
          true <- can_delete_message?(socket.assigns.current_user, message),
-         {:ok, deleted} <- Helpdesk.soft_delete_message(message) do
+         {:ok, deleted} <-
+           Helpdesk.soft_delete_message(message, actor: socket.assigns.current_user) do
       kind = message_kind(socket, deleted)
 
       socket =
@@ -806,7 +818,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   end
 
   defp reload_task_links(socket) do
-    case load_task_links(socket.assigns.ticket) do
+    case load_task_links(socket.assigns.ticket, socket.assigns.current_user) do
       {:ok, links, tasks} ->
         socket
         |> assign(:task_links, links)
@@ -821,7 +833,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   end
 
   defp reload_ticket_relations(socket) do
-    case load_ticket_relations(socket.assigns.ticket) do
+    case load_ticket_relations(socket.assigns.ticket, socket.assigns.current_user) do
       {:ok, links, linkable_tickets} ->
         socket
         |> assign(:ticket_links, links)
@@ -1033,18 +1045,36 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     end
   end
 
-  defp load_task_links(%Ticket{id: ticket_id, company_id: company_id}) do
-    with {:ok, links} <- Tasks.list_ticket_task_links(ticket_id),
+  defp load_task_links(_ticket, actor) when is_nil(actor), do: {:ok, [], []}
+
+  defp load_task_links(%Ticket{} = ticket, actor) do
+    if Authorization.external?(actor) do
+      {:ok, [], []}
+    else
+      do_load_task_links(ticket, actor)
+    end
+  end
+
+  defp do_load_task_links(%Ticket{id: ticket_id, company_id: company_id}, actor) do
+    with {:ok, links} <- Tasks.list_ticket_task_links(ticket_id, actor: actor),
          {:ok, tasks} <-
-           Tasks.list_linkable_tasks(company_id, Enum.map(links, & &1.task_id)) do
+           Tasks.list_linkable_tasks(company_id, Enum.map(links, & &1.task_id), actor: actor) do
       {:ok, links, tasks}
     else
       {:error, error} -> {:error, {:load_task_links, error}}
     end
   end
 
-  defp load_ticket_relations(%Ticket{} = ticket) do
-    with {:ok, links} <- TicketRelations.list_links(ticket),
+  defp load_ticket_relations(%Ticket{} = ticket, actor) do
+    if Authorization.external?(actor) do
+      {:ok, [], []}
+    else
+      do_load_ticket_relations(ticket, actor)
+    end
+  end
+
+  defp do_load_ticket_relations(%Ticket{} = ticket, actor) do
+    with {:ok, links} <- TicketRelations.list_links(ticket, actor: actor),
          {:ok, linkable_tickets} <- TicketRelations.linkable_tickets(ticket) do
       {:ok, links, linkable_tickets}
     else
@@ -1065,8 +1095,8 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     Helpdesk.ensure_conversation(ticket, kind)
   end
 
-  defp fetch_messages(conversation_id, before_id \\ nil) do
-    Helpdesk.list_messages(conversation_id, before_id, @messages_page_size)
+  defp fetch_messages(conversation_id, before_id, actor) do
+    Helpdesk.list_messages(conversation_id, before_id, @messages_page_size, actor: actor)
   end
 
   defp fetch_events(ticket_id, before_id \\ nil) do
@@ -1108,7 +1138,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
         [socket.assigns.public_conversation.id, socket.assigns.private_conversation.id]
       end
 
-    Helpdesk.get_message_in_conversations(id, conversation_ids)
+    Helpdesk.get_message_in_conversations(id, conversation_ids, actor: socket.assigns.current_user)
   end
 
   defp can_edit_message?(%User{id: user_id}, %ConversationMessage{sender_id: user_id}), do: true

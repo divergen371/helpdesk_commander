@@ -225,39 +225,39 @@ defmodule HelpdeskCommander.Helpdesk do
     end
   end
 
-  @spec list_messages(integer(), integer() | nil, pos_integer()) ::
+  @spec list_messages(integer(), integer() | nil, pos_integer(), keyword()) ::
           {:ok, {[ConversationMessage.t()], boolean(), integer() | nil}} | {:error, term()}
-  def list_messages(conversation_id, before_id \\ nil, limit \\ 20) do
+  def list_messages(conversation_id, before_id \\ nil, limit \\ 20, opts \\ []) do
     ConversationMessage
     |> filter(conversation_id == ^conversation_id and is_nil(deleted_at))
-    |> paginate(before_id, limit)
+    |> paginate(before_id, limit, opts)
   end
 
-  @spec get_message_in_conversations(integer(), [integer()]) ::
+  @spec get_message_in_conversations(integer(), [integer()], keyword()) ::
           {:ok, ConversationMessage.t() | nil} | {:error, term()}
-  def get_message_in_conversations(id, conversation_ids) do
+  def get_message_in_conversations(id, conversation_ids, opts \\ []) do
     ConversationMessage
     |> filter(id == ^id and conversation_id in ^conversation_ids and is_nil(deleted_at))
-    |> Ash.read_one(domain: __MODULE__)
+    |> Ash.read_one(Keyword.put(opts, :domain, __MODULE__))
   end
 
   @spec create_message(map(), keyword()) :: {:ok, ConversationMessage.t()} | {:error, term()}
   def create_message(params, opts \\ []), do: ConversationMessage.create_message(params, opts)
 
-  @spec edit_message(ConversationMessage.t(), map()) ::
+  @spec edit_message(ConversationMessage.t(), map(), keyword()) ::
           {:ok, ConversationMessage.t()} | {:error, term()}
-  def edit_message(message, params) do
+  def edit_message(message, params, opts \\ []) do
     message
     |> Ash.Changeset.for_update(:edit, params)
-    |> Ash.update(domain: __MODULE__)
+    |> Ash.update(Keyword.put(opts, :domain, __MODULE__))
   end
 
-  @spec soft_delete_message(ConversationMessage.t()) ::
+  @spec soft_delete_message(ConversationMessage.t(), keyword()) ::
           {:ok, ConversationMessage.t()} | {:error, term()}
-  def soft_delete_message(message) do
+  def soft_delete_message(message, opts \\ []) do
     message
     |> Ash.Changeset.for_update(:soft_delete, %{})
-    |> Ash.update(domain: __MODULE__)
+    |> Ash.update(Keyword.put(opts, :domain, __MODULE__))
   end
 
   ## Events and verifications
@@ -267,7 +267,7 @@ defmodule HelpdeskCommander.Helpdesk do
   def list_events(ticket_id, before_id \\ nil, limit \\ 20) do
     TicketEvent
     |> filter(ticket_id == ^ticket_id)
-    |> paginate(before_id, limit)
+    |> paginate(before_id, limit, [])
   end
 
   @spec create_ticket_event(map(), keyword()) :: {:ok, TicketEvent.t()} | {:error, term()}
@@ -286,14 +286,14 @@ defmodule HelpdeskCommander.Helpdesk do
   @spec create_inquiry(map(), keyword()) :: {:ok, Inquiry.t()} | {:error, term()}
   def create_inquiry(params, opts \\ []), do: Inquiry.create_inquiry(params, opts)
 
-  defp paginate(query, before_id, limit) do
+  defp paginate(query, before_id, limit, opts) do
     query =
       query
       |> sort(id: :desc)
       |> maybe_before_id(before_id)
       |> Ash.Query.limit(limit + 1)
 
-    case Ash.read(query, domain: __MODULE__) do
+    case Ash.read(query, Keyword.put(opts, :domain, __MODULE__)) do
       {:ok, rows} ->
         {rows, has_more?} =
           if length(rows) > limit do

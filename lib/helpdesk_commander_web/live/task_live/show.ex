@@ -44,9 +44,9 @@ defmodule HelpdeskCommanderWeb.TaskLive.Show do
     end
   end
 
-  defp load_task_data(public_id, %{company_id: company_id}) do
-    with {:ok, %Task{} = task} <- load_task(public_id, company_id),
-         {:ok, events} <- load_priority_events(task.id) do
+  defp load_task_data(public_id, %{company_id: company_id} = current_user) do
+    with {:ok, %Task{} = task} <- load_task(public_id, company_id, current_user),
+         {:ok, events} <- load_priority_events(task.id, current_user) do
       {:ok, %{task: task, events: events}}
     else
       {:ok, nil} -> {:error, :not_found}
@@ -56,10 +56,11 @@ defmodule HelpdeskCommanderWeb.TaskLive.Show do
 
   defp load_task_data(_public_id, _current_user), do: {:error, :not_found}
 
-  defp load_task(public_id, company_id), do: Tasks.get_task(public_id, company_id)
+  defp load_task(public_id, company_id, current_user),
+    do: Tasks.get_task(public_id, company_id, actor: current_user)
 
-  defp load_priority_events(task_id) do
-    case Tasks.list_priority_events(task_id) do
+  defp load_priority_events(task_id, current_user) do
+    case Tasks.list_priority_events(task_id, actor: current_user) do
       {:ok, events} -> {:ok, events}
       {:error, error} -> {:error, {:load_priority_events, error}}
     end
@@ -94,7 +95,10 @@ defmodule HelpdeskCommanderWeb.TaskLive.Show do
 
   @impl Phoenix.LiveView
   def handle_event("save_edit", %{"form" => params}, socket) do
-    case AshPhoenix.Form.submit(socket.assigns.edit_form, params: params) do
+    case AshPhoenix.Form.submit(socket.assigns.edit_form,
+           params: params,
+           action_opts: [actor: socket.assigns.current_user]
+         ) do
       {:ok, task} ->
         {:noreply,
          socket
@@ -116,7 +120,7 @@ defmodule HelpdeskCommanderWeb.TaskLive.Show do
 
   @impl Phoenix.LiveView
   def handle_event("delete", _params, socket) do
-    case Tasks.destroy_task(socket.assigns.task) do
+    case Tasks.destroy_task(socket.assigns.task, actor: socket.assigns.current_user) do
       :ok ->
         {:noreply,
          socket
@@ -146,10 +150,13 @@ defmodule HelpdeskCommanderWeb.TaskLive.Show do
   def handle_event("save_priority", %{"form" => params}, socket) do
     params = put_actor_id(params, socket)
 
-    case AshPhoenix.Form.submit(socket.assigns.priority_form, params: params) do
+    case AshPhoenix.Form.submit(socket.assigns.priority_form,
+           params: params,
+           action_opts: [actor: socket.assigns.current_user]
+         ) do
       {:ok, task} ->
         events =
-          case load_priority_events(task.id) do
+          case load_priority_events(task.id, socket.assigns.current_user) do
             {:ok, events} -> events
             {:error, error} -> log_and_keep_events(socket, error)
           end
