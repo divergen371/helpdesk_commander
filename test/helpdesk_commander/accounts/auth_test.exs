@@ -32,6 +32,28 @@ defmodule HelpdeskCommander.Accounts.AuthTest do
     assert authed.login_id != ""
   end
 
+  test "authenticate generates a fallback login_id for short local parts" do
+    company_code = unique_company_code()
+    company = create_company!(company_code)
+    _user = create_user!(company, email: "a@example.com", login_id: nil)
+
+    assert {:ok, authed} = Auth.authenticate(company_code, "a@example.com", @password)
+    assert String.starts_with?(authed.login_id, "user")
+  end
+
+  test "authenticate avoids duplicate login_ids for the same local part" do
+    company_code = unique_company_code()
+    company = create_company!(company_code)
+    _first = create_user!(company, email: "agent@one.example", login_id: nil)
+    _second = create_user!(company, email: "agent@two.example", login_id: nil)
+
+    assert {:ok, first} = Auth.authenticate(company_code, "agent@one.example", @password)
+    assert {:ok, second} = Auth.authenticate(company_code, "agent@two.example", @password)
+
+    assert first.login_id == "agent"
+    assert second.login_id != first.login_id
+  end
+
   test "authenticate rejects email login when login_id is set" do
     company_code = unique_company_code()
     company = create_company!(company_code)

@@ -30,6 +30,20 @@ defmodule HelpdeskCommanderWeb.DashboardLiveTest do
     assert has_element?(view, "p", "未読通知")
   end
 
+  test "external user sees zero tasks, products, and notifications", %{conn: conn} do
+    company = create_company!()
+    external = create_user!(company, role: "customer")
+
+    conn = log_in(conn, external)
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    assigns = :sys.get_state(view.pid).socket.assigns
+
+    assert assigns.task_count == 0
+    assert assigns.product_count == 0
+    assert assigns.unread_count == 0
+  end
+
   defp create_company! do
     Company
     |> Ash.Changeset.for_create(:create, %{
@@ -39,12 +53,12 @@ defmodule HelpdeskCommanderWeb.DashboardLiveTest do
     |> Ash.create!(domain: Accounts)
   end
 
-  defp create_user!(company) do
+  defp create_user!(company, opts \\ []) do
     User
     |> Ash.Changeset.for_create(:create, %{
       email: "dashboard+#{System.unique_integer([:positive])}@example.com",
       display_name: "Dashboard User",
-      role: "user",
+      role: Keyword.get(opts, :role, "user"),
       status: "active",
       company_id: company.id
     })

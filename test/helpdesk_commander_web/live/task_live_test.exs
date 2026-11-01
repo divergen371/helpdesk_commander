@@ -49,6 +49,34 @@ defmodule HelpdeskCommanderWeb.TaskLiveTest do
     assert has_element?(view, "#task-#{beta.public_id}")
   end
 
+  test "task filter form updates the list", %{conn: conn} do
+    company = create_company!()
+    user = create_user!(company)
+    todo = create_task!(company, title: "Todo task")
+    done = create_task!(company, title: "Done task")
+
+    done
+    |> Ash.Changeset.for_update(:update, %{status: "done"})
+    |> Ash.update!(domain: Tasks)
+
+    conn = log_in(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/tasks")
+
+    view
+    |> element("#task-filters")
+    |> render_change(%{
+      "filters" => %{
+        "q" => "",
+        "status" => "done",
+        "assignee_id" => "unassigned",
+        "sort" => "due_date"
+      }
+    })
+
+    assert has_element?(view, "#task-#{done.public_id}")
+    refute has_element?(view, "#task-#{todo.public_id}")
+  end
+
   test "user can update priority through set_priority and see the event history", %{conn: conn} do
     company = create_company!()
     user = create_user!(company)

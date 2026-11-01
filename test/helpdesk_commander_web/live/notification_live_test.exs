@@ -47,6 +47,27 @@ defmodule HelpdeskCommanderWeb.NotificationLiveTest do
     assert has_element?(view, "#notifications", read.title)
   end
 
+  test "recipient can switch between all and unread filters", %{conn: conn} do
+    recipient = create_user!("admin")
+    ticket = create_ticket!(recipient)
+    notification = create_notification!(ticket, recipient, "未読の通知")
+
+    conn = log_in(conn, recipient)
+    {:ok, view, _html} = live(conn, ~p"/notifications")
+
+    view
+    |> element("button[phx-click=\"set_filter\"][phx-value-filter=\"unread\"]")
+    |> render_click()
+
+    assert has_element?(view, "#notifications", notification.title)
+
+    view
+    |> element("button[phx-click=\"set_filter\"][phx-value-filter=\"all\"]")
+    |> render_click()
+
+    assert has_element?(view, "#notifications", notification.title)
+  end
+
   test "recipient can mark a notification as read", %{conn: conn} do
     recipient = create_user!("admin")
     ticket = create_ticket!(recipient)

@@ -25,7 +25,11 @@ defmodule HelpdeskCommander.Workers.DeliverTicketNotificationWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"notification_id" => notification_id}}) do
-    case Ash.get(TicketNotification, notification_id, domain: Helpdesk, authorize?: false) do
+    case Ash.get(TicketNotification, notification_id,
+           domain: Helpdesk,
+           authorize?: false,
+           not_found_error?: false
+         ) do
       {:ok, nil} ->
         :ok
 

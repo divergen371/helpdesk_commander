@@ -48,6 +48,27 @@ defmodule HelpdeskCommanderWeb.InquiryLiveTest do
     assert_redirect(view, ~p"/tickets/#{ticket.public_id}")
   end
 
+  test "inquiry form validates input changes", %{conn: conn} do
+    company = create_company!()
+    user = create_user!(company, role: "customer")
+    product = create_product!(company)
+
+    conn = log_in(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/inquiries/new")
+
+    view
+    |> element("#inquiry-form")
+    |> render_change(%{
+      "inquiry" => %{
+        "subject" => "",
+        "body" => "",
+        "product_id" => to_string(product.id)
+      }
+    })
+
+    assert has_element?(view, "#inquiry-form")
+  end
+
   test "internal user can submit an inquiry on behalf of a company user", %{conn: conn} do
     company = create_company!()
     agent = create_user!(company, role: "user")

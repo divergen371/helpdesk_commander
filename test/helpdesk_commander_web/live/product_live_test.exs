@@ -82,6 +82,53 @@ defmodule HelpdeskCommanderWeb.ProductLiveTest do
     refute Enum.any?(products, &(&1.id == product.id))
   end
 
+  test "product search and toggle filters the list", %{conn: conn} do
+    company = create_company!()
+    user = create_user!(company)
+    chat = create_product!(company, "Chat")
+    _mail = create_product!(company, "Mail")
+
+    conn = log_in(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/products")
+
+    view
+    |> element("#product-filters")
+    |> render_change(%{"filters" => %{"q" => "Chat"}})
+
+    assert has_element?(view, "#products", "Chat")
+    refute has_element?(view, "#products", "Mail")
+
+    view
+    |> element("button[phx-click=\"toggle_active\"][phx-value-id=\"#{chat.id}\"]")
+    |> render_click()
+
+    deactivated = Ash.get!(Product, %{id: chat.id}, domain: Helpdesk)
+    refute deactivated.active
+  end
+
+  test "invalid product input shows validation errors", %{conn: conn} do
+    company = create_company!()
+    user = create_user!(company)
+
+    conn = log_in(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/products")
+
+    view
+    |> element("#product-form")
+    |> render_change(%{"form" => %{"name" => "", "description" => ""}})
+
+    html = view |> form("#product-form", form: %{"name" => "", "description" => ""}) |> render_submit()
+    assert html =~ "入力内容を確認してください"
+
+    {:ok, show_view, _html} = live(conn, ~p"/products/#{create_product!(company, "Show").id}")
+
+    show_view
+    |> element("#product-edit-form")
+    |> render_change(%{"form" => %{"name" => "Changed"}})
+
+    assert has_element?(show_view, "#product-edit-form")
+  end
+
   test "external user is redirected away from product management", %{conn: conn} do
     company = create_company!()
     external = create_user!(company, role: "customer")

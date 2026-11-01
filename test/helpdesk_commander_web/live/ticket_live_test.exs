@@ -46,6 +46,17 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
     refute has_element?(view, "#tickets", beta.subject)
   end
 
+  test "tickets index falls back on blank or invalid filters", %{conn: conn} do
+    user = create_user!("customer")
+    conn = log_in(conn, user)
+
+    {:ok, view, _html} = live(conn, ~p"/tickets?q=&assignee_id=&page=0&sort=unknown")
+    assert has_element?(view, "#tickets")
+
+    {:ok, view, _html} = live(conn, ~p"/tickets?assignee_id=not-a-number")
+    assert has_element?(view, "#tickets")
+  end
+
   test "tickets index filters by status, priority, and type", %{conn: conn} do
     user = create_user!()
 
@@ -542,6 +553,17 @@ defmodule HelpdeskCommanderWeb.TicketLiveTest do
       |> Ash.read!(domain: Helpdesk)
 
     assert Enum.any?(messages, &(&1.body == "Customer message" && &1.sender_id == user.id))
+  end
+
+  test "external user sees their own requester on the new ticket form", %{conn: conn} do
+    user = create_user!("customer")
+    _product = create_product!(user.company_id)
+
+    conn = log_in(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/tickets/new")
+
+    assert has_element?(view, "#ticket-form")
+    assert has_element?(view, "input[name=\"form[requester_id]\"][value=\"#{user.id}\"]")
   end
 
   test "external user sees only own tickets in index", %{conn: conn} do

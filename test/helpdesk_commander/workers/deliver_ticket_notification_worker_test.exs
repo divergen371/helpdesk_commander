@@ -93,6 +93,23 @@ defmodule HelpdeskCommander.Workers.DeliverTicketNotificationWorkerTest do
     assert length(deliveries) == 1
   end
 
+  test "skips delivery when channels are disabled" do
+    configure(email_enabled: false, chat_enabled: false)
+    {_recipient, notification} = create_notification!()
+
+    assert :ok = perform_job(DeliverTicketNotificationWorker, %{notification_id: notification.id})
+
+    reloaded = reload!(notification.id)
+    assert reloaded.email_sent_at == nil
+    assert reloaded.chat_sent_at == nil
+  end
+
+  test "ignores notifications that no longer exist" do
+    configure(email_enabled: false, chat_enabled: false)
+
+    assert :ok = perform_job(DeliverTicketNotificationWorker, %{notification_id: 999_999_999})
+  end
+
   defp configure(opts) do
     Application.put_env(:helpdesk_commander, External, opts)
   end
