@@ -12,6 +12,16 @@ defmodule HelpdeskCommander.Helpdesk.TicketVerification do
   postgres do
     table "ticket_verifications"
     repo HelpdeskCommander.Repo
+
+    references do
+      reference :ticket, on_delete: :delete
+    end
+  end
+
+  multitenancy do
+    strategy :attribute
+    attribute :company_id
+    global? true
   end
 
   attributes do
@@ -51,6 +61,14 @@ defmodule HelpdeskCommander.Helpdesk.TicketVerification do
       allow_nil? false
       public? true
     end
+  end
+
+  preparations do
+    prepare HelpdeskCommander.Tenancy.Scope
+  end
+
+  changes do
+    change HelpdeskCommander.Tenancy.Guard
   end
 
   actions do

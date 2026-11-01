@@ -19,7 +19,7 @@ defmodule HelpdeskCommander.Tasks do
   def get_task(public_id, company_id, opts \\ []) do
     Task
     |> filter(public_id == ^public_id and company_id == ^company_id)
-    |> Ash.read_one(Keyword.put(opts, :domain, __MODULE__))
+    |> Ash.read_one(opts |> Keyword.put(:domain, __MODULE__) |> Keyword.put(:tenant, company_id))
   end
 
   @spec list_tasks(integer(), keyword()) :: {:ok, [Task.t()]} | {:error, term()}
@@ -89,7 +89,7 @@ defmodule HelpdeskCommander.Tasks do
   def count_tasks(company_id, opts \\ []) do
     Task
     |> filter(company_id == ^company_id)
-    |> Ash.count(Keyword.put(opts, :domain, __MODULE__))
+    |> Ash.count(opts |> Keyword.put(:domain, __MODULE__) |> Keyword.put(:tenant, company_id))
   end
 
   @spec list_recent_tasks(integer(), pos_integer(), keyword()) ::

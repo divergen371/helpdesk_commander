@@ -8,6 +8,12 @@ defmodule HelpdeskCommander.Helpdesk.Product do
     repo HelpdeskCommander.Repo
   end
 
+  multitenancy do
+    strategy :attribute
+    attribute :company_id
+    global? true
+  end
+
   attributes do
     attribute :id, HelpdeskCommander.Types.BigInt,
       primary_key?: true,
@@ -46,6 +52,14 @@ defmodule HelpdeskCommander.Helpdesk.Product do
     define :get_product, action: :read, get_by: [:id], not_found_error?: false
   end
 
+  preparations do
+    prepare HelpdeskCommander.Tenancy.Scope
+  end
+
+  changes do
+    change HelpdeskCommander.Tenancy.Guard
+  end
+
   actions do
     defaults [:read, :destroy]
 
@@ -54,6 +68,8 @@ defmodule HelpdeskCommander.Helpdesk.Product do
     end
 
     update :update do
+      require_atomic? false
+
       accept [:name, :description, :active]
     end
   end

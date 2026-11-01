@@ -8,6 +8,12 @@ defmodule HelpdeskCommander.Helpdesk.TicketEvent do
     repo HelpdeskCommander.Repo
   end
 
+  multitenancy do
+    strategy :attribute
+    attribute :company_id
+    global? true
+  end
+
   attributes do
     attribute :id, HelpdeskCommander.Types.BigInt,
       primary_key?: true,
@@ -44,6 +50,14 @@ defmodule HelpdeskCommander.Helpdesk.TicketEvent do
 
   code_interface do
     define :create_ticket_event, action: :create
+  end
+
+  preparations do
+    prepare HelpdeskCommander.Tenancy.Scope
+  end
+
+  changes do
+    change HelpdeskCommander.Tenancy.Guard
   end
 
   actions do

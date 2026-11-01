@@ -24,12 +24,12 @@
 | コマンド | 結果 |
 | --- | --- |
 | `mix precommit` | 成功 |
-| `mix test` | **13 properties, 214 tests, 0 failures** |
+| `mix test` | **13 properties, 219 tests, 0 failures** |
 | `mix credo --strict` | 指摘なし（65 files / 95 checks） |
 | `mix dialyzer` | **0 errors** |
 | `mix compile --warnings-as-errors` | 成功（プロジェクト側の警告 0） |
 | `mix format` | 差分なし |
-| `MIX_ENV=test mix coveralls` | **82.6%**（最低基準 80% を満たす） |
+| `MIX_ENV=test mix coveralls` | **82.7%**（最低基準 80% を満たす） |
 
 ### 環境
 
@@ -56,7 +56,7 @@
 | `workers/create_ticket_notifications_worker.ex` | 81.8% |
 | `live/ticket_live/show.ex` | 77.1% |
 | `accounts/auth.ex` | 85.6% |
-| **合計** | **82.6%**（1960 / 2372 行） |
+| **合計** | **82.7%**（1976 / 2389 行） |
 
 基準 80% に対して 2.6pt の余裕がある。新規コード追加時はテストも同時に追加する。
 
@@ -97,7 +97,7 @@
 
 ### 3.2 品質・セキュリティ
 
-- **カバレッジの余裕がない**（82.6% / 基準 80%）。新規コード追加時に容易に下回る。
+- **カバレッジの余裕は 2.7pt**（82.7% / 基準 80%）。新規コード追加時はテストを同時に追加する。
 - **ツールチェーンは固定済み**（`.tool-versions`: Erlang 29.1.2 / Elixir `ref:v1.20.4`）。CI も同一バージョン。
 - **企業（テナント）境界は company 単位に統一済み**
   - チケット一覧・詳細は自社 company の範囲に制限（`visibility_scope: "global"` は全体公開として例外）。
@@ -105,13 +105,14 @@
   - タスクは自社 company のみ。社外ユーザーは `/tasks` からリダイレクト。
   - ユーザー承認は管理者の自社 company の pending ユーザーのみ。
   - admin/leader の特権操作は「ロール + 対象チケットの company 一致」で制約。
-- **読み取りポリシーは開放し、会社スコープは Domain クエリで担保**
-  - Task / Inquiry / ConversationMessage / TicketLink は更新・削除をポリシーで制御するが、read は許可している。
-  - 会社境界は Domain 関数の `company_id` フィルタで維持しており、将来の API 化ではデータ層での強制が必要。
+- **会社境界は Ash multitenancy と actor スコープで二重に担保**
+  - 主要リソースに `strategy :attribute` / `attribute :company_id` / `global? true` の multitenancy を設定。
+  - `Tenancy.Scope` が tenant または actor の company_id で read を絞り、`Tenancy.Guard` が越境 write を拒否する。
+  - Domain の会社スコープ付きクエリは tenant を渡す。actor なしのシステム処理は従来どおり動作する。
 - 通知は同一チケット・種別・受信者につき既定 5 分のクールダウンで抑制する（`NOTIFICATION_COOLDOWN_SECONDS` で変更可）。
 - **通知 read は受信者に限定済み**。`TicketNotification` の Preparation と read/mark_read ポリシーで保証。
 - **暗号化対象はメール・会社名・表示名・本文系まで完了**。残りは鍵ローテーションと暗号化列の全文検索方針。
-- **`multitenancy` は未導入**（`DESIGN_ASH_REFACTOR.md`）。`code_interface`、Domain API、aggregates は導入済み。
+- `code_interface`、Domain API、aggregates、Ash multitenancy は導入済み。
   - 差分には `ticket_notifications` / `ticket_verifications` の作成、`tasks` / `task_events` の `company_id` 追加、
     旧 `ticket_messages` テーブルの DROP が含まれる。
   - 既存 DB に適用するには手動レビューが必要なため、自動生成・適用はしていない。

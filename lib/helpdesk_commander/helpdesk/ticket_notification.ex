@@ -7,6 +7,18 @@ defmodule HelpdeskCommander.Helpdesk.TicketNotification do
   postgres do
     table "ticket_notifications"
     repo HelpdeskCommander.Repo
+
+    references do
+      reference :ticket, on_delete: :delete
+      reference :recipient, on_delete: :delete
+      reference :actor, on_delete: :nilify
+    end
+  end
+
+  multitenancy do
+    strategy :attribute
+    attribute :company_id
+    global? true
   end
 
   attributes do
@@ -55,7 +67,12 @@ defmodule HelpdeskCommander.Helpdesk.TicketNotification do
   end
 
   preparations do
+    prepare HelpdeskCommander.Tenancy.Scope
     prepare build(sort: [inserted_at: :desc])
+  end
+
+  changes do
+    change HelpdeskCommander.Tenancy.Guard
   end
 
   policies do

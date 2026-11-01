@@ -51,6 +51,12 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
     |> Ash.create!(domain: HelpdeskCommander.Helpdesk)
   end
 
+  multitenancy do
+    strategy :attribute
+    attribute :company_id
+    global? true
+  end
+
   attributes do
     attribute :id, HelpdeskCommander.Types.BigInt,
       primary_key?: true,
@@ -185,6 +191,14 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
     define :get_ticket, action: :read, get_by: [:id], not_found_error?: false
     define :get_ticket_by_public_id, action: :read, get_by: [:public_id], not_found_error?: false
     define :create_ticket, action: :create
+  end
+
+  preparations do
+    prepare HelpdeskCommander.Tenancy.Scope
+  end
+
+  changes do
+    change HelpdeskCommander.Tenancy.Guard
   end
 
   actions do

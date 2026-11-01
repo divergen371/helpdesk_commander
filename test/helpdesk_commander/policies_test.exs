@@ -82,12 +82,14 @@ defmodule HelpdeskCommander.PoliciesTest do
                external
              )
 
-    assert {:error, %Ash.Error.Forbidden{}} =
+    assert {:error, error} =
              create_link(
                create_ticket!(company, internal),
                create_ticket!(company, internal),
                other_company_user
              )
+
+    assert Exception.message(error) =~ "他の会社のデータは変更できません"
   end
 
   defp create_company! do

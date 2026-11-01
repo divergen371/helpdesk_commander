@@ -13,6 +13,12 @@ defmodule HelpdeskCommander.Helpdesk.TicketLink do
     repo HelpdeskCommander.Repo
   end
 
+  multitenancy do
+    strategy :attribute
+    attribute :company_id
+    global? true
+  end
+
   attributes do
     attribute :id, HelpdeskCommander.Types.BigInt,
       primary_key?: true,
@@ -72,6 +78,14 @@ defmodule HelpdeskCommander.Helpdesk.TicketLink do
                        ^actor(:role) in ["admin", "leader", "user", "system"]
                    )
     end
+  end
+
+  preparations do
+    prepare HelpdeskCommander.Tenancy.Scope
+  end
+
+  changes do
+    change HelpdeskCommander.Tenancy.Guard
   end
 
   actions do

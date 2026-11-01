@@ -58,8 +58,8 @@ defmodule HelpdeskCommander.Helpdesk.TicketGraph do
       |> filter(company_id == ^company_id)
       |> Ash.Query.limit(@max_overview_links)
 
-    with {:ok, tickets} <- Ash.read(tickets_query, domain: Helpdesk),
-         {:ok, links} <- Ash.read(links_query, domain: Helpdesk) do
+    with {:ok, tickets} <- Ash.read(tickets_query, domain: Helpdesk, tenant: company_id),
+         {:ok, links} <- Ash.read(links_query, domain: Helpdesk, tenant: company_id) do
       indexed_tickets = Enum.with_index(tickets)
       node_count = length(indexed_tickets)
       nodes = Enum.map(indexed_tickets, &overview_node(&1, node_count))

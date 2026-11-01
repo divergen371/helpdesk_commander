@@ -70,7 +70,7 @@ defmodule HelpdeskCommander.Helpdesk do
   def count_tickets(company_id, user, external?) do
     company_id
     |> ticket_scope(user, external?)
-    |> Ash.count(domain: __MODULE__)
+    |> Ash.count(domain: __MODULE__, tenant: company_id)
   end
 
   @spec list_recent_tickets(integer(), User.t() | nil, boolean(), pos_integer()) ::
@@ -81,8 +81,8 @@ defmodule HelpdeskCommander.Helpdesk do
            |> ticket_scope(user, external?)
            |> sort(inserted_at: :desc)
            |> Ash.Query.limit(limit)
-           |> Ash.read(domain: __MODULE__) do
-      Ash.load(tickets, [:product], domain: __MODULE__)
+           |> Ash.read(domain: __MODULE__, tenant: company_id) do
+      Ash.load(tickets, [:product], domain: __MODULE__, tenant: company_id)
     end
   end
 
@@ -99,8 +99,13 @@ defmodule HelpdeskCommander.Helpdesk do
     offset = (page - 1) * page_size
 
     with {:ok, %Ash.Page.Offset{results: tickets, count: total_count, more?: has_next?}} <-
-           Ash.read(query, domain: __MODULE__, page: [limit: page_size, offset: offset, count: true]),
-         {:ok, tickets} <- Ash.load(tickets, [:product, :assignee], domain: __MODULE__) do
+           Ash.read(query,
+             domain: __MODULE__,
+             tenant: company_id,
+             page: [limit: page_size, offset: offset, count: true]
+           ),
+         {:ok, tickets} <-
+           Ash.load(tickets, [:product, :assignee], domain: __MODULE__, tenant: company_id) do
       {:ok, %{tickets: tickets, total_count: total_count, has_next?: has_next?}}
     end
   end
@@ -180,7 +185,7 @@ defmodule HelpdeskCommander.Helpdesk do
   def get_company_product(company_id, id) do
     Product
     |> filter(id == ^id and company_id == ^company_id)
-    |> Ash.read_one(domain: __MODULE__)
+    |> Ash.read_one(domain: __MODULE__, tenant: company_id)
   end
 
   @spec list_products(integer(), keyword()) :: {:ok, [Product.t()]} | {:error, term()}
@@ -190,7 +195,7 @@ defmodule HelpdeskCommander.Helpdesk do
     |> filter_active_products(Keyword.get(opts, :active_only, false))
     |> filter_product_query(Keyword.get(opts, :query))
     |> sort(name: :asc)
-    |> Ash.read(domain: __MODULE__)
+    |> Ash.read(domain: __MODULE__, tenant: company_id)
   end
 
   defp filter_product_query(query, value) when is_binary(value) and value != "" do
@@ -213,7 +218,7 @@ defmodule HelpdeskCommander.Helpdesk do
   def count_active_products(company_id) do
     Product
     |> filter(company_id == ^company_id and active == true)
-    |> Ash.count(domain: __MODULE__)
+    |> Ash.count(domain: __MODULE__, tenant: company_id)
   end
 
   ## Conversations and messages

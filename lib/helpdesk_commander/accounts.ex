@@ -23,14 +23,14 @@ defmodule HelpdeskCommander.Accounts do
   def list_users(company_id) do
     User
     |> filter(company_id == ^company_id)
-    |> Ash.read(domain: __MODULE__)
+    |> Ash.read(domain: __MODULE__, tenant: company_id)
   end
 
   @spec list_pending_users(integer()) :: {:ok, [User.t()]} | {:error, term()}
   def list_pending_users(company_id) do
     User
     |> filter(company_id == ^company_id and status == "pending")
-    |> Ash.read(domain: __MODULE__)
+    |> Ash.read(domain: __MODULE__, tenant: company_id)
   end
 
   @spec create_user(map(), keyword()) :: {:ok, User.t()} | {:error, term()}

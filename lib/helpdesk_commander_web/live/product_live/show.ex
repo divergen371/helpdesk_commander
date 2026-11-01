@@ -31,7 +31,10 @@ defmodule HelpdeskCommanderWeb.ProductLive.Show do
 
   @impl Phoenix.LiveView
   def handle_event("save", %{"form" => params}, socket) do
-    case AshPhoenix.Form.submit(socket.assigns.form, params: params) do
+    case AshPhoenix.Form.submit(socket.assigns.form,
+           params: params,
+           action_opts: [actor: socket.assigns.current_user]
+         ) do
       {:ok, product} ->
         {:noreply,
          socket
@@ -51,7 +54,7 @@ defmodule HelpdeskCommanderWeb.ProductLive.Show do
   def handle_event("toggle_active", _params, socket) do
     product = socket.assigns.product
 
-    case Helpdesk.update_product(product, %{active: !product.active}) do
+    case Helpdesk.update_product(product, %{active: !product.active}, actor: socket.assigns.current_user) do
       {:ok, product} ->
         {:noreply,
          socket

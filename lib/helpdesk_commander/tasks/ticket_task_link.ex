@@ -15,6 +15,18 @@ defmodule HelpdeskCommander.Tasks.TicketTaskLink do
   postgres do
     table "ticket_task_links"
     repo HelpdeskCommander.Repo
+
+    references do
+      reference :ticket, on_delete: :delete
+      reference :task, on_delete: :delete
+      reference :company, on_delete: :delete
+    end
+  end
+
+  multitenancy do
+    strategy :attribute
+    attribute :company_id
+    global? true
   end
 
   attributes do
@@ -60,6 +72,14 @@ defmodule HelpdeskCommander.Tasks.TicketTaskLink do
 
   code_interface do
     define :create_ticket_task_link, action: :create
+  end
+
+  preparations do
+    prepare HelpdeskCommander.Tenancy.Scope
+  end
+
+  changes do
+    change HelpdeskCommander.Tenancy.Guard
   end
 
   actions do

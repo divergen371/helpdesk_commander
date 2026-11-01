@@ -62,7 +62,7 @@
 3. Policy Authorizer 導入（Ticket → TicketVerification の順）
 4. code_interface 導入
 5. aggregates/calculations 導入
-6. multitenancy PoC → 本導入
+6. ✅ multitenancy 導入（2026-11-01: `company_id` tenant、`Tenancy.Scope` / `Tenancy.Guard`）
 
 ## 完了条件
 - 権限・検証ロジックが resource 側 DSL に集約される

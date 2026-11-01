@@ -68,7 +68,10 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
   def handle_event("save", %{"form" => params}, socket) do
     params = maybe_put_requester_id(params, socket)
 
-    case AshPhoenix.Form.submit(socket.assigns.form, params: params) do
+    case AshPhoenix.Form.submit(socket.assigns.form,
+           params: params,
+           action_opts: [actor: socket.assigns.current_user]
+         ) do
       {:ok, ticket} ->
         {:noreply,
          socket

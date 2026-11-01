@@ -21,6 +21,12 @@ defmodule HelpdeskCommander.Helpdesk.ConversationMessage do
     decrypt_by_default([:body])
   end
 
+  multitenancy do
+    strategy :attribute
+    attribute :company_id
+    global? true
+  end
+
   attributes do
     attribute :id, HelpdeskCommander.Types.BigInt,
       primary_key?: true,
@@ -90,6 +96,14 @@ defmodule HelpdeskCommander.Helpdesk.ConversationMessage do
 
   code_interface do
     define :create_message, action: :create
+  end
+
+  preparations do
+    prepare HelpdeskCommander.Tenancy.Scope
+  end
+
+  changes do
+    change HelpdeskCommander.Tenancy.Guard
   end
 
   actions do

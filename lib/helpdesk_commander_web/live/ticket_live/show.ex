@@ -622,7 +622,10 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
         |> Map.put("ticket_id", socket.assigns.ticket.id)
         |> Map.put("verifier_id", socket.assigns.current_user.id)
 
-      case AshPhoenix.Form.submit(socket.assigns.verification_form, params: params) do
+      case AshPhoenix.Form.submit(socket.assigns.verification_form,
+             params: params,
+             action_opts: [actor: socket.assigns.current_user]
+           ) do
         {:ok, verification} ->
           form =
             TicketVerification

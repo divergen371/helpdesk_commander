@@ -6,6 +6,16 @@ defmodule HelpdeskCommander.Tasks.TaskEvent do
   postgres do
     table "task_events"
     repo HelpdeskCommander.Repo
+
+    references do
+      reference :task, on_delete: :delete
+    end
+  end
+
+  multitenancy do
+    strategy :attribute
+    attribute :company_id
+    global? true
   end
 
   attributes do
@@ -43,6 +53,14 @@ defmodule HelpdeskCommander.Tasks.TaskEvent do
       allow_nil? false
       public? true
     end
+  end
+
+  preparations do
+    prepare HelpdeskCommander.Tenancy.Scope
+  end
+
+  changes do
+    change HelpdeskCommander.Tenancy.Guard
   end
 
   actions do

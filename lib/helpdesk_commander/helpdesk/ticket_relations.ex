@@ -10,11 +10,11 @@ defmodule HelpdeskCommander.Helpdesk.TicketRelations do
   @spec list_links(Ticket.t(), keyword()) ::
           {:ok, [%{link: TicketLink.t(), direction: :incoming | :outgoing, ticket: Ticket.t()}]}
           | {:error, term()}
-  def list_links(%Ticket{id: ticket_id}, opts \\ []) do
+  def list_links(%Ticket{id: ticket_id, company_id: company_id}, opts \\ []) do
     query = filter(TicketLink, ticket_id == ^ticket_id or related_ticket_id == ^ticket_id)
     opts = Keyword.put(opts, :domain, Helpdesk)
 
-    with {:ok, links} <- Ash.read(query, opts),
+    with {:ok, links} <- Ash.read(query, Keyword.put(opts, :tenant, company_id)),
          {:ok, links} <- Ash.load(links, [:ticket, :related_ticket], domain: Helpdesk) do
       links =
         links
@@ -39,7 +39,7 @@ defmodule HelpdeskCommander.Helpdesk.TicketRelations do
       |> sort(inserted_at: :desc)
       |> Ash.Query.limit(100)
 
-    Ash.read(query, domain: Helpdesk)
+    Ash.read(query, domain: Helpdesk, tenant: company_id)
   end
 
   @spec create_link(Ticket.t(), term(), String.t(), term()) ::

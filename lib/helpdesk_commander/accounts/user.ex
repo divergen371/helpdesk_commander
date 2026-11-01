@@ -17,6 +17,12 @@ defmodule HelpdeskCommander.Accounts.User do
     decrypt_by_default([:email, :display_name])
   end
 
+  multitenancy do
+    strategy :attribute
+    attribute :company_id
+    global? true
+  end
+
   attributes do
     attribute :id, HelpdeskCommander.Types.BigInt,
       primary_key?: true,
@@ -69,6 +75,14 @@ defmodule HelpdeskCommander.Accounts.User do
     define :create_user, action: :create
   end
 
+  preparations do
+    prepare HelpdeskCommander.Tenancy.Scope
+  end
+
+  changes do
+    change HelpdeskCommander.Tenancy.Guard
+  end
+
   actions do
     defaults [:read]
 
@@ -109,6 +123,8 @@ defmodule HelpdeskCommander.Accounts.User do
     end
 
     update :approve do
+      require_atomic? false
+
       change set_attribute(:status, "active")
     end
 

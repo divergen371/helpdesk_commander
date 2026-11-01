@@ -14,6 +14,12 @@ defmodule HelpdeskCommander.Tasks.Task do
     migration_types public_id: {:string, 32}
   end
 
+  multitenancy do
+    strategy :attribute
+    attribute :company_id
+    global? true
+  end
+
   attributes do
     attribute :id, HelpdeskCommander.Types.BigInt,
       primary_key?: true,
@@ -93,6 +99,14 @@ defmodule HelpdeskCommander.Tasks.Task do
 
   code_interface do
     define :get_task, action: :read, get_by: [:id]
+  end
+
+  preparations do
+    prepare HelpdeskCommander.Tenancy.Scope
+  end
+
+  changes do
+    change HelpdeskCommander.Tenancy.Guard
   end
 
   actions do
