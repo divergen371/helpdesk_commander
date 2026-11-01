@@ -1297,3 +1297,12 @@ mix phx.server
   - `STATUS.md`: スナップショットとして維持
   - 本ファイル: 履歴として凍結（以後の作業記録は Backlog.md へ）
 - エージェント向けに `AGENTS.md` へ Backlog.md のワークフローを追記
+
+### エージェント向け運用の共有
+
+- `docs/AGENT_WORKFLOW.md` を追加
+  - Backlog.md の開始・計画・実装・検証・完了の手順
+  - マイルストーンとタスクの対応
+  - Hermes Agent に渡す初期プロンプト例
+- `AGENTS.md` にこのリポジトリ固有の Backlog 運用を追記
+- `README.md` / `docs/TASKS.md` から参照を追加

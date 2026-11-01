@@ -39,3 +39,4 @@ backlog task create "タイトル" -d "背景" --ac "完了条件"
 - `STATUS.md`: テスト・カバレッジ・既知の制約のスナップショット
 - `Walkthrough.md`: 過去の作業履歴（凍結。以後の作業記録は Backlog.md へ）
 - `README.md`: 機能一覧と利用方法
+- `AGENT_WORKFLOW.md`: エージェント向けの実行手順と Hermes Agent 用プロンプト

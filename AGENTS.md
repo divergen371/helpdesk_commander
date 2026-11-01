@@ -395,3 +395,14 @@ Do not edit Backlog task, draft, document, decision, or milestone markdown files
 
 </CRITICAL_INSTRUCTION>
 <!-- BACKLOG.MD GUIDELINES END -->
+
+## このリポジトリの Backlog.md 運用
+
+- 未完了タスクの正本は `backlog/`。`docs/TASKS.md` は使い方の案内のみ。
+- 会話開始時に `backlog instructions overview`、実装前に `backlog instructions task-execution` を実行する。
+- 1セッションにつき1タスクだけ進める。開始時に `backlog task edit HC-x -s "In Progress"`。
+- 実装計画はタスク開始後に `--notes` へ記録する。作成時に投機的な計画を書かない。
+- 受け入れ条件は `--check-ac` で確認し、検証後に `--final-summary` と `-s Done` で閉じる。
+- Backlog の Markdown を直接編集せず、必ず `backlog` CLI を使う。
+- 詳細な手順と Hermes Agent 向けプロンプトは `docs/AGENT_WORKFLOW.md` を参照する。
+- コミット・push はユーザーが明示的に指示するまで行わない。

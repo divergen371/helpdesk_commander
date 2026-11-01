@@ -349,5 +349,6 @@ backlog browser             # ローカル Web UI
 ```
 
 - 現在: フェーズ1〜4の主要機能は実装済み（添付ファイル・関連チケットの自動提案は未着手）。関係グラフの調整が残り
-- フェーズ5以降: SLA・分析・外部連携・AI 意思決定支援は Backlog.md の M3〜M5 で管理
+- フェーズ5以降: SLA・分析・外部連携・AI 意思決定支援は Backlog.md の M2〜M5 で管理
 - テスト・カバレッジの現状は [docs/STATUS.md](docs/STATUS.md)、作業履歴は [docs/Walkthrough.md](docs/Walkthrough.md)
+- エージェント向けの運用は [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md)
