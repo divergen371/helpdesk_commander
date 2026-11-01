@@ -71,6 +71,10 @@ defmodule HelpdeskCommander.Tasks.Task do
     identity :unique_public_id, [:public_id]
   end
 
+  code_interface do
+    define :get_task, action: :read, get_by: [:id]
+  end
+
   actions do
     defaults [:read, :destroy]
 

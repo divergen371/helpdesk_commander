@@ -61,12 +61,9 @@ defmodule HelpdeskCommanderWeb.CurrentUser do
         nil
 
       id ->
-        case Ash.get(User, %{id: id}, domain: Accounts) do
+        case Accounts.get_user(id) do
           {:ok, %User{} = user} ->
             user
-
-          {:ok, nil} ->
-            nil
 
           {:error, error} ->
             ErrorLog.log_warn("current_user.fetch", error, user_id: id)

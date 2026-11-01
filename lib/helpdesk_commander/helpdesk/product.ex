@@ -42,6 +42,10 @@ defmodule HelpdeskCommander.Helpdesk.Product do
     identity :unique_company_name, [:company_id, :name]
   end
 
+  code_interface do
+    define :get_product, action: :read, get_by: [:id], not_found_error?: false
+  end
+
   actions do
     defaults [:read, :destroy]
 

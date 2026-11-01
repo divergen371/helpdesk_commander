@@ -1,11 +1,8 @@
 defmodule HelpdeskCommanderWeb.TaskLive.Index do
   use HelpdeskCommanderWeb, :live_view
 
-  import Ash.Query
-
   alias HelpdeskCommander.Support.Error, as: ErrorLog
   alias HelpdeskCommander.Tasks
-  alias HelpdeskCommander.Tasks.Task
   alias HelpdeskCommanderWeb.CurrentUser
 
   @impl Phoenix.LiveView
@@ -29,12 +26,7 @@ defmodule HelpdeskCommanderWeb.TaskLive.Index do
      |> stream(:tasks, tasks, dom_id: &"task-#{&1.public_id}")}
   end
 
-  defp load_tasks(%{company_id: company_id}) do
-    Task
-    |> filter(company_id == ^company_id)
-    |> sort(inserted_at: :desc)
-    |> Ash.read(domain: Tasks)
-  end
+  defp load_tasks(%{company_id: company_id}), do: Tasks.list_tasks(company_id)
 
   defp load_tasks(_current_user), do: {:ok, []}
 

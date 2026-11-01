@@ -1,16 +1,10 @@
 defmodule HelpdeskCommanderWeb.DashboardLive do
   use HelpdeskCommanderWeb, :live_view
 
-  import Ash.Query
-
-  alias HelpdeskCommander.Accounts.User
   alias HelpdeskCommander.Helpdesk
   alias HelpdeskCommander.Helpdesk.Notifications
-  alias HelpdeskCommander.Helpdesk.Product
-  alias HelpdeskCommander.Helpdesk.Ticket
   alias HelpdeskCommander.Support.Error, as: ErrorLog
   alias HelpdeskCommander.Tasks
-  alias HelpdeskCommander.Tasks.Task
   alias HelpdeskCommanderWeb.CurrentUser
 
   @impl Phoenix.LiveView
@@ -38,16 +32,9 @@ defmodule HelpdeskCommanderWeb.DashboardLive do
   end
 
   defp load_tickets(company_id, current_user, external_user?) do
-    query =
-      Ticket
-      |> filter(company_id == ^company_id or visibility_scope == "global")
-      |> maybe_filter_external(current_user, external_user?)
-
-    recent_query = query |> sort(inserted_at: :desc) |> Ash.Query.limit(5)
-
-    with {:ok, count} <- Ash.count(query, domain: Helpdesk),
-         {:ok, tickets} <- Ash.read(recent_query, domain: Helpdesk),
-         {:ok, tickets} <- Ash.load(tickets, [:product], domain: Helpdesk) do
+    with {:ok, count} <- Helpdesk.count_tickets(company_id, current_user, external_user?),
+         {:ok, tickets} <-
+           Helpdesk.list_recent_tickets(company_id, current_user, external_user?, 5) do
       {count, tickets}
     else
       {:error, error} ->
@@ -56,16 +43,9 @@ defmodule HelpdeskCommanderWeb.DashboardLive do
     end
   end
 
-  defp maybe_filter_external(query, %User{id: id}, true), do: filter(query, requester_id == ^id)
-  defp maybe_filter_external(query, _user, _external), do: query
-
   defp load_tasks(company_id, false) do
-    query = filter(Task, company_id == ^company_id)
-
-    recent_query = query |> sort(inserted_at: :desc) |> Ash.Query.limit(5)
-
-    with {:ok, count} <- Ash.count(query, domain: Tasks),
-         {:ok, tasks} <- Ash.read(recent_query, domain: Tasks) do
+    with {:ok, count} <- Tasks.count_tasks(company_id),
+         {:ok, tasks} <- Tasks.list_recent_tasks(company_id, 5) do
       {count, tasks}
     else
       {:error, error} ->
@@ -77,9 +57,7 @@ defmodule HelpdeskCommanderWeb.DashboardLive do
   defp load_tasks(_company_id, true), do: {0, []}
 
   defp load_product_count(company_id, false) do
-    query = filter(Product, company_id == ^company_id and active == true)
-
-    case Ash.count(query, domain: Helpdesk) do
+    case Helpdesk.count_active_products(company_id) do
       {:ok, count} ->
         count
 

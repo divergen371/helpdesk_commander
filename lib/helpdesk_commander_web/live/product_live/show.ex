@@ -1,8 +1,6 @@
 defmodule HelpdeskCommanderWeb.ProductLive.Show do
   use HelpdeskCommanderWeb, :live_view
 
-  import Ash.Query
-
   alias HelpdeskCommander.Helpdesk
   alias HelpdeskCommander.Helpdesk.Product
   alias HelpdeskCommander.Support.Error, as: ErrorLog
@@ -53,9 +51,7 @@ defmodule HelpdeskCommanderWeb.ProductLive.Show do
   def handle_event("toggle_active", _params, socket) do
     product = socket.assigns.product
 
-    case product
-         |> Ash.Changeset.for_update(:update, %{active: !product.active})
-         |> Ash.update(domain: Helpdesk) do
+    case Helpdesk.update_product(product, %{active: !product.active}) do
       {:ok, product} ->
         {:noreply,
          socket
@@ -78,9 +74,7 @@ defmodule HelpdeskCommanderWeb.ProductLive.Show do
   defp load_product(company_id, id) do
     case id |> to_string() |> Integer.parse() do
       {id, _rest} ->
-        Product
-        |> filter(id == ^id and company_id == ^company_id)
-        |> Ash.read_one(domain: Helpdesk)
+        Helpdesk.get_company_product(company_id, id)
 
       :error ->
         {:error, :not_found}

@@ -64,6 +64,11 @@ defmodule HelpdeskCommander.Accounts.User do
     identity :unique_company_login_id, [:company_id, :login_id]
   end
 
+  code_interface do
+    define :get_user, action: :read, get_by: [:id]
+    define :create_user, action: :create
+  end
+
   actions do
     defaults [:read]
 

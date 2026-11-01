@@ -66,6 +66,10 @@ defmodule HelpdeskCommander.Helpdesk.Inquiry do
     end
   end
 
+  code_interface do
+    define :create_inquiry, action: :create
+  end
+
   actions do
     defaults [:read]
 

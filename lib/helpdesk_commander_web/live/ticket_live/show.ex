@@ -2,13 +2,10 @@
 defmodule HelpdeskCommanderWeb.TicketLive.Show do
   use HelpdeskCommanderWeb, :live_view
 
-  import Ash.Query
-
   alias HelpdeskCommander.Accounts
   alias HelpdeskCommander.Accounts.User
   alias HelpdeskCommander.Authorization
   alias HelpdeskCommander.Helpdesk
-  alias HelpdeskCommander.Helpdesk.Conversation
   alias HelpdeskCommander.Helpdesk.ConversationMessage
   alias HelpdeskCommander.Helpdesk.Product
   alias HelpdeskCommander.Helpdesk.Ticket
@@ -17,7 +14,6 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   alias HelpdeskCommander.Helpdesk.TicketVerification
   alias HelpdeskCommander.Support.Error, as: ErrorLog
   alias HelpdeskCommander.Tasks
-  alias HelpdeskCommander.Tasks.Task
   alias HelpdeskCommander.Tasks.TicketTaskLink
   alias HelpdeskCommanderWeb.CurrentUser
 
@@ -100,9 +96,9 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   end
 
   defp load_ticket(public_id) do
-    case Ash.get(Ticket, %{public_id: public_id}, domain: Helpdesk) do
+    case Helpdesk.get_ticket_by_public_id(public_id) do
       {:ok, %Ticket{} = ticket} ->
-        case Ash.load(ticket, [:product], domain: Helpdesk) do
+        case Helpdesk.load_ticket_product(ticket) do
           {:ok, ticket} -> {:ok, ticket}
           {:error, error} -> {:error, {:load_ticket, error}}
         end
@@ -308,13 +304,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   end
 
   defp load_verifications(ticket_id) do
-    query =
-      TicketVerification
-      |> filter(ticket_id == ^ticket_id)
-      |> sort(id: :desc)
-      |> Ash.Query.limit(20)
-
-    case Ash.read(query, domain: Helpdesk) do
+    case Helpdesk.list_verifications(ticket_id) do
       {:ok, verifications} ->
         {verifications, []}
 
@@ -338,12 +328,10 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
       case task_id |> to_string() |> Integer.parse() do
         {task_id, _rest} ->
           result =
-            TicketTaskLink
-            |> Ash.Changeset.for_create(:create, %{
+            Tasks.create_ticket_task_link(%{
               ticket_id: socket.assigns.ticket.id,
               task_id: task_id
             })
-            |> Ash.create(domain: Tasks)
 
           case result do
             {:ok, _link} ->
@@ -374,10 +362,9 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     else
       case Integer.parse(link_id) do
         {link_id, _rest} ->
-          query = filter(TicketTaskLink, id == ^link_id and ticket_id == ^socket.assigns.ticket.id)
-
-          with {:ok, %TicketTaskLink{} = link} <- Ash.read_one(query, domain: Tasks),
-               :ok <- Ash.destroy(link, domain: Tasks) do
+          with {:ok, %TicketTaskLink{} = link} <-
+                 Tasks.get_ticket_task_link(link_id, socket.assigns.ticket.id),
+               :ok <- Tasks.destroy_ticket_task_link(link) do
             {:noreply,
              socket
              |> put_flash(:info, "タスクの紐付けを解除しました")
@@ -693,7 +680,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
       case submission do
         {:ok, message} ->
           ticket =
-            case Ash.get(Ticket, %{id: socket.assigns.ticket.id}, domain: Helpdesk) do
+            case Helpdesk.get_ticket(socket.assigns.ticket.id) do
               {:ok, %Ticket{} = ticket} ->
                 load_ticket_product(ticket)
 
@@ -794,10 +781,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     with {:ok, id} <- parse_id(message_id),
          {:ok, %ConversationMessage{} = message} <- fetch_ticket_message(socket, id),
          true <- can_delete_message?(socket.assigns.current_user, message),
-         {:ok, deleted} <-
-           message
-           |> Ash.Changeset.for_update(:soft_delete, %{})
-           |> Ash.update(domain: Helpdesk) do
+         {:ok, deleted} <- Helpdesk.soft_delete_message(message) do
       kind = message_kind(socket, deleted)
 
       socket =
@@ -937,7 +921,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   defp product_label(_product), do: "-"
 
   defp load_ticket_product(%Ticket{} = ticket) do
-    case Ash.load(ticket, [:product], domain: Helpdesk) do
+    case Helpdesk.load_ticket_product(ticket) do
       {:ok, ticket} ->
         ticket
 
@@ -948,7 +932,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   end
 
   defp refresh_ticket_forms(socket) do
-    case Ash.get(Ticket, %{id: socket.assigns.ticket.id}, domain: Helpdesk) do
+    case Helpdesk.get_ticket(socket.assigns.ticket.id) do
       {:ok, %Ticket{} = ticket} ->
         ticket = load_ticket_product(ticket)
 
@@ -1037,9 +1021,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   defp forbidden_error?(_error), do: false
 
   defp load_users(company_id) do
-    query = filter(User, company_id == ^company_id)
-
-    case Ash.read(query, domain: Accounts) do
+    case Accounts.list_users(company_id) do
       {:ok, users} ->
         sorted = Enum.sort_by(users, & &1.inserted_at, {:asc, DateTime})
         {:ok, sorted, Map.new(sorted, &{&1.id, &1})}
@@ -1050,14 +1032,10 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   end
 
   defp load_task_links(%Ticket{id: ticket_id, company_id: company_id}) do
-    links_query = filter(TicketTaskLink, ticket_id == ^ticket_id)
-    tasks_query = Task |> filter(company_id == ^company_id) |> sort(title: :asc)
-
-    with {:ok, links} <- Ash.read(links_query, domain: Tasks),
-         {:ok, links} <- Ash.load(links, [:task], domain: Tasks),
-         {:ok, tasks} <- Ash.read(tasks_query, domain: Tasks) do
-      linked_ids = MapSet.new(links, & &1.task_id)
-      {:ok, links, Enum.reject(tasks, &MapSet.member?(linked_ids, &1.id))}
+    with {:ok, links} <- Tasks.list_ticket_task_links(ticket_id),
+         {:ok, tasks} <-
+           Tasks.list_linkable_tasks(company_id, Enum.map(links, & &1.task_id)) do
+      {:ok, links, tasks}
     else
       {:error, error} -> {:error, {:load_task_links, error}}
     end
@@ -1082,77 +1060,15 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   end
 
   defp get_or_create_conversation(%Ticket{} = ticket, kind) do
-    conversation_result =
-      Conversation
-      |> filter(ticket_id == ^ticket.id and kind == ^kind)
-      |> Ash.read_one(domain: Helpdesk)
-
-    case conversation_result do
-      {:ok, %Conversation{} = conversation} ->
-        {:ok, conversation}
-
-      {:ok, nil} ->
-        create_conversation(ticket, kind)
-
-      {:error, error} ->
-        {:error, error}
-    end
-  end
-
-  defp create_conversation(%Ticket{} = ticket, kind) do
-    Conversation
-    |> Ash.Changeset.for_create(:create, %{
-      ticket_id: ticket.id,
-      kind: kind,
-      created_by_id: ticket.requester_id
-    })
-    |> Ash.create(domain: Helpdesk)
+    Helpdesk.ensure_conversation(ticket, kind)
   end
 
   defp fetch_messages(conversation_id, before_id \\ nil) do
-    limit = @messages_page_size
-
-    base_query =
-      ConversationMessage
-      |> filter(conversation_id == ^conversation_id and is_nil(deleted_at))
-      |> sort(id: :desc)
-      |> maybe_before_id(before_id)
-
-    limited_query = Ash.Query.limit(base_query, limit + 1)
-
-    case Ash.read(limited_query, domain: Helpdesk) do
-      {:ok, raw_messages} ->
-        {messages, has_more?} = trim_to_limit(raw_messages, limit)
-        ordered_messages = Enum.reverse(messages)
-        oldest_id = oldest_id_from_list(ordered_messages)
-        {:ok, {ordered_messages, has_more?, oldest_id}}
-
-      {:error, error} ->
-        {:error, error}
-    end
+    Helpdesk.list_messages(conversation_id, before_id, @messages_page_size)
   end
 
   defp fetch_events(ticket_id, before_id \\ nil) do
-    limit = @events_page_size
-
-    base_query =
-      TicketEvent
-      |> filter(ticket_id == ^ticket_id)
-      |> sort(id: :desc)
-      |> maybe_before_id(before_id)
-
-    limited_query = Ash.Query.limit(base_query, limit + 1)
-
-    case Ash.read(limited_query, domain: Helpdesk) do
-      {:ok, raw_events} ->
-        {events, has_more?} = trim_to_limit(raw_events, limit)
-        ordered_events = Enum.reverse(events)
-        oldest_id = oldest_id_from_list(ordered_events)
-        {:ok, {ordered_events, has_more?, oldest_id}}
-
-      {:error, error} ->
-        {:error, error}
-    end
+    Helpdesk.list_events(ticket_id, before_id, @events_page_size)
   end
 
   defp message_form_key("public"), do: "public_message"
@@ -1190,9 +1106,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
         [socket.assigns.public_conversation.id, socket.assigns.private_conversation.id]
       end
 
-    ConversationMessage
-    |> filter(id == ^id and conversation_id in ^conversation_ids and is_nil(deleted_at))
-    |> Ash.read_one(domain: Helpdesk)
+    Helpdesk.get_message_in_conversations(id, conversation_ids)
   end
 
   defp can_edit_message?(%User{id: user_id}, %ConversationMessage{sender_id: user_id}), do: true
@@ -1266,20 +1180,6 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
   defp event_conversation_kind(data) when is_map(data) do
     Map.get(data, "conversation_kind") || Map.get(data, :conversation_kind)
-  end
-
-  defp oldest_id_from_list([]), do: nil
-  defp oldest_id_from_list([first | _rest]), do: first.id
-
-  defp maybe_before_id(query, nil), do: query
-  defp maybe_before_id(query, before_id), do: filter(query, id < ^before_id)
-
-  defp trim_to_limit(items, limit) do
-    if length(items) > limit do
-      {Enum.take(items, limit), true}
-    else
-      {items, false}
-    end
   end
 
   @impl Phoenix.LiveView

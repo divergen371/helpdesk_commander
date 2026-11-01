@@ -176,6 +176,12 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
     end
   end
 
+  code_interface do
+    define :get_ticket, action: :read, get_by: [:id], not_found_error?: false
+    define :get_ticket_by_public_id, action: :read, get_by: [:public_id], not_found_error?: false
+    define :create_ticket, action: :create
+  end
+
   actions do
     defaults [:read, :destroy]
 

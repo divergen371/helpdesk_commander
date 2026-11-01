@@ -63,6 +63,10 @@ defmodule HelpdeskCommander.Helpdesk.ConversationMessage do
     end
   end
 
+  code_interface do
+    define :create_message, action: :create
+  end
+
   actions do
     defaults [:read]
 

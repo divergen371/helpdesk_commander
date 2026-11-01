@@ -58,6 +58,10 @@ defmodule HelpdeskCommander.Tasks.TicketTaskLink do
     identity :unique_ticket_task, [:ticket_id, :task_id]
   end
 
+  code_interface do
+    define :create_ticket_task_link, action: :create
+  end
+
   actions do
     defaults [:read, :destroy]
 

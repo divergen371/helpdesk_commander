@@ -54,7 +54,7 @@ elixir ref:v1.20.4
    - `mix test`: **13 properties, 186 tests, 0 failures**
    - `mix credo --strict`: 指摘なし
    - `mix dialyzer`: **0 errors**
-   - `MIX_ENV=test mix coveralls`: **80.8%**（基準 80% を満たす）
+   - `MIX_ENV=test mix coveralls`: **80.9%**（基準 80% を満たす）
 
 ## ⚠️ 互換性・移行時の注意
 
@@ -97,7 +97,7 @@ mkdir -p "$REBAR_GLOBAL_CONFIG_DIR/.config/rebar3"
 
 - `mix hex.outdated` で依存更新を定期的に確認する
 - `mix precommit` と `mix coveralls` をローカルでも実行する
-- カバレッジは 80.8% のため、新規コードにはテストを同時に追加する
+- カバレッジは 80.9% のため、新規コードにはテストを同時に追加する
 - `docs/ELIXIR_UPGRADE.md`（本ドキュメント）と `docs/STATUS.md` を更新する
 
 ## 📋 アップグレードチェックリスト

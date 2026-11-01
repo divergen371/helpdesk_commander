@@ -1,8 +1,6 @@
 defmodule HelpdeskCommanderWeb.FormOptions do
   @moduledoc false
 
-  import Ash.Query
-
   alias HelpdeskCommander.Accounts
   alias HelpdeskCommander.Accounts.User
   alias HelpdeskCommander.Helpdesk
@@ -13,9 +11,7 @@ defmodule HelpdeskCommanderWeb.FormOptions do
   def load_users(%User{} = current_user, true), do: {:ok, [current_user]}
 
   def load_users(%User{company_id: company_id}, false) do
-    query = filter(User, company_id == ^company_id)
-
-    case Ash.read(query, domain: Accounts) do
+    case Accounts.list_users(company_id) do
       {:ok, users} ->
         {:ok,
          users
@@ -31,9 +27,7 @@ defmodule HelpdeskCommanderWeb.FormOptions do
 
   @spec load_internal_users(User.t() | nil) :: {:ok, [User.t()]} | {:error, term()}
   def load_internal_users(%User{company_id: company_id}) do
-    query = filter(User, company_id == ^company_id)
-
-    case Ash.read(query, domain: Accounts) do
+    case Accounts.list_users(company_id) do
       {:ok, users} ->
         {:ok,
          users
@@ -51,12 +45,7 @@ defmodule HelpdeskCommanderWeb.FormOptions do
 
   @spec load_products(User.t() | nil) :: {:ok, [Product.t()]} | {:error, term()}
   def load_products(%User{company_id: company_id}) do
-    case Product
-         |> filter(company_id == ^company_id and active == true)
-         |> Ash.read(domain: Helpdesk) do
-      {:ok, products} -> {:ok, Enum.sort_by(products, & &1.name, :asc)}
-      {:error, error} -> {:error, error}
-    end
+    Helpdesk.list_products(company_id, active_only: true)
   end
 
   def load_products(_current_user), do: {:ok, []}

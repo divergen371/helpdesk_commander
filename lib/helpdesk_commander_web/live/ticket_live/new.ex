@@ -88,15 +88,12 @@ defmodule HelpdeskCommanderWeb.TicketLive.New do
     email = "user+#{System.unique_integer([:positive])}@example.com"
     current_user = socket.assigns.current_user
 
-    changeset =
-      Ash.Changeset.for_create(User, :create, %{
-        email: email,
-        display_name: "Sample User",
-        company_id: current_user.company_id,
-        status: "active"
-      })
-
-    case Ash.create(changeset, domain: Accounts) do
+    case Accounts.create_user(%{
+           email: email,
+           display_name: "Sample User",
+           company_id: current_user.company_id,
+           status: "active"
+         }) do
       {:ok, _user} ->
         {users, socket, users_loaded?} =
           case FormOptions.load_users(current_user, socket.assigns.current_user_external?) do

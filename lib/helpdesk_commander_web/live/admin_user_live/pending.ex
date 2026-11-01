@@ -1,8 +1,6 @@
 defmodule HelpdeskCommanderWeb.AdminUserLive.Pending do
   use HelpdeskCommanderWeb, :live_view
 
-  import Ash.Query
-
   alias HelpdeskCommander.Accounts
   alias HelpdeskCommander.Accounts.Auth
   alias HelpdeskCommander.Accounts.Company
@@ -79,9 +77,7 @@ defmodule HelpdeskCommanderWeb.AdminUserLive.Pending do
   end
 
   defp pending_users(company_id) do
-    query = filter(User, company_id == ^company_id and status == "pending")
-
-    case Ash.read(query, domain: Accounts) do
+    case Accounts.list_pending_users(company_id) do
       {:ok, users} ->
         {:ok, Enum.sort_by(users, & &1.inserted_at, {:asc, DateTime})}
 
@@ -91,14 +87,10 @@ defmodule HelpdeskCommanderWeb.AdminUserLive.Pending do
   end
 
   defp company_map(company_id) do
-    query = filter(Company, id == ^company_id)
-
-    case Ash.read(query, domain: Accounts) do
-      {:ok, companies} ->
-        {:ok, Map.new(companies, &{&1.id, &1})}
-
-      {:error, error} ->
-        {:error, error}
+    case Accounts.get_company(company_id) do
+      {:ok, %Company{} = company} -> {:ok, %{company.id => company}}
+      {:ok, nil} -> {:ok, %{}}
+      {:error, error} -> {:error, error}
     end
   end
 

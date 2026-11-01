@@ -115,7 +115,7 @@ defmodule HelpdeskCommanderWeb.InquiryLive.New do
            requester_id |> to_string() |> Integer.parse(),
          {:ok, %User{company_id: company_id}}
          when company_id == current_user.company_id <-
-           Ash.get(User, %{id: id}, domain: Accounts) do
+           Accounts.get_user(id) do
       {:ok, params}
     else
       :error -> {:error, "依頼者を選択してください"}

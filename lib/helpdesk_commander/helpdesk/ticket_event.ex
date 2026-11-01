@@ -42,6 +42,10 @@ defmodule HelpdeskCommander.Helpdesk.TicketEvent do
     end
   end
 
+  code_interface do
+    define :create_ticket_event, action: :create
+  end
+
   actions do
     defaults [:read]
 

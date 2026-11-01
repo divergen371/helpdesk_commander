@@ -1,8 +1,6 @@
 defmodule HelpdeskCommanderWeb.TaskLive.Show do
   use HelpdeskCommanderWeb, :live_view
 
-  import Ash.Query
-
   alias HelpdeskCommander.Accounts.User
   alias HelpdeskCommander.Support.Error, as: ErrorLog
   alias HelpdeskCommander.Tasks
@@ -58,24 +56,12 @@ defmodule HelpdeskCommanderWeb.TaskLive.Show do
 
   defp load_task_data(_public_id, _current_user), do: {:error, :not_found}
 
-  defp load_task(public_id, company_id) do
-    Task
-    |> filter(public_id == ^public_id and company_id == ^company_id)
-    |> Ash.read_one(domain: Tasks)
-  end
+  defp load_task(public_id, company_id), do: Tasks.get_task(public_id, company_id)
 
   defp load_priority_events(task_id) do
-    query =
-      TaskEvent
-      |> filter(task_id == ^task_id and event_type == "priority_changed")
-      |> sort(id: :desc)
-
-    case Ash.read(query, domain: Tasks) do
-      {:ok, events} ->
-        Ash.load(events, [:actor], domain: Tasks)
-
-      {:error, error} ->
-        {:error, {:load_priority_events, error}}
+    case Tasks.list_priority_events(task_id) do
+      {:ok, events} -> {:ok, events}
+      {:error, error} -> {:error, {:load_priority_events, error}}
     end
   end
 
@@ -130,7 +116,7 @@ defmodule HelpdeskCommanderWeb.TaskLive.Show do
 
   @impl Phoenix.LiveView
   def handle_event("delete", _params, socket) do
-    case Ash.destroy(socket.assigns.task, domain: Tasks) do
+    case Tasks.destroy_task(socket.assigns.task) do
       :ok ->
         {:noreply,
          socket

@@ -51,6 +51,10 @@ defmodule HelpdeskCommander.Helpdesk.Conversation do
     identity :unique_ticket_kind, [:ticket_id, :kind]
   end
 
+  code_interface do
+    define :create_conversation, action: :create
+  end
+
   actions do
     defaults [:read]
 

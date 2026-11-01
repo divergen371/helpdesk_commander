@@ -1133,3 +1133,21 @@ mix phx.server
   - `mix precommit` 成功、13 properties / 186 tests
   - `mix coveralls.json` 80.8%
   - `mix dialyzer` 0 errors
+
+---
+
+## 2026-11-01 code_interface と Domain API
+
+- `code_interface` を主要リソースに追加（取得・作成）
+- Domain モジュールを API 層として整備
+  - `Accounts`: ユーザー取得/一覧、保留ユーザー、会社取得、作成/更新/承認
+  - `Helpdesk`: チケット取得・一覧・件数・作成/更新/ステータス、製品、会話・メッセージ、イベント、検証、問い合わせ
+  - `Tasks`: タスク取得/一覧/件数/最近、優先度イベント、チケット紐付け
+- Web 層から `Ash.read/get/create/update/destroy/count` を除去
+  - チケット一覧のフィルタ・ソート・ページングも Domain へ移動
+  - メッセージ/イベントのページング処理も Domain に集約
+- 既存の画面挙動は維持（ダッシュボード、一覧、詳細、製品、通知、関係グラフを実機確認）
+- 検証結果
+  - `mix precommit` 成功、13 properties / 186 tests
+  - `mix coveralls.json` 80.9%
+  - `mix dialyzer` 0 errors

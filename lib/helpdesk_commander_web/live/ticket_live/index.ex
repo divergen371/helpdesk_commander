@@ -1,12 +1,9 @@
 defmodule HelpdeskCommanderWeb.TicketLive.Index do
   use HelpdeskCommanderWeb, :live_view
 
-  import Ash.Query
-
   alias HelpdeskCommander.Accounts.User
   alias HelpdeskCommander.Helpdesk
   alias HelpdeskCommander.Helpdesk.Notifications
-  alias HelpdeskCommander.Helpdesk.Ticket
   alias HelpdeskCommander.Support.Error, as: ErrorLog
   alias HelpdeskCommanderWeb.CurrentUser
   alias HelpdeskCommanderWeb.FormOptions
@@ -102,74 +99,12 @@ defmodule HelpdeskCommanderWeb.TicketLive.Index do
   end
 
   defp load_tickets(%User{company_id: company_id} = user, external_user?, filters, page) do
-    query =
-      Ticket
-      |> filter(company_id == ^company_id or visibility_scope == "global")
-      |> maybe_filter_for_external(external_user?, user)
-      |> apply_filters(filters)
-      |> sort_tickets(filters[:sort])
-
-    offset = (page - 1) * @page_size
-
-    case Ash.read(query, domain: Helpdesk, page: [limit: @page_size, offset: offset, count: true]) do
-      {:ok, %Ash.Page.Offset{results: tickets, count: total_count, more?: has_next?}} ->
-        case Ash.load(tickets, [:product, :assignee], domain: Helpdesk) do
-          {:ok, tickets} ->
-            {:ok, %{tickets: tickets, total_count: total_count, has_next?: has_next?}}
-
-          {:error, error} ->
-            {:error, error}
-        end
-
-      {:error, error} ->
-        {:error, error}
-    end
+    Helpdesk.list_tickets(company_id, user, external_user?, filters, page, @page_size)
   end
 
   defp load_tickets(_current_user, _external_user?, _filters, _page) do
     {:ok, %{tickets: [], total_count: 0, has_next?: false}}
   end
-
-  defp maybe_filter_for_external(query, true, %User{id: requester_id}) do
-    filter(query, requester_id == ^requester_id)
-  end
-
-  defp maybe_filter_for_external(query, _external, _user), do: query
-
-  defp apply_filters(query, filters) do
-    query
-    |> filter_status(filters[:status])
-    |> filter_priority(filters[:priority])
-    |> filter_type(filters[:type])
-    |> filter_assignee(filters[:assignee_id])
-  end
-
-  defp filter_status(query, value) when value in @statuses, do: filter(query, status == ^value)
-  defp filter_status(query, _value), do: query
-
-  defp filter_priority(query, value) when value in @priorities,
-    do: filter(query, priority == ^value)
-
-  defp filter_priority(query, _value), do: query
-
-  defp filter_type(query, value) when value in @types, do: filter(query, type == ^value)
-  defp filter_type(query, _value), do: query
-
-  defp filter_assignee(query, "unassigned"), do: filter(query, is_nil(assignee_id))
-
-  defp filter_assignee(query, value) when is_binary(value) do
-    case Integer.parse(value) do
-      {assignee_id, _rest} -> filter(query, assignee_id == ^assignee_id)
-      :error -> query
-    end
-  end
-
-  defp filter_assignee(query, _value), do: query
-
-  defp sort_tickets(query, "oldest"), do: sort(query, inserted_at: :asc)
-  defp sort_tickets(query, "priority"), do: sort(query, priority: :asc, inserted_at: :desc)
-  defp sort_tickets(query, "status"), do: sort(query, status: :asc, inserted_at: :desc)
-  defp sort_tickets(query, _sort), do: sort(query, inserted_at: :desc)
 
   defp default_filters do
     %{status: nil, priority: nil, type: nil, assignee_id: nil, sort: "newest"}
