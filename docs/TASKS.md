@@ -7,7 +7,6 @@
 
 ## 現在（P0）
 
-- [ ] 共通 Change 抽出 + validations 強化（`ticket_verification` の resolved 制約・日時補完の再利用化）
 - [ ] PII保護の段階導入（`users.email` / `companies.name` を `*_enc + *_hash` へ移行し検索・一意制約を維持）
 
 ## 次（P1）
@@ -20,7 +19,7 @@
 - [ ] 検索/フィルタ/ソート仕様の確定と実装
 - [ ] 通知の重複抑制・クールダウン
 - [ ] 外部通知チャネル（メール/チャット）と重複抑制（通知フェーズ拡張）
-- [ ] カバレッジの余裕確保（現在 80.5%。worker / `ticket_live/show.ex` の未テスト分を追加）
+- [ ] カバレッジの余裕確保（現在 80.9%。worker / `ticket_live/show.ex` の未テスト分を追加）
 - [ ] Ash resource snapshot の再生成（`mix ash.codegen --check` の 8 ファイル。`ticket_messages` DROP を含むため手動レビュー）
 - [ ] 関係グラフの調整（`/relations`）
   - [ ] ノード名とエッジ名が重ならないようにする（ラベル密度・エッジラベル位置・間隔）
@@ -44,6 +43,7 @@
 
 ## 完了
 
+- [x] 共通 Change 抽出（`EnsureTicketResolved` / `SetTimestampIfNil`、ステータス日時と検証日時の補完を共通化）
 - [x] 簡易ダッシュボード（`/`、チケット・タスク・製品・通知の概要、最近の項目）
 - [x] チケット関連リンク UI + Sigma.js 関係グラフ PoC（登録・解除、`/relations` で俯瞰）
 - [x] 製品マスタ管理 UI（作成・編集・有効化/無効化、有効製品のみ選択）

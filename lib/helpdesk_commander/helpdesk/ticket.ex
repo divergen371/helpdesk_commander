@@ -1,3 +1,5 @@
+# Ticket は中心リソースで依存が多く、Change 追加で上限を超えるため個別に許可する。
+# credo:disable-for-next-line Credo.Check.Refactor.ModuleDependencies
 defmodule HelpdeskCommander.Helpdesk.Ticket do
   use Ash.Resource,
     domain: HelpdeskCommander.Helpdesk,
@@ -6,6 +8,7 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
 
   import Ash.Query
 
+  alias HelpdeskCommander.Helpdesk.Changes
   alias HelpdeskCommander.Helpdesk.Conversation
   alias HelpdeskCommander.Helpdesk.TicketEvent
   alias HelpdeskCommander.Support.PublicId
@@ -249,6 +252,12 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
         apply_status_transition(changeset)
       end
 
+      change {Changes.SetTimestampIfNil, attribute: :first_response_at, when_status: "in_progress"}
+
+      change {HelpdeskCommander.Helpdesk.Changes.SetTimestampIfNil, attribute: :resolved_at, when_status: "resolved"}
+      change {HelpdeskCommander.Helpdesk.Changes.SetTimestampIfNil, attribute: :verified_at, when_status: "verified"}
+      change {HelpdeskCommander.Helpdesk.Changes.SetTimestampIfNil, attribute: :closed_at, when_status: "closed"}
+
       change optimistic_lock(:lock_version)
 
       change after_action(fn changeset, ticket, _context ->
@@ -329,9 +338,7 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
         changeset
 
       allowed_status_transition?(from_status, to_status) ->
-        changeset
-        |> Ash.Changeset.change_attribute(:status, to_status)
-        |> maybe_set_status_timestamps(from_status, to_status)
+        Ash.Changeset.change_attribute(changeset, :status, to_status)
 
       true ->
         Ash.Changeset.add_error(changeset,
@@ -344,31 +351,6 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
   defp allowed_status_transition?(from_status, to_status) do
     allowed = Map.get(@status_transitions, from_status, [])
     to_status in allowed
-  end
-
-  defp maybe_set_status_timestamps(changeset, _from_status, "in_progress") do
-    maybe_set_timestamp(changeset, :first_response_at)
-  end
-
-  defp maybe_set_status_timestamps(changeset, _from_status, "resolved") do
-    maybe_set_timestamp(changeset, :resolved_at)
-  end
-
-  defp maybe_set_status_timestamps(changeset, _from_status, "verified") do
-    maybe_set_timestamp(changeset, :verified_at)
-  end
-
-  defp maybe_set_status_timestamps(changeset, _from_status, "closed") do
-    maybe_set_timestamp(changeset, :closed_at)
-  end
-
-  defp maybe_set_status_timestamps(changeset, _from_status, _to_status), do: changeset
-
-  defp maybe_set_timestamp(changeset, field) do
-    case Ash.Changeset.get_attribute(changeset, field) do
-      nil -> Ash.Changeset.change_attribute(changeset, field, DateTime.utc_now())
-      _value -> changeset
-    end
   end
 
   defp maybe_add_rollback_data(data, "resolved", to_status) when to_status != "resolved" do

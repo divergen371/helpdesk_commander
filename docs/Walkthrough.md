@@ -1033,3 +1033,25 @@ mix phx.server
 - `stagePadding` を 90 に広げ、端のノード名が見切れないように調整
 - ライト/ダーク両モードでスクリーンショットを取得し、ラベル色の切り替わりを確認
 - コンソール警告なし
+
+---
+
+## 2026-10-26 共通 Change 抽出
+
+- `HelpdeskCommander.Helpdesk.Changes.EnsureTicketResolved` を追加
+  - 検証対象チケットが `resolved` であることをアクション側で宣言できるようにした
+  - チケット未存在・ステータス不一致のメッセージは従来どおり
+- `HelpdeskCommander.Helpdesk.Changes.SetTimestampIfNil` を追加
+  - 日時属性が未設定のときだけ現在時刻で補完
+  - `when_status` 指定時は `:status` 引数が対象かつ現在値と異なるときだけ適用
+- `TicketVerification.create` の無名関数 2 つを Change に置き換え
+- `Ticket.set_status` のステータス日時補完を Change 4 つに置き換え、`maybe_set_timestamp` を削除
+- テスト追加（`test/helpdesk_commander/helpdesk/ticket_timestamps_test.exs`）
+  - 遷移先ステータスの日時が入る
+  - 記録済みの日時を上書きしない
+  - resolved 以外の検証を拒否する
+  - 明示した `verified_at` を保持する
+- 検証結果
+  - `mix precommit` 成功、13 properties / 168 tests
+  - `mix coveralls.json` 80.9%（1668 / 2060 行）
+  - `mix dialyzer` 0 errors

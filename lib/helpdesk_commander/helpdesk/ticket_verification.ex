@@ -60,42 +60,8 @@ defmodule HelpdeskCommander.Helpdesk.TicketVerification do
       accept [:ticket_id, :verifier_id, :result, :notes, :verified_at, :company_id]
 
       change HelpdeskCommander.Helpdesk.Changes.AssignCompanyFromTicket
-
-      change fn changeset, _context ->
-        ticket_id =
-          Ash.Changeset.get_attribute(changeset, :ticket_id) ||
-            Ash.Changeset.get_argument(changeset, :ticket_id)
-
-        case ticket_id do
-          nil ->
-            changeset
-
-          id ->
-            case Ash.get(Ticket, %{id: id}, domain: HelpdeskCommander.Helpdesk) do
-              {:ok, %Ticket{status: "resolved"}} ->
-                changeset
-
-              {:ok, %Ticket{status: _status}} ->
-                Ash.Changeset.add_error(changeset,
-                  field: :ticket_id,
-                  message: "resolved以外のチケットは検証できません"
-                )
-
-              _result ->
-                Ash.Changeset.add_error(changeset,
-                  field: :ticket_id,
-                  message: "チケットが見つかりません"
-                )
-            end
-        end
-      end
-
-      change fn changeset, _context ->
-        case Ash.Changeset.get_attribute(changeset, :verified_at) do
-          nil -> Ash.Changeset.change_attribute(changeset, :verified_at, DateTime.utc_now())
-          _value -> changeset
-        end
-      end
+      change HelpdeskCommander.Helpdesk.Changes.EnsureTicketResolved
+      change {HelpdeskCommander.Helpdesk.Changes.SetTimestampIfNil, attribute: :verified_at}
 
       change after_action(fn _changeset, verification, _context ->
                ticket = Ash.get!(Ticket, %{id: verification.ticket_id}, domain: HelpdeskCommander.Helpdesk)

@@ -79,8 +79,8 @@
 - ⬜ **Ash ポリシーの横展開**
   - Task / Inquiry / ConversationMessage / TicketNotification / TicketLink
   - LiveView の手動チェックからリソース側へ寄せる
-- ⬜ **共通 Change / Validation の抽出**
-  - 検証の `resolved` 制約、日時補完、会社ID補完の再利用化
+- ✅ **共通 Change / Validation の抽出**
+  - `EnsureTicketResolved` / `SetTimestampIfNil` を追加し、検証の `resolved` 制約と日時補完を再利用化
 - ⬜ **TicketNotification read の Preparation**
   - 受信者で絞り、`inserted_at desc` を統一
 - ⬜ **PII 暗号化（段階導入）**
@@ -92,7 +92,7 @@
   - 現状は `impact` / `urgency` の保持のみ
 - ⬜ **`code_interface` / `aggregates` / `calculations`**
 - ⬜ **`multitenancy`（company 境界の強制）**
-- ⬜ **カバレッジの余裕確保**（現在 80.5%）
+- ⬜ **カバレッジの余裕確保**（現在 80.9%）
 
 ---
 
@@ -148,7 +148,7 @@
 | 2 | ~~実行環境の固定~~ | ✅ 完了（OTP 29.1.2 / Elixir 1.20.4） |
 | 3 | ~~Inquiry Web フォーム~~ | ✅ 完了（`/inquiries/new` → Ticket 自動生成） |
 | 4 | ~~テナント/権限の監査~~ | ✅ 完了（company 境界・社外タスク禁止・特権操作の会社一致） |
-| 5 | 共通 Change 抽出 | `ticket_verification` の resolved 制約・日時補完が共通 Change に移り、既存テストが通る |
+| 5 | ~~共通 Change 抽出~~ | ✅ 完了（`EnsureTicketResolved` / `SetTimestampIfNil`、既存テスト維持） |
 | 6 | ~~通知 read の Preparation~~ | ✅ 完了（受信者絞り込み・新しい順・read/mark_read ポリシー） |
 
 ### P1（MVP 仕上げ）
