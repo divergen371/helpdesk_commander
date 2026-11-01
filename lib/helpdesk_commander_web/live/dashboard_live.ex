@@ -3,6 +3,7 @@ defmodule HelpdeskCommanderWeb.DashboardLive do
 
   alias HelpdeskCommander.Helpdesk
   alias HelpdeskCommander.Helpdesk.Notifications
+  alias HelpdeskCommander.Helpdesk.Sla
   alias HelpdeskCommander.Support.Error, as: ErrorLog
   alias HelpdeskCommander.Tasks
   alias HelpdeskCommanderWeb.CurrentUser
@@ -17,6 +18,7 @@ defmodule HelpdeskCommanderWeb.DashboardLive do
     {task_count, recent_tasks} = load_tasks(company_id, external_user?, current_user)
     product_count = load_product_count(company_id, external_user?)
     unread_count = load_unread_count(current_user, external_user?)
+    sla_breaches = load_sla_breaches(company_id, external_user?)
 
     {:ok,
      socket
@@ -27,6 +29,7 @@ defmodule HelpdeskCommanderWeb.DashboardLive do
      |> assign(:task_count, task_count)
      |> assign(:product_count, product_count)
      |> assign(:unread_count, unread_count)
+     |> assign(:sla_breaches, sla_breaches)
      |> assign(:recent_tickets, recent_tickets)
      |> assign(:recent_tasks, recent_tasks)}
   end
@@ -82,6 +85,25 @@ defmodule HelpdeskCommanderWeb.DashboardLive do
 
   defp load_unread_count(_current_user, true), do: 0
 
+  defp load_sla_breaches(company_id, false) do
+    case Sla.breached_tickets(company_id, 5) do
+      {:ok, breaches} ->
+        breaches
+
+      {:error, error} ->
+        ErrorLog.log_error("dashboard_live.load_sla_breaches", error)
+        []
+    end
+  end
+
+  defp load_sla_breaches(_company_id, true), do: []
+
+  defp breached_metric_labels(metrics) do
+    metrics
+    |> Enum.filter(&(&1.status == :breached))
+    |> Enum.map_join(" / ", & &1.label)
+  end
+
   @impl Phoenix.LiveView
   def render(assigns) do
     ~H"""
@@ -120,9 +142,43 @@ defmodule HelpdeskCommanderWeb.DashboardLive do
           <.stat_card label="タスク" value={@task_count} href={~p"/tasks"} />
           <.stat_card label="有効な製品" value={@product_count} href={~p"/products"} />
           <.stat_card label="未読通知" value={@unread_count} href={~p"/notifications"} />
+          <.stat_card label="SLA 逸脱" value={length(@sla_breaches)} href={~p"/settings/sla"} />
         <% else %>
           <.stat_card label="未読通知" value={@unread_count} href={~p"/notifications"} />
         <% end %>
+      </section>
+
+      <section
+        :if={!@current_user_external?}
+        id="sla-breaches"
+        class="rounded-2xl border border-base-200 bg-base-100 p-6 shadow-sm"
+      >
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 class="font-semibold">SLA 逸脱</h2>
+            <p class="mt-1 text-sm opacity-60">
+              未クローズのチケットで、いずれかの目標時間を過ぎている件数です。
+            </p>
+          </div>
+          <.link class="link text-sm" navigate={~p"/settings/sla"}>SLA 設定</.link>
+        </div>
+
+        <p class="mt-4 text-3xl font-bold tabular-nums">{length(@sla_breaches)}</p>
+
+        <div :if={@sla_breaches == []} class="mt-2 text-sm opacity-70">
+          逸脱しているチケットはありません。
+        </div>
+        <div :if={@sla_breaches != []} class="mt-4 space-y-2">
+          <.link
+            :for={breach <- @sla_breaches}
+            id={"sla-breach-#{breach.ticket.id}"}
+            navigate={~p"/tickets/#{breach.ticket.public_id}"}
+            class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-base-200 px-3 py-2 text-sm transition hover:bg-base-200/40"
+          >
+            <span class="font-medium">{breach.ticket.public_id} {breach.ticket.subject}</span>
+            <span class="text-xs text-error">{breached_metric_labels(breach.metrics)}</span>
+          </.link>
+        </div>
       </section>
 
       <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -155,7 +211,10 @@ defmodule HelpdeskCommanderWeb.DashboardLive do
           </div>
         </section>
 
-        <section :if={!@current_user_external?} class="rounded-2xl border border-base-200 bg-base-100 p-6 shadow-sm">
+        <section
+          :if={!@current_user_external?}
+          class="rounded-2xl border border-base-200 bg-base-100 p-6 shadow-sm"
+        >
           <div class="flex items-center justify-between">
             <h2 class="font-semibold">最近のタスク</h2>
             <.link class="link text-sm" navigate={~p"/tasks"}>すべて見る</.link>

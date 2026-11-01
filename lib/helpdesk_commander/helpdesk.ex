@@ -26,6 +26,7 @@ defmodule HelpdeskCommander.Helpdesk do
     resource HelpdeskCommander.Helpdesk.Incident
     resource HelpdeskCommander.Helpdesk.IncidentEvent
     resource HelpdeskCommander.Helpdesk.Inquiry
+    resource HelpdeskCommander.Helpdesk.SlaPolicy
     resource HelpdeskCommander.Helpdesk.Product
     resource HelpdeskCommander.Helpdesk.Ticket
     resource HelpdeskCommander.Helpdesk.TicketEvent

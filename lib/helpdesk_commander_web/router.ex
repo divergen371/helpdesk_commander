@@ -41,6 +41,7 @@ defmodule HelpdeskCommanderWeb.Router do
       live "/products", ProductLive.Index, :index
       live "/products/:id", ProductLive.Show, :show
       live "/relations", RelationGraphLive.Index, :index
+      live "/settings/sla", SlaLive.Index, :index
     end
 
     live_session :admin_required,
