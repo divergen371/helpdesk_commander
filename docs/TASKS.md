@@ -13,7 +13,6 @@
 ## 次（P1）
 
 - [ ] コメントの編集/削除/メタ情報（メッセージ種別など）
-- [ ] 本文系の暗号化導入（`tickets.description` / `inquiries.body` / `conversation_messages.body` / `users.display_name`）
 - [ ] `code_interface` 導入（Domain経由APIへ整理し LiveView/Controller を簡素化）
 - [ ] `aggregates` / `calculations` 導入（未読通知数・検証数・最新イベント時刻）
 - [ ] Ash ポリシーの横展開（Task / Inquiry / ConversationMessage / TicketNotification / TicketLink）
@@ -44,6 +43,7 @@
 
 ## 完了
 
+- [x] 本文系の暗号化（`tickets.description` / `inquiries.body` / `conversation_messages.body` / `users.display_name`）
 - [x] PII保護の段階導入（`users.email` / `companies.name` を `encrypted_* + *_hash` へ移行し、検索・一意制約を維持）
 - [x] 共通 Change 抽出（`EnsureTicketResolved` / `SetTimestampIfNil`、ステータス日時と検証日時の補完を共通化）
 - [x] 簡易ダッシュボード（`/`、チケット・タスク・製品・通知の概要、最近の項目）

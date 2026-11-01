@@ -6,12 +6,13 @@ defmodule HelpdeskCommander.Helpdesk.Inquiry.Changes.CreateTicket do
 
   @impl Ash.Resource.Change
   def change(changeset, _opts, _context) do
-    Ash.Changeset.before_action(changeset, fn changeset ->
-      subject = Ash.Changeset.get_attribute(changeset, :subject)
-      body = Ash.Changeset.get_attribute(changeset, :body)
-      requester_id = Ash.Changeset.get_attribute(changeset, :requester_id)
-      product_id = Ash.Changeset.get_attribute(changeset, :product_id)
+    # Read encrypted arguments before AshCloak's before_action hook removes them.
+    subject = Ash.Changeset.get_attribute(changeset, :subject)
+    body = fetch_argument(changeset, :body)
+    requester_id = Ash.Changeset.get_attribute(changeset, :requester_id)
+    product_id = Ash.Changeset.get_attribute(changeset, :product_id)
 
+    Ash.Changeset.before_action(changeset, fn changeset ->
       ticket_changeset =
         Ash.Changeset.for_create(Ticket, :create, %{
           subject: subject,
@@ -31,5 +32,12 @@ defmodule HelpdeskCommander.Helpdesk.Inquiry.Changes.CreateTicket do
           Ash.Changeset.add_error(changeset, error)
       end
     end)
+  end
+
+  defp fetch_argument(changeset, field) do
+    case Ash.Changeset.fetch_argument(changeset, field) do
+      {:ok, value} -> value
+      :error -> nil
+    end
   end
 end

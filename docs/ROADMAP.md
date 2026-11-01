@@ -86,7 +86,7 @@
 - ✅ **PII 暗号化（段階導入）**
   - `users.email` / `companies.name` を `encrypted_* + *_hash` へ（AshCloak + Cloak）
   - 検索・一意制約は hash で維持
-- ⬜ **本文系の暗号化**
+- ✅ **本文系の暗号化**
   - `tickets.description` / `inquiries.body` / `conversation_messages.body` / `users.display_name`
 - ⬜ **Impact × Urgency → 優先度算出**
   - 現状は `impact` / `urgency` の保持のみ

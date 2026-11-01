@@ -13,8 +13,8 @@ defmodule HelpdeskCommander.Accounts.User do
 
   cloak do
     vault(HelpdeskCommander.Vault)
-    attributes([:email])
-    decrypt_by_default([:email])
+    attributes([:email, :display_name])
+    decrypt_by_default([:email, :display_name])
   end
 
   attributes do
@@ -133,7 +133,7 @@ defmodule HelpdeskCommander.Accounts.User do
         |> Ash.Changeset.change_attribute(:status, "anonymized")
         |> AshCloak.encrypt_and_set(:email, anon_email)
         |> Ash.Changeset.change_attribute(:email_hash, PiiHash.email(anon_email))
-        |> Ash.Changeset.change_attribute(:display_name, "削除済みユーザー")
+        |> AshCloak.encrypt_and_set(:display_name, "削除済みユーザー")
         |> Ash.Changeset.change_attribute(:login_id, nil)
         |> Ash.Changeset.change_attribute(:password_hash, nil)
         |> Ash.Changeset.change_attribute(:anonymized_at, DateTime.utc_now())

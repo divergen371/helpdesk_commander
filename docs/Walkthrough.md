@@ -1087,3 +1087,25 @@ mix phx.server
 - `docker-compose.yml` のホスト側ポートを `POSTGRES_HOST_PORT`（既定 5433）に変更
 - `config/dev.exs` / `config/test.exs` の既定 `POSTGRES_PORT` も 5433 に変更
 - CI はサービスコンテナが 5432 のため、ワークフローで `POSTGRES_PORT: 5432` を明示
+
+---
+
+## 2026-11-01 本文系の暗号化
+
+- 対象: `users.display_name` / `tickets.description` / `inquiries.body` / `conversation_messages.body`
+- AshCloak の暗号化属性へ移行（DB カラムは `encrypted_*`）
+  - `tickets.description` は NULL を保持（`encrypt_nil? false`）
+- 既存データはマイグレーション内でバックフィル
+- 暗号化属性は action の引数になるため、以下を修正
+  - `DefaultDisplayName`: 引数から表示名を補完
+  - `Inquiry.Changes.CreateTicket`: before_action 前に本文を取得
+  - 匿名化: `AshCloak.encrypt_and_set/3` を使用
+- 通知・チケットイベントに本文の複製がないことを確認（public_id と result のみ）
+- テスト追加（PII テストを拡張）
+  - display_name / ticket description / inquiry body / conversation message body の暗号化保存
+  - description の NULL 維持
+- 検証結果
+  - `mix precommit` 成功、13 properties / 178 tests
+  - `mix coveralls.json` 80.9%
+  - `mix dialyzer` 0 errors
+  - 実サーバーでログイン・チケット詳細の表示を確認

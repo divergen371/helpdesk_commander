@@ -105,7 +105,12 @@
   - 本番: `CLOAK_KEY`（Base64 32byte）と `PII_HMAC_SECRET` が必須
   - dev/test: ローカル専用の派生鍵を使用
 
+### 追加対応（2026-11-01）
+- `users.display_name` / `tickets.description` / `inquiries.body` / `conversation_messages.body` を暗号化
+  - 既存データはマイグレーションでバックフィル
+  - `tickets.description` は NULL を維持（`encrypt_nil? false`）
+- 通知・イベントには本文の複製がないことを確認済み
+
 ### 未対応（次フェーズ）
-- `users.display_name`、`tickets.description`、`inquiries.body`、`conversation_messages.body`
 - 鍵ローテーション
 - 暗号化列に対する全文検索

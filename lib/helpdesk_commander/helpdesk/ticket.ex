@@ -4,7 +4,8 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
   use Ash.Resource,
     domain: HelpdeskCommander.Helpdesk,
     data_layer: AshPostgres.DataLayer,
-    authorizers: [Ash.Policy.Authorizer]
+    authorizers: [Ash.Policy.Authorizer],
+    extensions: [AshCloak]
 
   import Ash.Query
 
@@ -30,6 +31,13 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
     table "tickets"
     repo HelpdeskCommander.Repo
     migration_types public_id: {:string, 32}
+  end
+
+  cloak do
+    vault(HelpdeskCommander.Vault)
+    attributes([:description])
+    decrypt_by_default([:description])
+    encrypt_nil?(false)
   end
 
   defp create_conversation(ticket, actor_id, kind) do

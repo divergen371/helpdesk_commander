@@ -1,7 +1,8 @@
 defmodule HelpdeskCommander.Helpdesk.ConversationMessage do
   use Ash.Resource,
     domain: HelpdeskCommander.Helpdesk,
-    data_layer: AshPostgres.DataLayer
+    data_layer: AshPostgres.DataLayer,
+    extensions: [AshCloak]
 
   alias HelpdeskCommander.Helpdesk
   alias HelpdeskCommander.Helpdesk.Conversation
@@ -11,6 +12,12 @@ defmodule HelpdeskCommander.Helpdesk.ConversationMessage do
   postgres do
     table "conversation_messages"
     repo HelpdeskCommander.Repo
+  end
+
+  cloak do
+    vault(HelpdeskCommander.Vault)
+    attributes([:body])
+    decrypt_by_default([:body])
   end
 
   attributes do
