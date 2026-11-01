@@ -7,6 +7,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   alias HelpdeskCommander.Authorization
   alias HelpdeskCommander.Helpdesk
   alias HelpdeskCommander.Helpdesk.ConversationMessage
+  alias HelpdeskCommander.Helpdesk.Incident
   alias HelpdeskCommander.Helpdesk.Product
   alias HelpdeskCommander.Helpdesk.Ticket
   alias HelpdeskCommander.Helpdesk.TicketEvent
@@ -161,6 +162,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
       load_events(external_user?, ticket.id)
 
     {verifications, verification_warnings} = load_verifications(ticket.id)
+    {incident, incident_events} = load_incident(ticket, external_user?)
 
     warnings = public_warnings ++ private_warnings ++ event_warnings ++ verification_warnings
 
@@ -216,6 +218,10 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
        events_has_more?: events_has_more?,
        events_oldest_id: events_oldest_id,
        verifications: verifications,
+       incident: incident,
+       incident_events: incident_events,
+       incident_form: incident_form(incident),
+       incident_event_form: to_form(%{"phase" => "investigation", "body" => ""}, as: "incident_event"),
        task_links: relations.task_links,
        linkable_tasks: relations.linkable_tasks,
        task_link_form: to_form(%{"task_id" => ""}, as: "link"),
@@ -243,6 +249,10 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     |> assign(:private_message_form, data.private_message_form)
     |> assign(:verification_form, data.verification_form)
     |> assign(:verifications, data.verifications)
+    |> assign(:incident, data.incident)
+    |> assign(:incident_events, data.incident_events)
+    |> assign(:incident_form, data.incident_form)
+    |> assign(:incident_event_form, data.incident_event_form)
     |> assign(:editing_message_id, nil)
     |> assign(:edit_message_form, nil)
     |> assign(:public_conversation, data.public_conversation)
@@ -304,6 +314,44 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
         ErrorLog.log_error("ticket_live.show.fetch_events", error, ticket_id: ticket_id)
         {[], false, nil, ["イベントの取得に失敗しました"]}
     end
+  end
+
+  defp load_incident(_ticket, true), do: {nil, []}
+
+  defp load_incident(ticket, false) do
+    case Helpdesk.get_incident(ticket.id, tenant: ticket.company_id) do
+      {:ok, %Incident{} = incident} ->
+        case Helpdesk.list_incident_events(incident.id, tenant: ticket.company_id) do
+          {:ok, events} ->
+            {incident, events}
+
+          {:error, error} ->
+            ErrorLog.log_error("ticket_live.show.load_incident_events", error, ticket_id: ticket.id)
+            {incident, []}
+        end
+
+      {:ok, nil} ->
+        {nil, []}
+
+      {:error, error} ->
+        ErrorLog.log_error("ticket_live.show.load_incident", error, ticket_id: ticket.id)
+        {nil, []}
+    end
+  end
+
+  defp incident_form(nil) do
+    to_form(%{"severity" => "sev3", "impact_scope" => "", "announcement" => ""}, as: "incident")
+  end
+
+  defp incident_form(incident) do
+    to_form(
+      %{
+        "severity" => incident.severity,
+        "impact_scope" => incident.impact_scope || "",
+        "announcement" => incident.announcement || ""
+      },
+      as: "incident"
+    )
   end
 
   defp load_verifications(ticket_id) do
@@ -820,6 +868,117 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     end
   end
 
+  @impl Phoenix.LiveView
+  def handle_event("promote_incident", %{"incident" => params}, socket) do
+    if socket.assigns.current_user_external? do
+      {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
+    else
+      case Helpdesk.promote_incident(socket.assigns.ticket, params, socket.assigns.current_user) do
+        {:ok, _incident} ->
+          {:noreply,
+           socket
+           |> put_flash(:info, "インシデントに昇格しました")
+           |> reload_incident()}
+
+        {:error, :forbidden} ->
+          {:noreply, put_flash(socket, :error, "インシデントを操作する権限がありません")}
+
+        {:error, error} ->
+          ErrorLog.log_error("ticket_live.show.promote_incident", error, ticket_id: socket.assigns.ticket.id)
+
+          {:noreply, put_flash(socket, :error, "インシデントへの昇格に失敗しました")}
+      end
+    end
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("update_incident", %{"incident" => params}, socket) do
+    if socket.assigns.current_user_external? or is_nil(socket.assigns.incident) do
+      {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
+    else
+      case Helpdesk.update_incident(
+             socket.assigns.incident,
+             params,
+             socket.assigns.current_user
+           ) do
+        {:ok, _incident} ->
+          {:noreply,
+           socket
+           |> put_flash(:info, "インシデントを更新しました")
+           |> reload_incident()}
+
+        {:error, :forbidden} ->
+          {:noreply, put_flash(socket, :error, "インシデントを操作する権限がありません")}
+
+        {:error, error} ->
+          ErrorLog.log_error("ticket_live.show.update_incident", error, ticket_id: socket.assigns.ticket.id)
+
+          {:noreply, put_flash(socket, :error, "インシデントの更新に失敗しました")}
+      end
+    end
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("demote_incident", _params, socket) do
+    if socket.assigns.current_user_external? or is_nil(socket.assigns.incident) do
+      {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
+    else
+      case Helpdesk.demote_incident(socket.assigns.incident, socket.assigns.current_user) do
+        {:ok, _incident} ->
+          {:noreply,
+           socket
+           |> put_flash(:info, "インシデントを降格しました")
+           |> reload_incident()}
+
+        {:error, :forbidden} ->
+          {:noreply, put_flash(socket, :error, "インシデントを操作する権限がありません")}
+
+        {:error, error} ->
+          ErrorLog.log_error("ticket_live.show.demote_incident", error, ticket_id: socket.assigns.ticket.id)
+
+          {:noreply, put_flash(socket, :error, "インシデントの降格に失敗しました")}
+      end
+    end
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("add_incident_event", %{"incident_event" => params}, socket) do
+    if socket.assigns.current_user_external? or is_nil(socket.assigns.incident) do
+      {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
+    else
+      case Helpdesk.add_incident_event(
+             socket.assigns.incident,
+             params,
+             socket.assigns.current_user
+           ) do
+        {:ok, _event} ->
+          {:noreply,
+           socket
+           |> put_flash(:info, "タイムラインを記録しました")
+           |> reload_incident()}
+
+        {:error, :forbidden} ->
+          {:noreply, put_flash(socket, :error, "インシデントを操作する権限がありません")}
+
+        {:error, error} ->
+          ErrorLog.log_error("ticket_live.show.add_incident_event", error, ticket_id: socket.assigns.ticket.id)
+
+          {:noreply, put_flash(socket, :error, "タイムラインの記録に失敗しました")}
+      end
+    end
+  end
+
+  defp reload_incident(socket) do
+    {incident, events} =
+      load_incident(socket.assigns.ticket, socket.assigns.current_user_external?)
+
+    socket
+    |> assign(:incident, incident)
+    |> assign(:incident_events, events)
+    |> assign(:incident_form, incident_form(incident))
+    |> assign(:incident_event_form, to_form(%{"phase" => "investigation", "body" => ""}, as: "incident_event"))
+  end
+
   defp reload_task_links(socket) do
     case load_task_links(socket.assigns.ticket, socket.assigns.current_user) do
       {:ok, links, tasks} ->
@@ -1191,9 +1350,39 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     Map.put_new(params, "sender_id", socket.assigns.ticket.requester_id)
   end
 
+  defp incident_severity_options do
+    [{"SEV1 重大", "sev1"}, {"SEV2 高", "sev2"}, {"SEV3 中", "sev3"}, {"SEV4 低", "sev4"}]
+  end
+
+  defp incident_severity_label("sev1"), do: "SEV1"
+  defp incident_severity_label("sev2"), do: "SEV2"
+  defp incident_severity_label("sev3"), do: "SEV3"
+  defp incident_severity_label("sev4"), do: "SEV4"
+  defp incident_severity_label(_severity), do: "-"
+
+  defp incident_phase_options do
+    [
+      {"調査", "investigation"},
+      {"暫定対応", "mitigation"},
+      {"復旧", "recovery"},
+      {"監視", "monitoring"},
+      {"振り返り", "retrospective"}
+    ]
+  end
+
+  defp incident_phase_label("investigation"), do: "調査"
+  defp incident_phase_label("mitigation"), do: "暫定対応"
+  defp incident_phase_label("recovery"), do: "復旧"
+  defp incident_phase_label("monitoring"), do: "監視"
+  defp incident_phase_label("retrospective"), do: "振り返り"
+  defp incident_phase_label(phase), do: phase
+
   defp event_label(%TicketEvent{event_type: "ticket_created"}), do: "チケット作成"
   defp event_label(%TicketEvent{event_type: "status_changed"}), do: "ステータス変更"
   defp event_label(%TicketEvent{event_type: "verification_submitted"}), do: "検証結果の記録"
+  defp event_label(%TicketEvent{event_type: "incident_promoted"}), do: "インシデント昇格"
+  defp event_label(%TicketEvent{event_type: "incident_demoted"}), do: "インシデント降格"
+  defp event_label(%TicketEvent{event_type: "incident_timeline_updated"}), do: "インシデントタイムライン更新"
 
   defp event_label(%TicketEvent{event_type: "message_posted", data: data}) do
     case event_conversation_kind(data) do
@@ -1249,6 +1438,130 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
               <h3 class="font-semibold">詳細</h3>
               <p class="mt-2 whitespace-pre-wrap text-sm opacity-80">{@ticket.description}</p>
             </div>
+          </div>
+        </div>
+
+        <div :if={!@current_user_external?} class="card bg-base-100 border border-base-200">
+          <div class="card-body">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <h3 class="font-semibold">インシデント</h3>
+              <span :if={@incident} class="badge badge-warning">
+                {incident_severity_label(@incident.severity)}
+              </span>
+            </div>
+
+            <%= cond do %>
+              <% @incident && is_nil(@incident.demoted_at) -> %>
+                <div class="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
+                  <div>
+                    <p class="text-xs uppercase tracking-wide opacity-60">影響範囲</p>
+                    <p class="mt-1 whitespace-pre-wrap">{@incident.impact_scope || "-"}</p>
+                  </div>
+                  <div>
+                    <p class="text-xs uppercase tracking-wide opacity-60">周知メモ</p>
+                    <p class="mt-1 whitespace-pre-wrap">{@incident.announcement || "-"}</p>
+                  </div>
+                  <div>
+                    <p class="text-xs uppercase tracking-wide opacity-60">昇格日時</p>
+                    <p class="mt-1">{format_dt(@incident.promoted_at)}</p>
+                  </div>
+                </div>
+
+                <%= if @can_approve? do %>
+                  <.form for={@incident_form} id="incident-update-form" phx-submit="update_incident">
+                    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                      <.input
+                        field={@incident_form[:severity]}
+                        type="select"
+                        label="SEV"
+                        options={incident_severity_options()}
+                      />
+                      <.input
+                        field={@incident_form[:impact_scope]}
+                        type="textarea"
+                        label="影響範囲"
+                      />
+                      <.input
+                        field={@incident_form[:announcement]}
+                        type="textarea"
+                        label="周知メモ"
+                      />
+                    </div>
+                    <div class="mt-3 flex justify-end">
+                      <.button type="submit">更新</.button>
+                    </div>
+                  </.form>
+
+                  <.form
+                    for={@incident_event_form}
+                    id="incident-event-form"
+                    phx-submit="add_incident_event"
+                  >
+                    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-[12rem_1fr]">
+                      <.input
+                        field={@incident_event_form[:phase]}
+                        type="select"
+                        label="フェーズ"
+                        options={incident_phase_options()}
+                      />
+                      <.input field={@incident_event_form[:body]} type="textarea" label="内容" />
+                    </div>
+                    <div class="mt-3 flex justify-end">
+                      <.button type="submit">タイムラインに追加</.button>
+                    </div>
+                  </.form>
+
+                  <form id="incident-demote-form" phx-submit="demote_incident" class="mt-3">
+                    <.button type="submit" class="btn btn-ghost btn-sm text-error">
+                      インシデントを降格
+                    </.button>
+                  </form>
+                <% end %>
+
+                <div id="incident-timeline" class="mt-6 space-y-3">
+                  <p :if={@incident_events == []} class="text-sm opacity-70">
+                    タイムラインはまだありません。
+                  </p>
+                  <div
+                    :for={event <- @incident_events}
+                    id={"incident-event-#{event.id}"}
+                    class="rounded-box border border-base-200 p-3"
+                  >
+                    <div class="flex flex-wrap items-center justify-between gap-2 text-xs opacity-60">
+                      <span>{incident_phase_label(event.phase)}</span>
+                      <span>{format_dt(event.inserted_at)}</span>
+                    </div>
+                    <p class="mt-2 whitespace-pre-wrap text-sm">{event.body}</p>
+                    <div class="mt-1 text-xs opacity-60">
+                      {sender_label(@users_by_id, event.actor_id)}
+                    </div>
+                  </div>
+                </div>
+              <% @can_approve? -> %>
+                <p class="mt-3 text-sm opacity-70">
+                  {if @incident,
+                    do: "降格済みのインシデントです。再度昇格できます。",
+                    else: "チケットをインシデントに昇格できます。"}
+                </p>
+
+                <.form for={@incident_form} id="incident-promote-form" phx-submit="promote_incident">
+                  <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <.input
+                      field={@incident_form[:severity]}
+                      type="select"
+                      label="SEV"
+                      options={incident_severity_options()}
+                    />
+                    <.input field={@incident_form[:impact_scope]} type="textarea" label="影響範囲" />
+                    <.input field={@incident_form[:announcement]} type="textarea" label="周知メモ" />
+                  </div>
+                  <div class="mt-3 flex justify-end">
+                    <.button type="submit" variant="primary">インシデントに昇格</.button>
+                  </div>
+                </.form>
+              <% true -> %>
+                <p class="mt-3 text-sm opacity-70">インシデント操作の権限がありません。</p>
+            <% end %>
           </div>
         </div>
 

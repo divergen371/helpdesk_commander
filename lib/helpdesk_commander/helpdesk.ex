@@ -8,6 +8,8 @@ defmodule HelpdeskCommander.Helpdesk do
   alias HelpdeskCommander.Accounts.User
   alias HelpdeskCommander.Helpdesk.Conversation
   alias HelpdeskCommander.Helpdesk.ConversationMessage
+  alias HelpdeskCommander.Helpdesk.Incident
+  alias HelpdeskCommander.Helpdesk.IncidentEvent
   alias HelpdeskCommander.Helpdesk.Inquiry
   alias HelpdeskCommander.Helpdesk.Product
   alias HelpdeskCommander.Helpdesk.Ticket
@@ -21,6 +23,8 @@ defmodule HelpdeskCommander.Helpdesk do
   resources do
     resource HelpdeskCommander.Helpdesk.Conversation
     resource HelpdeskCommander.Helpdesk.ConversationMessage
+    resource HelpdeskCommander.Helpdesk.Incident
+    resource HelpdeskCommander.Helpdesk.IncidentEvent
     resource HelpdeskCommander.Helpdesk.Inquiry
     resource HelpdeskCommander.Helpdesk.Product
     resource HelpdeskCommander.Helpdesk.Ticket
@@ -219,6 +223,128 @@ defmodule HelpdeskCommander.Helpdesk do
     Product
     |> filter(company_id == ^company_id and active == true)
     |> Ash.count(domain: __MODULE__, tenant: company_id)
+  end
+
+  ## Incidents
+
+  @spec get_incident(integer(), keyword()) :: {:ok, Incident.t() | nil} | {:error, term()}
+  def get_incident(ticket_id, opts \\ []) do
+    Incident
+    |> filter(ticket_id == ^ticket_id)
+    |> Ash.read_one(Keyword.put(opts, :domain, __MODULE__))
+  end
+
+  @spec list_incident_events(integer(), keyword()) ::
+          {:ok, [IncidentEvent.t()]} | {:error, term()}
+  def list_incident_events(incident_id, opts \\ []) do
+    IncidentEvent
+    |> filter(incident_id == ^incident_id)
+    |> sort(inserted_at: :asc)
+    |> Ash.read(Keyword.put(opts, :domain, __MODULE__))
+  end
+
+  @spec promote_incident(Ticket.t(), map(), User.t()) ::
+          {:ok, Incident.t()} | {:error, term()}
+  def promote_incident(%Ticket{} = ticket, attrs, %User{} = actor) do
+    with :ok <- ensure_privileged(actor, ticket.company_id),
+         {:ok, incident} <- create_or_reactivate_incident(ticket, attrs, actor),
+         :ok <- record_incident_audit(ticket, actor, "incident_promoted", %{severity: incident.severity}) do
+      {:ok, incident}
+    end
+  end
+
+  @spec update_incident(Incident.t(), map(), User.t()) ::
+          {:ok, Incident.t()} | {:error, term()}
+  def update_incident(%Incident{} = incident, attrs, %User{} = actor) do
+    with :ok <- ensure_privileged(actor, incident.company_id) do
+      incident
+      |> Ash.Changeset.for_update(:update, attrs)
+      |> Ash.update(domain: __MODULE__, actor: actor, tenant: incident.company_id)
+    end
+  end
+
+  @spec demote_incident(Incident.t(), User.t()) :: {:ok, Incident.t()} | {:error, term()}
+  def demote_incident(%Incident{} = incident, %User{} = actor) do
+    with :ok <- ensure_privileged(actor, incident.company_id),
+         {:ok, demoted} <-
+           incident
+           |> Ash.Changeset.for_update(:demote, %{})
+           |> Ash.update(domain: __MODULE__, actor: actor, tenant: incident.company_id) do
+      ticket = Ash.get!(Ticket, incident.ticket_id, domain: __MODULE__, tenant: incident.company_id)
+      _audit = record_incident_audit(ticket, actor, "incident_demoted", %{})
+      {:ok, demoted}
+    end
+  end
+
+  @spec add_incident_event(Incident.t(), map(), User.t()) ::
+          {:ok, IncidentEvent.t()} | {:error, term()}
+  def add_incident_event(%Incident{} = incident, attrs, %User{} = actor) do
+    with :ok <- ensure_privileged(actor, incident.company_id),
+         {:ok, event} <-
+           IncidentEvent
+           |> Ash.Changeset.for_create(
+             :create,
+             Map.merge(attrs, %{
+               incident_id: incident.id,
+               actor_id: actor.id,
+               company_id: incident.company_id
+             })
+           )
+           |> Ash.create(domain: __MODULE__, actor: actor, tenant: incident.company_id) do
+      ticket = Ash.get!(Ticket, incident.ticket_id, domain: __MODULE__, tenant: incident.company_id)
+      _audit = record_incident_audit(ticket, actor, "incident_timeline_updated", %{phase: event.phase})
+      {:ok, event}
+    end
+  end
+
+  defp create_or_reactivate_incident(ticket, attrs, actor) do
+    case get_incident(ticket.id, tenant: ticket.company_id) do
+      {:ok, nil} ->
+        Incident
+        |> Ash.Changeset.for_create(
+          :promote,
+          Map.merge(attrs, %{
+            ticket_id: ticket.id,
+            company_id: ticket.company_id,
+            promoted_by_id: actor.id
+          })
+        )
+        |> Ash.create(domain: __MODULE__, actor: actor, tenant: ticket.company_id)
+
+      {:ok, %Incident{demoted_at: nil}} ->
+        {:error, :already_promoted}
+
+      {:ok, %Incident{} = incident} ->
+        incident
+        |> Ash.Changeset.for_update(:reactivate, attrs)
+        |> Ash.update(domain: __MODULE__, actor: actor, tenant: ticket.company_id)
+
+      {:error, error} ->
+        {:error, error}
+    end
+  end
+
+  defp ensure_privileged(%User{} = actor, company_id) do
+    if HelpdeskCommander.Authorization.privileged_for_company?(actor, company_id) do
+      :ok
+    else
+      {:error, :forbidden}
+    end
+  end
+
+  defp record_incident_audit(ticket, actor, event_type, data) do
+    case TicketEvent
+         |> Ash.Changeset.for_create(:create, %{
+           event_type: event_type,
+           data: data,
+           ticket_id: ticket.id,
+           actor_id: actor.id,
+           company_id: ticket.company_id
+         })
+         |> Ash.create(domain: __MODULE__, actor: actor, tenant: ticket.company_id) do
+      {:ok, _event} -> :ok
+      {:error, error} -> {:error, error}
+    end
   end
 
   ## Conversations and messages
