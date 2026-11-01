@@ -1256,3 +1256,44 @@ mix phx.server
   - `mix precommit` 成功、13 properties / 212 tests
   - `mix coveralls.json` 82.6%（1953 / 2365 行）
   - `mix dialyzer` 0 errors
+
+---
+
+## 2026-11-01 タスク文書の整理
+
+- ルートの `Task.md` を削除（初期フェーズのスナップショットで、現在の実装と大きく乖離）
+  - 完了済み項目は `docs/TASKS.md` と `docs/ROADMAP.md` に反映済み
+  - PostgreSQL 移行の運用記録は本ファイルの 2026-10 の節に残存
+- 未完了として残っていた項目を `docs/TASKS.md` の P2 に移設
+  - バックアップ/復元・データ移行の運用手順
+  - 会話チャット連携（通知 Webhook とは別）
+- docs の齟齬を修正
+  - `TASKS.md` / `ROADMAP.md` の最終更新日
+  - テナント境界の監査を完了に統一
+  - TicketNotification は Preparation ではなく read ポリシーで受信者を制御する記述へ更新
+  - system ユーザーの role・表示ルールを完了項目に追加
+  - `README.md` のロードマップ（コメント編集/削除、通知の外部連携、テナント境界）を実装に合わせて更新
+
+### ロードマップ追記
+
+- フェーズ7「AI・意思決定支援」を追加
+  - LiquidAI D1 / D1 Ultra の比較検討から開始
+  - 判断材料の提示に留め、人間の最終決定と監査ログを維持
+  - PII を外部送信しない構成とシャドー運用を前提
+- `TASKS.md` / `README.md` / `STATUS.md` にも同じ項目を反映
+
+---
+
+## 2026-11-01 プロジェクト管理を Backlog.md へ移行
+
+- Backlog.md 1.55.3 を導入（`brew install backlog-md`）
+- `backlog/` に未完了タスクを移行（HC-1〜HC-15）
+  - マイルストーン M1〜M5、ラベル `p1` / `p2` / 領域別
+  - 受け入れ条件を各タスクに記載
+- ドキュメントの役割を変更
+  - `TASKS.md`: Backlog.md の使い方とマイルストーンの案内に縮小
+  - `ROADMAP.md`: フェーズ構成とマイルストーン対応のみ（重複バックログを削除）
+  - `README.md`: ロードマップの写しを削除し、Backlog.md への導線に変更
+  - `STATUS.md`: スナップショットとして維持
+  - 本ファイル: 履歴として凍結（以後の作業記録は Backlog.md へ）
+- エージェント向けに `AGENTS.md` へ Backlog.md のワークフローを追記

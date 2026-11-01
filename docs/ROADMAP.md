@@ -1,9 +1,11 @@
 # ロードマップ
 
-最終更新: 2026-10-24
+最終更新: 2026-11-01
 基準: [REQUIREMENTS.md](REQUIREMENTS.md) の段階導入（フェーズ 1〜6）と、[STATUS.md](STATUS.md) の実装調査。
 
 凡例: ✅ 完了 / 🟡 一部実装 / ⬜ 未着手
+
+未完了タスクの正本は Backlog.md（`backlog/`）とする。このファイルはフェーズ構成と完了状況のみを扱う。
 
 ---
 
@@ -73,34 +75,33 @@
 
 ### 残り
 
-- ⬜ **テナント境界の監査と統一**
-  - 全社横断の閲覧・操作が要件通りか確定する
-  - 担当者候補、通知受信者、管理操作を `company_id` で制約する
+- ✅ **テナント境界の監査と統一**
+  - 担当者候補、通知受信者、管理操作を `company_id` で制約済み
 - ✅ **Ash ポリシーの横展開**
   - Task / Inquiry / ConversationMessage / TicketLink（TicketNotification は既存）
   - 更新・削除・メッセージ編集をリソース側で制御し、画面から actor を渡す
 - ✅ **共通 Change / Validation の抽出**
   - `EnsureTicketResolved` / `SetTimestampIfNil` を追加し、検証の `resolved` 制約と日時補完を再利用化
-- ⬜ **TicketNotification read の Preparation**
-  - 受信者で絞り、`inserted_at desc` を統一
+- ✅ **TicketNotification read の受信者制御**
+  - read ポリシーで受信者に限定。Preparation は廃止し、並び順は build sort で維持
 - ✅ **PII 暗号化（段階導入）**
   - `users.email` / `companies.name` を `encrypted_* + *_hash` へ（AshCloak + Cloak）
   - 検索・一意制約は hash で維持
 - ✅ **本文系の暗号化**
   - `tickets.description` / `inquiries.body` / `conversation_messages.body` / `users.display_name`
-- ⬜ **Impact × Urgency → 優先度算出**
+- ⬜ **Impact × Urgency → 優先度算出**（HC-14）
   - 現状は `impact` / `urgency` の保持のみ
 - ✅ **`code_interface` / `aggregates` / `calculations`**
   - `code_interface` と Domain API（`Accounts` / `Helpdesk` / `Tasks`）を導入
   - aggregates: 未読通知数・チケット検証数・最新イベント時刻
-- ⬜ **`multitenancy`（company 境界の強制）**
+- ⬜ **`multitenancy`（company 境界の強制）**（HC-2）
 - ✅ **カバレッジの余裕確保**（82.6%）
 
 ---
 
 ## フェーズ 3: 障害管理（Incident）
 
-- ⬜ Ticket → Incident 昇格/降格（admin/leader のみ）
+- ⬜ Ticket → Incident 昇格/降格（admin/leader のみ）（HC-3）
 - ⬜ SEV（重大度）と影響範囲
 - ⬜ タイムライン（調査 / 暫定対応 / 復旧 / 監視 / 振り返り）
 - ⬜ 周知用メモ
@@ -112,21 +113,21 @@
 
 - ✅ コメント（公開/内部メモ）— 追加・編集・論理削除、種別と編集日時の表示
 - ✅ 検索・フィルタ・ソート（仕様は `docs/DESIGN_SEARCH_FILTER_SORT.md`）
-- 🟡 関係グラフ — `/relations` で俯瞰表示。ラベルの重なり・余白・少件数時の配置を調整中
+- 🟡 関係グラフ — `/relations` で俯瞰表示（HC-1）
 - ✅ 通知 UI と既読管理
 - ✅ 通知の重複抑制・クールダウン（同一チケット・種別・受信者の 5 分以内は抑止）
 - ✅ 外部通知（メール / チャット Webhook）— クールダウンと送信済み記録で重複を防止
-- ⬜ 添付ファイル（容量・形式・保存先・ウイルススキャン）
-- ⬜ チケット関連リンクの自動提案・重複検知
+- ⬜ 添付ファイル（容量・形式・保存先・ウイルススキャン）（HC-6）
+- ⬜ チケット関連リンクの自動提案・重複検知（HC-15）
 
 ---
 
 ## フェーズ 5: SLA・分析・レポート
 
-- ⬜ SLA 定義（優先度ごとの一次応答 / 暫定対応 / 解決 / 復旧）
+- ⬜ SLA 定義（優先度ごとの一次応答 / 暫定対応 / 解決 / 復旧）（HC-4）
 - ⬜ SLA 監視と可視化
 - ✅ 簡易ダッシュボード（チケット・タスク・製品・通知の概要）
-- ⬜ ダッシュボードの分析機能（未対応、滞留、負荷）
+- ⬜ ダッシュボードの分析機能（未対応、滞留、負荷）（HC-5）
 - ⬜ レポート・統計
 - ⬜ 優先度と内容の齟齬チェック（`DESIGN_PRIORITY_CHECK.md`）
 
@@ -134,59 +135,36 @@
 
 ## フェーズ 6: 外部連携
 
-- ⬜ 監視サービス連携
-- ⬜ チャット連携（Slack など）
-- ⬜ SSO
-- ⬜ JSON API / GraphQL（`DESIGN_API_MIGRATION.md`）
+- ⬜ 監視サービス連携（HC-8）
+- ⬜ 会話チャット連携（Slack など。通知 Webhook は実装済み）（HC-7）
+- ⬜ SSO（HC-9）
+- ⬜ JSON API / GraphQL（`DESIGN_API_MIGRATION.md`）（HC-11）
 
 ---
 
-## 優先バックログ
+## フェーズ 7: AI・意思決定支援
 
-### P0（最優先）
-
-| # | タスク | 受け入れ条件 |
-| --- | --- | --- |
-| 1 | ~~CI カバレッジ回復~~ | ✅ 完了（80.5%） |
-| 2 | ~~実行環境の固定~~ | ✅ 完了（OTP 29.1.2 / Elixir 1.20.4） |
-| 3 | ~~Inquiry Web フォーム~~ | ✅ 完了（`/inquiries/new` → Ticket 自動生成） |
-| 4 | ~~テナント/権限の監査~~ | ✅ 完了（company 境界・社外タスク禁止・特権操作の会社一致） |
-| 5 | ~~共通 Change 抽出~~ | ✅ 完了（`EnsureTicketResolved` / `SetTimestampIfNil`、既存テスト維持） |
-| 6 | ~~通知 read の Preparation~~ | ✅ 完了（受信者絞り込み・新しい順・read/mark_read ポリシー） |
-
-### P1（MVP 仕上げ）
-
-| # | タスク | 受け入れ条件 |
-| --- | --- | --- |
-| 7 | ~~チケット一覧のフィルタ/ソート/ページング~~ | ✅ 完了（URL クエリで再現可能） |
-| 8 | ~~通知 UI~~ | ✅ 完了（未読件数・一覧・既読化・受信者スコープ） |
-| 9 | ~~タスク CRUD UI~~ | ✅ 完了（作成・編集・削除・担当/期限/状態変更） |
-| 10 | ~~チケットとタスクの紐付け~~ | ✅ 完了（チケット詳細から追加・解除） |
-| 11 | ~~チケット関連リンク UI + Sigma.js グラフ PoC~~ | ✅ 完了（関連リンク登録・解除、関係グラフ表示） |
-| 12 | ~~PII 暗号化（第1段）~~ | ✅ 完了（AshCloak、email/name の暗号化と hash 検索・一意制約） |
-| 13 | ~~`code_interface` / aggregates~~ | ✅ 完了（Domain API、未読数・検証数・最新イベント時刻） |
-| 14 | カバレッジの継続運用 | ✅ 82.6%。新規コード追加時に 80% を下回らないようテストを追加 |
-| 15 | ~~Ash snapshot 再生成~~ | ✅ 完了（`mix ash.codegen --check` 成功。`ticket_messages` は既に削除済みのためスナップショットを整理） |
-
-### P2（拡張）
-
-| # | タスク |
-| --- | --- |
-| 16 | `multitenancy` による company 境界の強制 |
-| 17 | Incident 昇格/降格・SEV・タイムライン |
-| 18 | SLA 定義・監視・ダッシュボード |
-| 19 | 添付ファイル |
-| 20 | 外部通知 / 監視 / チャット / SSO |
-| 21 | JSON API 化 |
-| 22 | AshAuthentication への一本化（現行 `Accounts.Auth` の整理） |
+- ⬜ **LiquidAI のデシジョンモデル（D1 / D1 Ultra）の導入検討**（HC-13）
+  - 想定用途: チケットの優先度・担当・エスカレーション判定、SLA 逸脱リスク、重複/関連チケットの候補提示
+  - D1 と D1 Ultra の精度・レイテンシ・コスト・セルフホスト可否を比較し、選定基準を先に確定する
+  - 推論結果は判断材料として提示し、最終決定は人間が行う（自動確定は段階的に許可）
+  - PII を外部送信しない構成（セルフホストまたは匿名化）を前提とする
+  - 評価データセットとオフライン評価を用意し、シャドー運用で精度を確認してから有効化する
+- ⬜ 決定ログと説明可能性（入力・モデル版・出力・採用/却下理由）
+- ⬜ モデル障害時のフォールバック（既存のルールベース判定を維持）
 
 ---
 
 ## マイルストーン
 
-1. **M1: MVP クローズ** — P0 の 5 + P1 の 10〜11
-2. **M2: セキュリティ/品質強化** — P0 の 4〜6、P1 の 12〜14、P2 の 15
-3. **M3: Incident 運用** — フェーズ 3
-4. **M4: 分析・外部連携** — フェーズ 5〜6
+実行単位は Backlog.md のマイルストーンで管理する。
 
-各マイルストーンの完了時は [STATUS.md](STATUS.md) と [TASKS.md](TASKS.md) を更新する。
+| ID | 名称 | 主なタスク |
+| --- | --- | --- |
+| M1 | MVP クローズ | HC-1 |
+| M2 | 品質・セキュリティ | HC-2, HC-10, HC-12, HC-14 |
+| M3 | Incident 運用 | HC-3 |
+| M4 | 分析・外部連携 | HC-4, HC-5, HC-6, HC-7, HC-8, HC-9, HC-11, HC-15 |
+| M5 | AI・意思決定支援 | HC-13 |
+
+各マイルストーンの完了時は `STATUS.md` を更新する。

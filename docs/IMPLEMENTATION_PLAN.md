@@ -17,7 +17,7 @@
 - 通知は `ticket_notifications` への保存まで実装済み（UI・既読導線は未実装）
 - 検証・承認フロー、製品マスタ、チケット関連リンクのリソースを実装済み
 - 2026-10-24 時点の検証結果・ギャップ・リスクは [STATUS.md](STATUS.md) に整理
-- フェーズ別の残作業と優先順位は [ROADMAP.md](ROADMAP.md)、詳細タスクは [TASKS.md](TASKS.md) を参照
+- フェーズ別の方針は [ROADMAP.md](ROADMAP.md)、未完了タスクは Backlog.md（`backlog/`）を参照
 
 ## 設計方針
 - 重要操作はイベントログ化し、append-only を基本にする

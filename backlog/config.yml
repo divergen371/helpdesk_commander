@@ -1,0 +1,20 @@
+project_name: "Helpdesk Commander"
+default_status: "To Do"
+statuses: ["To Do", "In Progress", "Done"]
+labels: ["p1", "p2", "security", "incident", "ops", "ai", "integration", "ui", "quality"]
+date_format: yyyy-mm-dd
+max_column_width: 20
+default_editor: "nano"
+auto_open_browser: true
+default_port: 6420
+remote_operations: true
+auto_commit: false
+filesystem_only: false
+bypass_git_hooks: false
+check_active_branches: true
+active_branch_days: 30
+task_prefix: "HC"
+definition_of_done:
+  - テストが通る
+  - ドキュメントを更新する
+  - 既存機能の回帰がない

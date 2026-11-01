@@ -1,87 +1,41 @@
 # Tasks
 
-作業状況に合わせて随時更新する。
-全体像とフェーズは [ROADMAP.md](ROADMAP.md)、現状の検証結果は [STATUS.md](STATUS.md) を参照。
+未完了タスクは **Backlog.md**（`backlog/`）を正本とする。
+各タスクの目的・受け入れ条件・依存関係・進捗は CLI / Web UI から確認する。
 
-最終更新: 2026-10-26
+## 使い方
 
-## 現在（P0）
+```bash
+# 一覧
+backlog task list --plain
 
-- なし（P0 は完了）
+# ボード（ターミナル）
+backlog board
 
+# Web UI（ローカル）
+backlog browser
 
-## 次（P1）
+# 検索・詳細
+backlog search "graph" --plain
+backlog task view HC-1 --plain
 
-- [ ] 関係グラフの調整（`/relations`）
-  - [ ] ノード名とエッジ名が重ならないようにする（ラベル密度・エッジラベル位置・間隔）
-  - [ ] 画面端でノード名が見切れない余白を確定する（`stagePadding` 90 の実機確認）
-  - [ ] 件数が少ないときの配置を見直す（現在は 1 行 10 列のグリッドで横一列になる）
-  - [ ] 凡例の色を実際のライト/ダークのパレットと揃える
-  - [ ] 表示高さ（72vh / min-height 32rem）の妥当性を確認する
-  - [ ] ライト/ダーク両モードの目視確認手順を残す
+# 新しいタスク
+backlog task create "タイトル" -d "背景" --ac "完了条件"
+```
 
-## 保留（P2）
+## マイルストーン
 
-- [ ] `multitenancy` 段階導入（company境界の強制）
-- [ ] Incident 昇格/降格・タイムライン（フェーズ3）
-- [ ] Incident の SEV・影響範囲・周知メモ
-- [ ] SLA 定義・監視・レポート（フェーズ5）
-- [ ] 統計・レポート（簡易ダッシュボードは実装済み）
-- [ ] 添付ファイル（保存先・容量・形式・ウイルススキャン）
-- [ ] 監視/チャット/SSO 連携（フェーズ6）
-- [ ] JSON API 化（`DESIGN_API_MIGRATION.md`）
-- [ ] AshAuthentication への一本化（現行 `Accounts.Auth` との差異整理）
+| ID | 名称 |
+| --- | --- |
+| M1 | MVP クローズ |
+| M2 | 品質・セキュリティ |
+| M3 | Incident 運用 |
+| M4 | 分析・外部連携 |
+| M5 | AI・意思決定支援 |
 
-## 完了
+## ドキュメントの役割
 
-- [x] カバレッジの余裕確保（82.6%。製品・通知・タスク・ダッシュボード・認証の未テスト分を追加）
-- [x] 外部通知チャネル（メール/チャット）と重複抑制（送信済み記録で再送防止）
-- [x] Ash resource snapshot の再生成（`mix ash.codegen --check` が成功）
-- [x] 検索/フィルタ/ソート仕様の確定と実装（チケット・タスク・製品・通知）
-- [x] 通知の重複抑制・クールダウン
-- [x] Ash ポリシーの横展開（Task / Inquiry / ConversationMessage / TicketLink。TicketNotification は既存ポリシーを維持）
-- [x] `aggregates` / `calculations` 導入（未読通知数・チケット検証数・最新イベント時刻）
-- [x] `code_interface` 導入（Domain API 経由に整理し、Web 層から Ash 呼び出しを除去）
-- [x] コメントの編集・削除・メタ情報（送信者による編集、送信者/管理者による論理削除、種別・編集日時の表示）
-- [x] 本文系の暗号化（`tickets.description` / `inquiries.body` / `conversation_messages.body` / `users.display_name`）
-- [x] PII保護の段階導入（`users.email` / `companies.name` を `encrypted_* + *_hash` へ移行し、検索・一意制約を維持）
-- [x] 共通 Change 抽出（`EnsureTicketResolved` / `SetTimestampIfNil`、ステータス日時と検証日時の補完を共通化）
-- [x] 簡易ダッシュボード（`/`、チケット・タスク・製品・通知の概要、最近の項目）
-- [x] チケット関連リンク UI + Sigma.js 関係グラフ PoC（登録・解除、`/relations` で俯瞰）
-- [x] 製品マスタ管理 UI（作成・編集・有効化/無効化、有効製品のみ選択）
-- [x] チケットとタスクの紐付け（`ticket_task_links`、チケット詳細から追加・解除、company 検証）
-- [x] タスク CRUD UI（作成・編集・削除、担当/期限/状態変更、入力検証、担当者の company 検証）
-- [x] 通知 UI（`/notifications`、受信者別一覧、未読件数、既読化、チケット導線）
-- [x] チケット一覧のフィルタ/ソート/ページング（状態/優先度/種別/担当、URL クエリ、20件ページング）
-- [x] Inquiry Web フォーム（`/inquiries/new`、製品選択、依頼者指定、Ticket 自動生成、テナント検証）
-- [x] テナント境界・認可監査（チケット/タスク/ユーザー承認を `company_id` で制約、社外のタスクアクセス禁止、横断的な特権操作を拒否）
-- [x] TicketNotification read の Preparation（受信者絞り込み・`inserted_at desc`・read/mark_read ポリシー）
-- [x] Erlang/OTP 29.1.2 + Elixir 1.20.4 対応（`.tool-versions` / CI 更新、Ash/Phoenix 依存更新、型警告修正）
-- [x] CI カバレッジ 80% 回復（CurrentUser / Authorization / 認証コントローラのテスト追加）
-- [x] コアリソース（Users/Tickets/Tasks）と public_id 方針の実装
-- [x] Oban/Cachex/Telemetry の導入
-- [x] Hammer/PlugAttack/RemoteIp による基本的な攻撃耐性の導入
-- [x] 会社・ユーザー認証（会社コード + login_id/email、pending 承認）
-- [x] ユーザーの停止・匿名化（suspended → 30日後 anonymized）
-- [x] 問い合わせ受付（Inquiry）→ Ticket 自動生成の実装（リソース/変更/マイグレーション生成）
-- [x] Ticket 詳細のイベントログ・会話ログの永続化（append-only）とページング基盤
-- [x] Ticket 状態遷移の整合性（楽観ロック/専用アクション化）
-- [x] 認証・権限（Leader/Admin 制約: verified/closed、priority/assignee確定）
-- [x] 検証・承認フロー（`ticket_verifications`、検証入力、承認導線）
-- [x] 通知の仕組み（MVP: Oban + `ticket_notifications` 保存）
-- [x] タスク優先度履歴 UI と `set_priority` アクションの利用導線
-- [x] Policy Authorizer 導入（`Ticket.set_status` / `Ticket.update` の権限制御を `policies` に集約）
-- [x] 製品マスタ（`products`）とチケット作成時の選択
-- [x] チケット関連リンクのリソース（`ticket_links`）
-- [x] PropCheck による PBT（StateM / FSM / negative）と CI 設定
-
-## 補足
-
-- 詳細な時系列は `docs/Walkthrough.md` を参照。
-- 設計メモ:
-  - `docs/DESIGN_ASH_REFACTOR.md`
-  - `docs/DESIGN_DATA_ENCRYPTION.md`
-  - `docs/DESIGN_API_MIGRATION.md`
-  - `docs/DESIGN_PRIORITY_CHECK.md`
-  - `docs/DESIGN_TICKET_RELATIONS.md`
-  - `docs/DESIGN_USER_DELETION.md`
+- `ROADMAP.md`: フェーズ構成と方針（実行単位は Backlog.md）
+- `STATUS.md`: テスト・カバレッジ・既知の制約のスナップショット
+- `Walkthrough.md`: 過去の作業履歴（凍結。以後の作業記録は Backlog.md へ）
+- `README.md`: 機能一覧と利用方法

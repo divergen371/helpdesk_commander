@@ -1,14 +1,14 @@
 # リポジトリ現状レポート
 
-最終更新: 2026-10-24
-対象: `main` / `a25dc83`（Introduce Ticket Policy Authorizer for status/update actions）
+最終更新: 2026-11-01
+対象: `main` / `b2f7c30`
 
 このドキュメントは「今どこまで出来ていて、何が動き、何が足りないか」をスナップショットとして残す。
-残作業の優先順位は [ROADMAP.md](ROADMAP.md)、詳細な作業リストは [TASKS.md](TASKS.md) を参照。
+残作業は Backlog.md（`backlog/`）、フェーズの方針は [ROADMAP.md](ROADMAP.md) を参照。
 
 ---
 
-## 1. 検証結果（2026-10-24 時点）
+## 1. 検証結果（2026-11-01 時点）
 
 ### 実行環境
 
@@ -122,7 +122,8 @@
 - SLA 定義・監視・可視化（Impact × Urgency による優先度算出を含む）
 - 添付ファイル、ウイルススキャン、保存先設計
 - ダッシュボードの分析機能、レポート、統計
-- 外部通知チャネル（メール/チャット）、監視連携、SSO
+- 監視連携、SSO、会話チャット連携（通知のメール/Webhook は実装済み）
+- LiquidAI D1 / D1 Ultra による意思決定支援（フェーズ7）
 - JSON API（`DESIGN_API_MIGRATION.md` は設計のみ）
 
 ---
@@ -150,7 +151,7 @@
 
 - 要件: [REQUIREMENTS.md](REQUIREMENTS.md)
 - ロードマップ: [ROADMAP.md](ROADMAP.md)
-- 残タスク: [TASKS.md](TASKS.md)
+- 未完了タスク: Backlog.md（`backlog/`、`backlog task list --plain`）
 - 実装計画: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
 - 未決定事項: [UNDECIDED_ITEMS.md](UNDECIDED_ITEMS.md)
 - 作業履歴: [Walkthrough.md](Walkthrough.md)
