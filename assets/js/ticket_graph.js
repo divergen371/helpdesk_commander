@@ -1,58 +1,35 @@
 import Graph from "graphology"
 import Sigma from "sigma"
 
-const palettes = {
-  light: {
-    label: "#0f172a",
-    root: "#0f172a",
-    status: {
-      triage: "#b45309",
-      in_progress: "#2563eb",
-      waiting: "#b45309",
-      resolved: "#0e7490",
-      verified: "#15803d",
-      closed: "#475569",
-      default: "#334155",
-    },
-    relation: {
-      reopened_from: "#dc2626",
-      duplicate_of: "#7c3aed",
-      blocks: "#2563eb",
-      blocked_by: "#2563eb",
-      related: "#64748b",
-      default: "#64748b",
-    },
-  },
-  dark: {
-    label: "#e2e8f0",
-    root: "#f8fafc",
-    status: {
-      triage: "#fbbf24",
-      in_progress: "#60a5fa",
-      waiting: "#fbbf24",
-      resolved: "#22d3ee",
-      verified: "#4ade80",
-      closed: "#94a3b8",
-      default: "#cbd5e1",
-    },
-    relation: {
-      reopened_from: "#f87171",
-      duplicate_of: "#c084fc",
-      blocks: "#60a5fa",
-      blocked_by: "#60a5fa",
-      related: "#94a3b8",
-      default: "#94a3b8",
-    },
-  },
+function cssValue(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 }
 
 function currentPalette() {
-  const theme = document.documentElement.getAttribute("data-theme")
-  const dark =
-    theme === "dark" ||
-    (!theme && window.matchMedia("(prefers-color-scheme: dark)").matches)
+  const status = (name) => cssValue(`--graph-status-${name}`)
+  const relation = (name) => cssValue(`--graph-relation-${name}`)
 
-  return dark ? palettes.dark : palettes.light
+  return {
+    label: cssValue("--graph-label"),
+    root: cssValue("--graph-root"),
+    status: {
+      triage: status("triage"),
+      in_progress: status("in_progress"),
+      waiting: status("waiting"),
+      resolved: status("resolved"),
+      verified: status("verified"),
+      closed: status("closed"),
+      default: status("default"),
+    },
+    relation: {
+      reopened_from: relation("reopened_from"),
+      duplicate_of: relation("duplicate_of"),
+      blocks: relation("blocks"),
+      blocked_by: relation("blocked_by"),
+      related: relation("related"),
+      default: relation("default"),
+    },
+  }
 }
 
 export default {
@@ -117,10 +94,14 @@ export default {
 
     this.renderer = new Sigma(graph, this.el, {
       defaultEdgeType: "arrow",
-      renderEdgeLabels: true,
-      labelDensity: 0.8,
-      labelRenderedSizeThreshold: 6,
-      stagePadding: 90,
+      // 密なグラフではエッジ名を出さず、色と凡例で関係を示す
+      renderEdgeLabels: data.edges.length <= 8,
+      labelDensity: 0.55,
+      labelGridCellSize: 36,
+      labelRenderedSizeThreshold: 8,
+      labelSize: 13,
+      edgeLabelSize: 11,
+      stagePadding: 120,
       labelColor: {color: palette.label},
       edgeLabelColor: {color: palette.label},
     })

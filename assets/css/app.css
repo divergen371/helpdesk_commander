@@ -103,3 +103,60 @@
 [data-phx-session], [data-phx-teleported-src] { display: contents }
 
 /* This file is for your main application CSS */
+
+/* Relation graph palette. Keep these in sync with the graph legend. */
+:root {
+  --graph-label: #0f172a;
+  --graph-root: #0f172a;
+  --graph-status-triage: #b45309;
+  --graph-status-in_progress: #2563eb;
+  --graph-status-waiting: #b45309;
+  --graph-status-resolved: #0e7490;
+  --graph-status-verified: #15803d;
+  --graph-status-closed: #475569;
+  --graph-status-default: #334155;
+  --graph-relation-reopened_from: #dc2626;
+  --graph-relation-duplicate_of: #7c3aed;
+  --graph-relation-blocks: #2563eb;
+  --graph-relation-blocked_by: #2563eb;
+  --graph-relation-related: #64748b;
+  --graph-relation-default: #64748b;
+}
+
+[data-theme="dark"] {
+  --graph-label: #e2e8f0;
+  --graph-root: #f8fafc;
+  --graph-status-triage: #fbbf24;
+  --graph-status-in_progress: #60a5fa;
+  --graph-status-waiting: #fbbf24;
+  --graph-status-resolved: #22d3ee;
+  --graph-status-verified: #4ade80;
+  --graph-status-closed: #94a3b8;
+  --graph-status-default: #cbd5e1;
+  --graph-relation-reopened_from: #f87171;
+  --graph-relation-duplicate_of: #c084fc;
+  --graph-relation-blocks: #60a5fa;
+  --graph-relation-blocked_by: #60a5fa;
+  --graph-relation-related: #94a3b8;
+  --graph-relation-default: #94a3b8;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --graph-label: #e2e8f0;
+    --graph-root: #f8fafc;
+    --graph-status-triage: #fbbf24;
+    --graph-status-in_progress: #60a5fa;
+    --graph-status-waiting: #fbbf24;
+    --graph-status-resolved: #22d3ee;
+    --graph-status-verified: #4ade80;
+    --graph-status-closed: #94a3b8;
+    --graph-status-default: #cbd5e1;
+    --graph-relation-reopened_from: #f87171;
+    --graph-relation-duplicate_of: #c084fc;
+    --graph-relation-blocks: #60a5fa;
+    --graph-relation-blocked_by: #60a5fa;
+    --graph-relation-related: #94a3b8;
+    --graph-relation-default: #94a3b8;
+  }
+}

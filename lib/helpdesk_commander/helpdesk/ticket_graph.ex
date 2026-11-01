@@ -12,6 +12,14 @@ defmodule HelpdeskCommander.Helpdesk.TicketGraph do
   @max_overview_tickets 150
   @max_overview_links 400
 
+  @relation_labels %{
+    "reopened_from" => "再起票",
+    "duplicate_of" => "重複",
+    "blocks" => "依存",
+    "blocked_by" => "依存",
+    "related" => "関連"
+  }
+
   @relation_style %{
     "reopened_from" => {"#dc2626", 0.95},
     "duplicate_of" => {"#7c3aed", 0.8},
@@ -53,7 +61,8 @@ defmodule HelpdeskCommander.Helpdesk.TicketGraph do
     with {:ok, tickets} <- Ash.read(tickets_query, domain: Helpdesk),
          {:ok, links} <- Ash.read(links_query, domain: Helpdesk) do
       indexed_tickets = Enum.with_index(tickets)
-      nodes = Enum.map(indexed_tickets, &overview_node/1)
+      node_count = length(indexed_tickets)
+      nodes = Enum.map(indexed_tickets, &overview_node(&1, node_count))
       by_id = Map.new(tickets, &{&1.id, &1})
 
       edges =
@@ -110,28 +119,39 @@ defmodule HelpdeskCommander.Helpdesk.TicketGraph do
       "id" => "edge-#{index}",
       "source" => source,
       "target" => target,
-      "label" => "#{link.relation_type} #{score}",
+      "label" => relation_label(link.relation_type),
       "relation" => link.relation_type,
       "score" => score,
       "color" => color
     }
   end
 
-  defp overview_node({ticket, index}) do
-    columns = 10
-    spacing = 5.0
+  defp overview_node({ticket, index}, node_count) do
+    {columns, rows, spacing} = grid_for(node_count)
+
+    x = (rem(index, columns) - (columns - 1) / 2) * spacing
+    y = (div(index, columns) - (rows - 1) / 2) * spacing
 
     %{
       "id" => ticket.public_id,
       "label" => ticket.subject,
-      "x" => rem(index, columns) * spacing,
-      "y" => div(index, columns) * spacing,
+      "x" => x,
+      "y" => y,
       "size" => priority_size(ticket.priority),
       "color" => status_color(ticket.status),
       "status" => ticket.status,
       "priority" => ticket.priority,
       "url" => "/tickets/#{ticket.public_id}"
     }
+  end
+
+  # 少件数でも横一列にならないよう、件数に近い正方形のグリッドにする。
+  defp grid_for(count) when count <= 1, do: {1, 1, 0.0}
+
+  defp grid_for(count) do
+    columns = count |> :math.sqrt() |> Float.ceil() |> trunc()
+    rows = (count / columns) |> Float.ceil() |> trunc()
+    {columns, rows, 7.0}
   end
 
   defp overview_edge(link, index, by_id) do
@@ -144,7 +164,7 @@ defmodule HelpdeskCommander.Helpdesk.TicketGraph do
           "id" => "edge-#{index}",
           "source" => ticket.public_id,
           "target" => related.public_id,
-          "label" => "#{link.relation_type} #{score}",
+          "label" => relation_label(link.relation_type),
           "relation" => link.relation_type,
           "score" => score,
           "color" => color
@@ -154,6 +174,8 @@ defmodule HelpdeskCommander.Helpdesk.TicketGraph do
       _entry -> []
     end
   end
+
+  defp relation_label(relation), do: Map.get(@relation_labels, relation, relation)
 
   defp priority_size("p1"), do: 18
   defp priority_size("p2"), do: 16

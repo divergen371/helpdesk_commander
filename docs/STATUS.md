@@ -24,7 +24,7 @@
 | コマンド | 結果 |
 | --- | --- |
 | `mix precommit` | 成功 |
-| `mix test` | **13 properties, 212 tests, 0 failures** |
+| `mix test` | **13 properties, 214 tests, 0 failures** |
 | `mix credo --strict` | 指摘なし（65 files / 95 checks） |
 | `mix dialyzer` | **0 errors** |
 | `mix compile --warnings-as-errors` | 成功（プロジェクト側の警告 0） |
@@ -56,7 +56,7 @@
 | `workers/create_ticket_notifications_worker.ex` | 81.8% |
 | `live/ticket_live/show.ex` | 77.1% |
 | `accounts/auth.ex` | 85.6% |
-| **合計** | **82.6%**（1953 / 2365 行） |
+| **合計** | **82.6%**（1960 / 2372 行） |
 
 基準 80% に対して 2.6pt の余裕がある。新規コード追加時はテストも同時に追加する。
 

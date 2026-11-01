@@ -40,6 +40,31 @@ defmodule HelpdeskCommanderWeb.RelationGraphLiveTest do
     assert hd(edges)["relation"] == "blocks"
   end
 
+  test "build_overview uses a compact grid and short edge labels" do
+    company = create_company!()
+    user = create_user!(company)
+    first = create_ticket!(user, "First")
+    second = create_ticket!(user, "Second")
+    _third = create_ticket!(user, "Third")
+    {:ok, _} = TicketRelations.create_link(first, second.id, "blocks", user)
+
+    assert {:ok, %{nodes: nodes, edges: [edge]}} = TicketGraph.build_overview(company.id)
+    assert edge["label"] == "依存"
+
+    ys = nodes |> Enum.map(& &1["y"]) |> Enum.uniq()
+    assert length(ys) == 2
+  end
+
+  test "build_overview centers a single ticket" do
+    company = create_company!()
+    user = create_user!(company)
+    _ticket = create_ticket!(user, "Only")
+
+    assert {:ok, %{nodes: [node]}} = TicketGraph.build_overview(company.id)
+    assert node["x"] == 0.0
+    assert node["y"] == 0.0
+  end
+
   test "external user is redirected away from the graph", %{conn: conn} do
     company = create_company!()
     external = create_user!(company, role: "customer")
