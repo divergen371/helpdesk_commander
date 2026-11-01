@@ -60,6 +60,11 @@ defmodule HelpdeskCommander.Helpdesk do
     Ash.load(ticket, [:product], domain: __MODULE__)
   end
 
+  @spec load_ticket_stats(Ticket.t()) :: {:ok, Ticket.t()} | {:error, term()}
+  def load_ticket_stats(%Ticket{} = ticket) do
+    Ash.load(ticket, [:verification_count, :latest_event_at], domain: __MODULE__)
+  end
+
   @spec count_tickets(integer(), User.t() | nil, boolean()) ::
           {:ok, non_neg_integer()} | {:error, term()}
   def count_tickets(company_id, user, external?) do

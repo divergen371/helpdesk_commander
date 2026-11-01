@@ -152,5 +152,15 @@ defmodule HelpdeskCommander.Accounts.User do
       allow_nil? false
       public? true
     end
+
+    has_many :ticket_notifications, HelpdeskCommander.Helpdesk.TicketNotification do
+      destination_attribute :recipient_id
+    end
+  end
+
+  aggregates do
+    count :unread_notification_count, :ticket_notifications do
+      filter expr(is_nil(read_at))
+    end
   end
 end

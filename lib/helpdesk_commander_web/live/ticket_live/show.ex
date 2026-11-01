@@ -98,8 +98,10 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   defp load_ticket(public_id) do
     case Helpdesk.get_ticket_by_public_id(public_id) do
       {:ok, %Ticket{} = ticket} ->
-        case Helpdesk.load_ticket_product(ticket) do
-          {:ok, ticket} -> {:ok, ticket}
+        with {:ok, ticket} <- Helpdesk.load_ticket_product(ticket),
+             {:ok, ticket} <- Helpdesk.load_ticket_stats(ticket) do
+          {:ok, ticket}
+        else
           {:error, error} -> {:error, {:load_ticket, error}}
         end
 
@@ -921,12 +923,12 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   defp product_label(_product), do: "-"
 
   defp load_ticket_product(%Ticket{} = ticket) do
-    case Helpdesk.load_ticket_product(ticket) do
-      {:ok, ticket} ->
-        ticket
-
+    with {:ok, ticket} <- Helpdesk.load_ticket_product(ticket),
+         {:ok, ticket} <- Helpdesk.load_ticket_stats(ticket) do
+      ticket
+    else
       {:error, error} ->
-        ErrorLog.log_error("ticket_live.show.load_product", error, ticket_id: ticket.id)
+        ErrorLog.log_error("ticket_live.show.load_ticket_details", error, ticket_id: ticket.id)
         ticket
     end
   end
@@ -1206,6 +1208,8 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
               <:item title="Type">{@ticket.type}</:item>
               <:item title="Product">{product_label(@ticket.product)}</:item>
               <:item title="Inserted at">{format_dt(@ticket.inserted_at)}</:item>
+              <:item title="検証">{@ticket.verification_count || 0} 件</:item>
+              <:item title="最終イベント">{format_dt(@ticket.latest_event_at)}</:item>
             </.list>
 
             <div class="mt-4">

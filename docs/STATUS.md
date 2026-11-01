@@ -24,7 +24,7 @@
 | コマンド | 結果 |
 | --- | --- |
 | `mix precommit` | 成功 |
-| `mix test` | **13 properties, 186 tests, 0 failures** |
+| `mix test` | **13 properties, 188 tests, 0 failures** |
 | `mix credo --strict` | 指摘なし（65 files / 95 checks） |
 | `mix dialyzer` | **0 errors** |
 | `mix compile --warnings-as-errors` | 成功（プロジェクト側の警告 0） |
@@ -56,7 +56,7 @@
 | `workers/create_ticket_notifications_worker.ex` | 70.7% |
 | `live/ticket_live/show.ex` | 75.7% |
 | `accounts/auth.ex` | 77.5% |
-| **合計** | **80.9%**（1763 / 2177 行） |
+| **合計** | **80.9%**（1767 / 2182 行） |
 
 基準は満たしているが余裕がないため、新規コード追加時はテストも同時に追加する。
 
@@ -112,7 +112,7 @@
 - **通知の重複抑制なし**。同一イベントの再実行で通知が重複し得る。
 - **通知 read は受信者に限定済み**。`TicketNotification` の Preparation と read/mark_read ポリシーで保証。
 - **暗号化対象はメール・会社名・表示名・本文系まで完了**。残りは鍵ローテーションと暗号化列の全文検索方針。
-- **`aggregates` / `calculations` / `multitenancy` は未導入**（`DESIGN_ASH_REFACTOR.md`）。`code_interface` と Domain API は導入済み。
+- **`multitenancy` は未導入**（`DESIGN_ASH_REFACTOR.md`）。`code_interface`、Domain API、aggregates は導入済み。
 - **Ash の resource snapshot が古い**
   - `mix ash.codegen --check` が 8 ファイルの生成待ちを報告する。
   - 差分には `ticket_notifications` / `ticket_verifications` の作成、`tasks` / `task_events` の `company_id` 追加、

@@ -51,7 +51,7 @@ elixir ref:v1.20.4
 4. **動作確認**
    - `mix compile --force --warnings-as-errors`: 成功（プロジェクト側の警告 0）
    - `mix precommit`: 成功
-   - `mix test`: **13 properties, 186 tests, 0 failures**
+   - `mix test`: **13 properties, 188 tests, 0 failures**
    - `mix credo --strict`: 指摘なし
    - `mix dialyzer`: **0 errors**
    - `MIX_ENV=test mix coveralls`: **80.9%**（基準 80% を満たす）
@@ -110,7 +110,7 @@ mkdir -p "$REBAR_GLOBAL_CONFIG_DIR/.config/rebar3"
 - [x] Elixir 1.20 の型警告修正
 - [x] `mix dialyzer` 0 errors
 - [x] `mix precommit` 成功
-- [x] テスト成功（13 properties / 186 tests）
+- [x] テスト成功（13 properties / 188 tests）
 - [x] カバレッジ 80% 以上
 - [x] CI のバージョン更新
 - [ ] 本番環境への反映計画

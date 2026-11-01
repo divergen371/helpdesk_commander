@@ -46,6 +46,24 @@ defmodule HelpdeskCommander.Helpdesk.TicketNotificationTest do
              |> Ash.update(domain: Helpdesk, actor: other)
   end
 
+  test "unread_notification_count aggregate matches unread notifications" do
+    recipient = create_user!()
+    other = create_user!()
+    ticket = create_ticket!(recipient)
+
+    _first = create_notification!(ticket, recipient, "first")
+    _second = create_notification!(ticket, recipient, "second")
+    _other = create_notification!(ticket, other, "other")
+
+    assert {:ok, loaded} =
+             Ash.load(recipient, :unread_notification_count,
+               domain: Accounts,
+               actor: recipient
+             )
+
+    assert loaded.unread_notification_count == 2
+  end
+
   defp create_notification!(ticket, recipient, body) do
     TicketNotification
     |> Ash.Changeset.for_create(:create, %{

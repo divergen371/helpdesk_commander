@@ -16,8 +16,13 @@ defmodule HelpdeskCommander.Helpdesk.Notifications do
 
   @spec unread_count(User.t()) :: {:ok, non_neg_integer()} | {:error, term()}
   def unread_count(%User{} = user) do
-    query = filter(TicketNotification, is_nil(read_at))
-    Ash.count(query, domain: Helpdesk, actor: user)
+    case Ash.load(user, :unread_notification_count,
+           domain: HelpdeskCommander.Accounts,
+           actor: user
+         ) do
+      {:ok, loaded} -> {:ok, loaded.unread_notification_count}
+      {:error, error} -> {:error, error}
+    end
   end
 
   @spec mark_read(User.t(), integer()) :: {:ok, TicketNotification.t()} | {:error, term()}

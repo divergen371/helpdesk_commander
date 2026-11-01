@@ -12,7 +12,6 @@
 
 ## 次（P1）
 
-- [ ] `aggregates` / `calculations` 導入（未読通知数・検証数・最新イベント時刻）
 - [ ] Ash ポリシーの横展開（Task / Inquiry / ConversationMessage / TicketNotification / TicketLink）
 - [ ] 検索/フィルタ/ソート仕様の確定と実装
 - [ ] 通知の重複抑制・クールダウン
@@ -41,6 +40,7 @@
 
 ## 完了
 
+- [x] `aggregates` / `calculations` 導入（未読通知数・チケット検証数・最新イベント時刻）
 - [x] `code_interface` 導入（Domain API 経由に整理し、Web 層から Ash 呼び出しを除去）
 - [x] コメントの編集・削除・メタ情報（送信者による編集、送信者/管理者による論理削除、種別・編集日時の表示）
 - [x] 本文系の暗号化（`tickets.description` / `inquiries.body` / `conversation_messages.body` / `users.display_name`）

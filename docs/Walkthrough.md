@@ -1151,3 +1151,20 @@ mix phx.server
   - `mix precommit` 成功、13 properties / 186 tests
   - `mix coveralls.json` 80.9%
   - `mix dialyzer` 0 errors
+
+---
+
+## 2026-11-01 aggregates（未読通知数・検証数・最新イベント時刻）
+
+- `User` に `has_many :ticket_notifications` と `unread_notification_count` aggregate を追加
+- `Ticket` に `verification_count` と `latest_event_at` aggregate を追加
+- `Notifications.unread_count/1` を aggregate ベースに変更（actor を渡してポリシーを維持）
+- チケット詳細に「検証 N 件」「最終イベント」を表示
+- テスト追加
+  - チケットの検証数・最新イベント時刻
+  - 未読通知数 aggregate
+- 検証結果
+  - `mix precommit` 成功、13 properties / 188 tests
+  - `mix coveralls.json` 80.9%
+  - `mix dialyzer` 0 errors
+  - 実サーバーでダッシュボードとチケット詳細の表示を確認

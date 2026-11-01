@@ -156,6 +156,11 @@ defmodule HelpdeskCommander.Helpdesk.Ticket do
     identity :unique_public_id, [:public_id]
   end
 
+  aggregates do
+    count :verification_count, :verifications
+    max :latest_event_at, :events, :inserted_at
+  end
+
   policies do
     policy action_type([:read, :create]) do
       authorize_if always()

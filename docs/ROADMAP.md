@@ -90,9 +90,9 @@
   - `tickets.description` / `inquiries.body` / `conversation_messages.body` / `users.display_name`
 - ⬜ **Impact × Urgency → 優先度算出**
   - 現状は `impact` / `urgency` の保持のみ
-- 🟡 **`code_interface` / `aggregates` / `calculations`**
-  - ✅ `code_interface` と Domain API（`Accounts` / `Helpdesk` / `Tasks`）を導入
-  - ⬜ aggregates / calculations（未読数・検証数・最新イベント時刻）
+- ✅ **`code_interface` / `aggregates` / `calculations`**
+  - `code_interface` と Domain API（`Accounts` / `Helpdesk` / `Tasks`）を導入
+  - aggregates: 未読通知数・チケット検証数・最新イベント時刻
 - ⬜ **`multitenancy`（company 境界の強制）**
 - ⬜ **カバレッジの余裕確保**（現在 80.9%）
 
@@ -163,7 +163,7 @@
 | 10 | ~~チケットとタスクの紐付け~~ | ✅ 完了（チケット詳細から追加・解除） |
 | 11 | ~~チケット関連リンク UI + Sigma.js グラフ PoC~~ | ✅ 完了（関連リンク登録・解除、関係グラフ表示） |
 | 12 | ~~PII 暗号化（第1段）~~ | ✅ 完了（AshCloak、email/name の暗号化と hash 検索・一意制約） |
-| 13 | `code_interface` / aggregates | 🟡 `code_interface` と Domain API は完了。未読数・検証数の集計が残り |
+| 13 | ~~`code_interface` / aggregates~~ | ✅ 完了（Domain API、未読数・検証数・最新イベント時刻） |
 | 14 | カバレッジの継続運用 | 新規コード追加時に 80% を下回らない |
 | 15 | Ash snapshot 再生成 | `mix ash.codegen --check` が成功。`ticket_messages` DROP は手動承認のうえ適用 |
 
