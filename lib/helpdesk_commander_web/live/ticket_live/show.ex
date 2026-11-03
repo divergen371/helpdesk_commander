@@ -1049,6 +1049,64 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   end
 
   @impl Phoenix.LiveView
+  def handle_event("approve_global_publication", _params, socket) do
+    if socket.assigns.current_user_external? do
+      {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
+    else
+      case Helpdesk.approve_global_publication(
+             socket.assigns.ticket,
+             socket.assigns.current_user
+           ) do
+        {:ok, _ticket} ->
+          {:noreply,
+           socket
+           |> put_flash(:info, "全体公開を承認しました")
+           |> refresh_ticket_forms()}
+
+        {:error, :forbidden} ->
+          {:noreply, put_flash(socket, :error, "承認する権限がありません")}
+
+        {:error, :not_pending} ->
+          {:noreply, put_flash(socket, :error, "全体公開候補ではありません")}
+
+        {:error, error} ->
+          ErrorLog.log_error("ticket_live.show.approve_global_publication", error, ticket_id: socket.assigns.ticket.id)
+
+          {:noreply, put_flash(socket, :error, "全体公開の承認に失敗しました")}
+      end
+    end
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("reject_global_publication", _params, socket) do
+    if socket.assigns.current_user_external? do
+      {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
+    else
+      case Helpdesk.reject_global_publication(
+             socket.assigns.ticket,
+             socket.assigns.current_user
+           ) do
+        {:ok, _ticket} ->
+          {:noreply,
+           socket
+           |> put_flash(:info, "全体公開を却下しました")
+           |> refresh_ticket_forms()}
+
+        {:error, :forbidden} ->
+          {:noreply, put_flash(socket, :error, "却下する権限がありません")}
+
+        {:error, :not_pending} ->
+          {:noreply, put_flash(socket, :error, "全体公開候補ではありません")}
+
+        {:error, error} ->
+          ErrorLog.log_error("ticket_live.show.reject_global_publication", error, ticket_id: socket.assigns.ticket.id)
+
+          {:noreply, put_flash(socket, :error, "全体公開の却下に失敗しました")}
+      end
+    end
+  end
+
+  @impl Phoenix.LiveView
   def handle_event("add_incident_event", %{"incident_event" => params}, socket) do
     if socket.assigns.current_user_external? or is_nil(socket.assigns.incident) do
       {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
@@ -1540,6 +1598,11 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     Map.put_new(params, "sender_id", socket.assigns.ticket.requester_id)
   end
 
+  defp visibility_scope_label("company"), do: "社内のみ"
+  defp visibility_scope_label("global_pending"), do: "全体公開候補"
+  defp visibility_scope_label("global"), do: "全体公開"
+  defp visibility_scope_label(_scope), do: "-"
+
   defp priority_source_label("manual"), do: "手動確定"
   defp priority_source_label(_source), do: "自動算出"
 
@@ -1576,6 +1639,10 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   defp event_label(%TicketEvent{event_type: "incident_promoted"}), do: "インシデント昇格"
   defp event_label(%TicketEvent{event_type: "incident_demoted"}), do: "インシデント降格"
   defp event_label(%TicketEvent{event_type: "incident_timeline_updated"}), do: "インシデントタイムライン更新"
+  defp event_label(%TicketEvent{event_type: "global_publication_candidate"}), do: "全体公開候補"
+  defp event_label(%TicketEvent{event_type: "global_publication_withdrawn"}), do: "全体公開候補の取り下げ"
+  defp event_label(%TicketEvent{event_type: "global_publication_approved"}), do: "全体公開の承認"
+  defp event_label(%TicketEvent{event_type: "global_publication_rejected"}), do: "全体公開の却下"
 
   defp event_label(%TicketEvent{event_type: "message_posted", data: data}) do
     case event_conversation_kind(data) do
@@ -1622,6 +1689,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
               <:item title="Priority">
                 {@ticket.priority}（{priority_source_label(@ticket.priority_source)}）
               </:item>
+              <:item title="公開範囲">{visibility_scope_label(@ticket.visibility_scope)}</:item>
               <:item title="Impact">{Priority.impact_label(@ticket.impact)}</:item>
               <:item title="Urgency">{Priority.urgency_label(@ticket.urgency)}</:item>
               <:item title="Type">{@ticket.type}</:item>
@@ -1635,6 +1703,43 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
               <h3 class="font-semibold">詳細</h3>
               <p class="mt-2 whitespace-pre-wrap text-sm opacity-80">{@ticket.description}</p>
             </div>
+          </div>
+        </div>
+
+        <div
+          :if={!@current_user_external? and @ticket.visibility_scope == "global_pending"}
+          id="global-publication-pending"
+          class="card bg-base-100 border border-warning/40"
+        >
+          <div class="card-body">
+            <h3 class="font-semibold">全体公開候補</h3>
+            <p class="mt-2 text-sm opacity-80">
+              P1 かつ SEV1 のインシデントのため、全体公開の候補です。
+              管理者/リーダーの承認で公開されます。
+            </p>
+
+            <%= if @can_approve? do %>
+              <div class="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  class="btn btn-primary btn-sm"
+                  phx-click="approve_global_publication"
+                >
+                  承認して全体公開
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-sm text-error"
+                  phx-click="reject_global_publication"
+                >
+                  却下
+                </button>
+              </div>
+            <% else %>
+              <p class="mt-3 text-sm opacity-70">
+                承認・却下は管理者/リーダーのみ可能です。
+              </p>
+            <% end %>
           </div>
         </div>
 

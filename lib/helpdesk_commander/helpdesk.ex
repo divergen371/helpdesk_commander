@@ -8,6 +8,7 @@ defmodule HelpdeskCommander.Helpdesk do
   import Ash.Query
 
   alias HelpdeskCommander.Accounts.User
+  alias HelpdeskCommander.Authorization
   alias HelpdeskCommander.Helpdesk.Conversation
   alias HelpdeskCommander.Helpdesk.ConversationMessage
   alias HelpdeskCommander.Helpdesk.Incident
@@ -51,9 +52,12 @@ defmodule HelpdeskCommander.Helpdesk do
 
   @spec update_ticket(Ticket.t(), map(), keyword()) :: {:ok, Ticket.t()} | {:error, term()}
   def update_ticket(ticket, params, opts \\ []) do
-    ticket
-    |> Ash.Changeset.for_update(:update, params)
-    |> Ash.update(Keyword.put(opts, :domain, __MODULE__))
+    with {:ok, updated} <-
+           ticket
+           |> Ash.Changeset.for_update(:update, params)
+           |> Ash.update(Keyword.put(opts, :domain, __MODULE__)) do
+      maybe_sync_publication(updated, Keyword.get(opts, :actor))
+    end
   end
 
   @spec set_ticket_status(Ticket.t(), map(), keyword()) :: {:ok, Ticket.t()} | {:error, term()}
@@ -252,7 +256,8 @@ defmodule HelpdeskCommander.Helpdesk do
   def promote_incident(%Ticket{} = ticket, attrs, %User{} = actor) do
     with :ok <- ensure_privileged(actor, ticket.company_id),
          {:ok, incident} <- create_or_reactivate_incident(ticket, attrs, actor),
-         :ok <- record_incident_audit(ticket, actor, "incident_promoted", %{severity: incident.severity}) do
+         :ok <- record_incident_audit(ticket, actor, "incident_promoted", %{severity: incident.severity}),
+         {:ok, _ticket} <- sync_publication_candidate(ticket, actor) do
       {:ok, incident}
     end
   end
@@ -260,10 +265,14 @@ defmodule HelpdeskCommander.Helpdesk do
   @spec update_incident(Incident.t(), map(), User.t()) ::
           {:ok, Incident.t()} | {:error, term()}
   def update_incident(%Incident{} = incident, attrs, %User{} = actor) do
-    with :ok <- ensure_privileged(actor, incident.company_id) do
-      incident
-      |> Ash.Changeset.for_update(:update, attrs)
-      |> Ash.update(domain: __MODULE__, actor: actor, tenant: incident.company_id)
+    with :ok <- ensure_privileged(actor, incident.company_id),
+         {:ok, updated} <-
+           incident
+           |> Ash.Changeset.for_update(:update, attrs)
+           |> Ash.update(domain: __MODULE__, actor: actor, tenant: incident.company_id),
+         ticket <- Ash.get!(Ticket, incident.ticket_id, domain: __MODULE__, tenant: incident.company_id),
+         {:ok, _ticket} <- sync_publication_candidate(ticket, actor) do
+      {:ok, updated}
     end
   end
 
@@ -276,6 +285,7 @@ defmodule HelpdeskCommander.Helpdesk do
            |> Ash.update(domain: __MODULE__, actor: actor, tenant: incident.company_id) do
       ticket = Ash.get!(Ticket, incident.ticket_id, domain: __MODULE__, tenant: incident.company_id)
       _audit = record_incident_audit(ticket, actor, "incident_demoted", %{})
+      {:ok, _ticket} = sync_publication_candidate(ticket, actor)
       {:ok, demoted}
     end
   end
@@ -299,6 +309,108 @@ defmodule HelpdeskCommander.Helpdesk do
       _audit = record_incident_audit(ticket, actor, "incident_timeline_updated", %{phase: event.phase})
       {:ok, event}
     end
+  end
+
+  @spec approve_global_publication(Ticket.t(), User.t()) ::
+          {:ok, Ticket.t()} | {:error, term()}
+  def approve_global_publication(%Ticket{} = ticket, %User{} = actor) do
+    with :ok <- ensure_privileged(actor, ticket.company_id),
+         :ok <- ensure_global_pending(ticket),
+         {:ok, updated} <-
+           update_visibility(
+             ticket,
+             %{
+               visibility_scope: "global",
+               visibility_decided_by_id: actor.id,
+               visibility_decided_at: DateTime.utc_now()
+             },
+             actor
+           ),
+         :ok <- record_incident_audit(ticket, actor, "global_publication_approved", %{}) do
+      {:ok, updated}
+    end
+  end
+
+  @spec reject_global_publication(Ticket.t(), User.t()) ::
+          {:ok, Ticket.t()} | {:error, term()}
+  def reject_global_publication(%Ticket{} = ticket, %User{} = actor) do
+    with :ok <- ensure_privileged(actor, ticket.company_id),
+         :ok <- ensure_global_pending(ticket),
+         {:ok, updated} <-
+           update_visibility(
+             ticket,
+             %{
+               visibility_scope: "company",
+               visibility_decided_by_id: actor.id,
+               visibility_decided_at: DateTime.utc_now()
+             },
+             actor
+           ),
+         :ok <- record_incident_audit(ticket, actor, "global_publication_rejected", %{}) do
+      {:ok, updated}
+    end
+  end
+
+  defp ensure_global_pending(%Ticket{visibility_scope: "global_pending"}), do: :ok
+  defp ensure_global_pending(_ticket), do: {:error, :not_pending}
+
+  defp maybe_sync_publication(ticket, %User{} = actor),
+    do: sync_publication_candidate(ticket, actor)
+
+  defp maybe_sync_publication(ticket, _actor), do: {:ok, ticket}
+
+  defp sync_publication_candidate(%Ticket{} = ticket, %User{} = actor) do
+    if Authorization.privileged_for_company?(actor, ticket.company_id) do
+      case get_incident(ticket.id, tenant: ticket.company_id) do
+        {:ok, %Incident{} = incident} ->
+          eligible? =
+            ticket.priority == "p1" and incident.severity == "sev1" and
+              is_nil(incident.demoted_at)
+
+          transition_publication(ticket, eligible?, actor)
+
+        _result ->
+          {:ok, ticket}
+      end
+    else
+      {:ok, ticket}
+    end
+  end
+
+  defp transition_publication(%Ticket{visibility_scope: "company"} = ticket, true, actor) do
+    with {:ok, updated} <-
+           update_visibility(
+             ticket,
+             %{
+               visibility_scope: "global_pending",
+               visibility_decided_by_id: nil,
+               visibility_decided_at: nil
+             },
+             actor
+           ),
+         :ok <-
+           record_incident_audit(ticket, actor, "global_publication_candidate", %{
+             priority: ticket.priority
+           }) do
+      {:ok, updated}
+    end
+  end
+
+  defp transition_publication(%Ticket{visibility_scope: "global_pending"} = ticket, false, actor) do
+    with {:ok, updated} <-
+           update_visibility(ticket, %{visibility_scope: "company"}, actor),
+         :ok <-
+           record_incident_audit(ticket, actor, "global_publication_withdrawn", %{}) do
+      {:ok, updated}
+    end
+  end
+
+  defp transition_publication(%Ticket{} = ticket, _eligible?, _actor), do: {:ok, ticket}
+
+  defp update_visibility(ticket, attrs, actor) do
+    ticket
+    |> Ash.Changeset.for_update(:update, attrs)
+    |> Ash.update(domain: __MODULE__, actor: actor, tenant: ticket.company_id)
   end
 
   defp create_or_reactivate_incident(ticket, attrs, actor) do
