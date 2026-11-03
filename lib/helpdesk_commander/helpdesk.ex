@@ -24,6 +24,8 @@ defmodule HelpdeskCommander.Helpdesk do
   @types ~w(question incident request)
 
   resources do
+    resource HelpdeskCommander.Helpdesk.ChatThread
+    resource HelpdeskCommander.Helpdesk.ChatMessageLink
     resource HelpdeskCommander.Helpdesk.Conversation
     resource HelpdeskCommander.Helpdesk.ConversationMessage
     resource HelpdeskCommander.Helpdesk.Incident

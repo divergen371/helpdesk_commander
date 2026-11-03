@@ -6,6 +6,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   alias HelpdeskCommander.Accounts.User
   alias HelpdeskCommander.Attachments.FilePolicy
   alias HelpdeskCommander.Authorization
+  alias HelpdeskCommander.Chat.Slack
   alias HelpdeskCommander.Helpdesk
   alias HelpdeskCommander.Helpdesk.Attachments
   alias HelpdeskCommander.Helpdesk.ConversationMessage
@@ -847,6 +848,8 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
       case submission do
         {:ok, message} ->
+          maybe_enqueue_slack(socket, kind, message)
+
           ticket =
             case Helpdesk.get_ticket(socket.assigns.ticket.id) do
               {:ok, %Ticket{} = ticket} ->
@@ -1589,6 +1592,18 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   end
 
   defp forbidden_post?(_socket, _kind), do: false
+
+  defp maybe_enqueue_slack(socket, "public", message) do
+    case Slack.enqueue_publish(socket.assigns.ticket, message) do
+      {:ok, _job} ->
+        :ok
+
+      {:error, error} ->
+        ErrorLog.log_error("ticket_live.show.enqueue_slack_message", error, ticket_id: socket.assigns.ticket.id)
+    end
+  end
+
+  defp maybe_enqueue_slack(_socket, _kind, _message), do: :ok
 
   defp put_sender_id(params, %{assigns: %{current_user_external?: true, current_user: %User{id: id}}}) do
     Map.put(params, "sender_id", id)

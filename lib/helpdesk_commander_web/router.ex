@@ -1,3 +1,5 @@
+# ルーターは各画面と連携エンドポイントを束ねるため依存数が増える。個別に許可する。
+# credo:disable-for-this-file Credo.Check.Refactor.ModuleDependencies
 defmodule HelpdeskCommanderWeb.Router do
   use HelpdeskCommanderWeb, :router
 
@@ -50,6 +52,12 @@ defmodule HelpdeskCommanderWeb.Router do
       on_mount: {HelpdeskCommanderWeb.LiveUserAuth, :admin_required} do
       live "/admin/pending-users", AdminUserLive.Pending, :index
     end
+  end
+
+  scope "/integrations", HelpdeskCommanderWeb do
+    pipe_through :api
+
+    post "/slack/events", SlackController, :events
   end
 
   # Other scopes may use custom stacks.

@@ -24,12 +24,12 @@
 | コマンド | 結果 |
 | --- | --- |
 | `mix precommit` | 成功 |
-| `mix test` | **13 properties, 293 tests, 0 failures** |
+| `mix test` | **13 properties, 303 tests, 0 failures** |
 | `mix credo --strict` | 指摘なし（111 files / 95 checks） |
 | `mix dialyzer` | **0 errors** |
 | `mix compile --warnings-as-errors` | 成功（プロジェクト側の警告 0） |
 | `mix format` | 差分なし |
-| `MIX_ENV=test mix coveralls` | **83.3%**（最低基準 80% を満たす） |
+| `MIX_ENV=test mix coveralls` | **82.8%**（最低基準 80% を満たす） |
 
 ### 環境
 
@@ -56,9 +56,9 @@
 | `workers/create_ticket_notifications_worker.ex` | 81.8% |
 | `live/ticket_live/show.ex` | 77.1% |
 | `accounts/auth.ex` | 85.6% |
-| **合計** | **83.3%**（2681 / 3220 行） |
+| **合計** | **82.8%**（2809 / 3394 行） |
 
-基準 80% に対して 3.3pt の余裕がある。新規コード追加時はテストも同時に追加する。
+基準 80% に対して 2.8pt の余裕がある。新規コード追加時はテストも同時に追加する。
 
 ---
 
@@ -73,7 +73,7 @@
 | チケット | 実装済み | 一覧（フィルタ/ソート/ページング）・新規作成・詳細。`public_id`、楽観ロック、関連タスクの紐付け。 |
 | チケット状態遷移 | 実装済み | `new`〜`closed` の許可遷移、タイムスタンプ更新、`status_changed` イベント。 |
 | チケット認可 | 一部実装 | `Ash.Policy.Authorizer` で `update` / `set_status` / `destroy` を制御。read/create は全許可。 |
-| チケットチャット | 実装済み | 公開（`internal_public`）と内部メモ（`internal_private`）。依頼者以外の社外ユーザーには内部メモ非表示。 |
+| チケットチャット | 実装済み | 公開（`internal_public`）と内部メモ（`internal_private`）。依頼者以外の社外ユーザーには内部メモ非表示。Slack のスレッドと双方向同期。 |
 | チャット/イベントのページング | 実装済み | チケット詳細で 20 件ずつ「もっと読む」。 |
 | イベントログ | 実装済み | `ticket_events`（作成・状態変更・メッセージ投稿・検証登録）。詳細画面で表示。 |
 | 検証・承認 | 一部実装 | `resolved` のみ検証登録可。結果は passed/failed/needs_review。admin/leader が `verified` / `closed` へ遷移可能。 |
@@ -99,7 +99,7 @@
 
 ### 3.2 品質・セキュリティ
 
-- **カバレッジの余裕は 3.3pt**（83.3% / 基準 80%）。新規コード追加時はテストを同時に追加する。
+- **カバレッジの余裕は 2.8pt**（82.8% / 基準 80%）。新規コード追加時はテストを同時に追加する。
 - **ツールチェーンは固定済み**（`.tool-versions`: Erlang 29.1.2 / Elixir `ref:v1.20.4`）。CI も同一バージョン。
 - **企業（テナント）境界は company 単位に統一済み**
   - チケット一覧・詳細は自社 company の範囲に制限（`visibility_scope: "global"` は全体公開として例外）。
@@ -123,7 +123,7 @@
 
 - レポート・統計の拡充（定期配信・帳票）
 - 添付検査の検出力強化（シグネチャ鮮度・深掘り設定・YARA・評価基盤、HC-22〜HC-27）
-- 監視連携、SSO、会話チャット連携（通知のメール/Webhook は実装済み）
+- 監視連携、SSO
 - LiquidAI D1 / D1 Ultra による意思決定支援（フェーズ7）
 - JSON API（`DESIGN_API_MIGRATION.md` は設計のみ）
 

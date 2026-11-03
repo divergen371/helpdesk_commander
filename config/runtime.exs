@@ -23,6 +23,12 @@ end
 config :helpdesk_commander, HelpdeskCommanderWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+config :helpdesk_commander, HelpdeskCommander.Chat.Slack,
+  bot_token: System.get_env("SLACK_BOT_TOKEN"),
+  signing_secret: System.get_env("SLACK_SIGNING_SECRET"),
+  channel_id: System.get_env("SLACK_CHAT_CHANNEL_ID"),
+  api_base: System.get_env("SLACK_API_BASE") || "https://slack.com/api"
+
 if config_env() == :prod do
   remote_ip_enabled =
     System.get_env("REMOTE_IP_ENABLED") in ["1", "true", "TRUE", "yes", "YES"]
