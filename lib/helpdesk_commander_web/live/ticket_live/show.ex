@@ -4,8 +4,10 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
   alias HelpdeskCommander.Accounts
   alias HelpdeskCommander.Accounts.User
+  alias HelpdeskCommander.Attachments.FilePolicy
   alias HelpdeskCommander.Authorization
   alias HelpdeskCommander.Helpdesk
+  alias HelpdeskCommander.Helpdesk.Attachments
   alias HelpdeskCommander.Helpdesk.ConversationMessage
   alias HelpdeskCommander.Helpdesk.Incident
   alias HelpdeskCommander.Helpdesk.Priority
@@ -30,7 +32,14 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
     case load_ticket_data(public_id, current_user, external_user?) do
       {:ok, data} ->
-        {:ok, assign_ticket_socket(socket, data)}
+        {:ok,
+         socket
+         |> allow_upload(:attachment,
+           accept: FilePolicy.accept(),
+           max_entries: FilePolicy.max_entries(),
+           max_file_size: FilePolicy.max_file_size()
+         )
+         |> assign_ticket_socket(data)}
 
       {:error, :forbidden} ->
         {:ok,
@@ -91,7 +100,8 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
           linkable_tasks: linkable_tasks,
           ticket_links: ticket_links,
           linkable_tickets: linkable_tickets,
-          ticket_suggestions: load_ticket_suggestions(ticket, ticket_links, external_user?)
+          ticket_suggestions: load_ticket_suggestions(ticket, ticket_links, external_user?),
+          attachments: load_attachments(ticket, external_user?)
         }
       )
     else
@@ -231,7 +241,9 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
        ticket_links: relations.ticket_links,
        linkable_tickets: relations.linkable_tickets,
        ticket_suggestions: relations.ticket_suggestions,
+       attachments: relations.attachments,
        ticket_link_form: to_form(%{"related_ticket_id" => "", "relation_type" => "related"}, as: "link"),
+       attachment_form: to_form(%{}, as: "attachment"),
        warnings: warnings
      }}
   end
@@ -273,6 +285,8 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     |> assign(:ticket_links, data.ticket_links)
     |> assign(:linkable_tickets, data.linkable_tickets)
     |> assign(:ticket_suggestions, data.ticket_suggestions)
+    |> assign(:attachments, data.attachments)
+    |> assign(:attachment_form, data.attachment_form)
     |> assign(:ticket_link_form, data.ticket_link_form)
     |> stream(:public_messages, data.public_messages)
     |> stream(:private_messages, data.private_messages)
@@ -470,6 +484,66 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
           {:noreply, put_flash(socket, :error, "関連チケットの追加に失敗しました")}
       end
+    end
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("validate_attachment", _params, socket), do: {:noreply, socket}
+
+  @impl Phoenix.LiveView
+  def handle_event("upload_attachment", _params, socket) do
+    results =
+      consume_uploaded_entries(socket, :attachment, fn %{path: path}, entry ->
+        upload = %Plug.Upload{
+          path: path,
+          filename: entry.client_name,
+          content_type: entry.client_type
+        }
+
+        Attachments.ingest(socket.assigns.ticket, socket.assigns.current_user, upload)
+      end)
+
+    added = for {:ok, attachment} <- results, do: attachment
+    failed_count = Enum.count(results, &match?({:error, _reason}, &1))
+
+    blocked_count =
+      Enum.count(added, &(&1.scan_status in ["infected", "failed"]))
+
+    allowed_count = length(added) - blocked_count
+
+    messages =
+      [
+        allowed_count > 0 && "#{allowed_count}件を追加しました",
+        blocked_count > 0 && "#{blocked_count}件は検査で隔離しました",
+        failed_count > 0 && "#{failed_count}件を追加できませんでした"
+      ]
+
+    flash_messages = Enum.filter(messages, &is_binary/1)
+
+    socket =
+      if failed_count > 0 or blocked_count > 0 do
+        put_flash(socket, :error, Enum.join(flash_messages, "。"))
+      else
+        put_flash(socket, :info, Enum.join(flash_messages, "。"))
+      end
+
+    {:noreply, reload_attachments(socket)}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("delete_attachment", %{"id" => id}, socket) do
+    attachment =
+      Enum.find(socket.assigns.attachments, &(Integer.to_string(&1.id) == to_string(id)))
+
+    case attachment && Attachments.delete(attachment, socket.assigns.current_user) do
+      :ok ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "添付ファイルを削除しました")
+         |> reload_attachments()}
+
+      _error ->
+        {:noreply, put_flash(socket, :error, "添付ファイルの削除に失敗しました")}
     end
   end
 
@@ -1024,6 +1098,60 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
         ErrorLog.log_error("ticket_live.show.reload_task_links", error, ticket_id: socket.assigns.ticket.id)
 
         put_flash(socket, :error, "関連タスクの取得に失敗しました")
+    end
+  end
+
+  defp reload_attachments(socket) do
+    assign(
+      socket,
+      :attachments,
+      load_attachments(socket.assigns.ticket, socket.assigns.current_user_external?)
+    )
+  end
+
+  defp can_delete_attachment?(attachment, current_user) do
+    current_user &&
+      (attachment.uploaded_by_id == current_user.id or CurrentUser.admin?(current_user))
+  end
+
+  defp attachment_status_label("clean"), do: "検査済み"
+  defp attachment_status_label("skipped"), do: "未検査"
+  defp attachment_status_label("pending"), do: "検査中"
+  defp attachment_status_label("infected"), do: "感染"
+  defp attachment_status_label("failed"), do: "検査失敗"
+  defp attachment_status_label(status), do: status
+
+  defp attachment_status_class("clean"), do: "badge-success"
+  defp attachment_status_class("skipped"), do: "badge-ghost"
+  defp attachment_status_class("pending"), do: "badge-warning"
+  defp attachment_status_class("infected"), do: "badge-error"
+  defp attachment_status_class("failed"), do: "badge-error"
+  defp attachment_status_class(_status), do: "badge-ghost"
+
+  defp format_bytes(bytes) when bytes >= 1024 * 1024 do
+    "#{Float.round(bytes / (1024 * 1024), 1)} MB"
+  end
+
+  defp format_bytes(bytes) when bytes >= 1024, do: "#{round(bytes / 1024)} KB"
+  defp format_bytes(bytes), do: "#{bytes} B"
+
+  defp upload_error_message(:too_large), do: "ファイルサイズが上限（10MB）を超えています"
+  defp upload_error_message(:not_accepted), do: "許可されていない拡張子です"
+  defp upload_error_message(:too_many_files), do: "一度に追加できるのは3件までです"
+  defp upload_error_message(_error), do: "アップロードを受け付けられませんでした"
+
+  defp load_attachments(ticket, external_user?) do
+    case Attachments.list_for_ticket(ticket) do
+      {:ok, attachments} ->
+        if external_user? do
+          Enum.filter(attachments, &(&1.scan_status in ["clean", "skipped"]))
+        else
+          attachments
+        end
+
+      {:error, error} ->
+        ErrorLog.log_error("ticket_live.show.load_attachments", error, ticket_id: ticket.id)
+        []
     end
   end
 
@@ -1634,6 +1762,105 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
           </div>
         </div>
 
+        <div class="card bg-base-100 border border-base-200">
+          <div class="card-body">
+            <h3 class="font-semibold">添付ファイル</h3>
+            <p class="mt-1 text-xs opacity-60">
+              PDF / 画像 / テキスト / Office / ZIP。1ファイル10MB、最大3件。
+              検査で隔離されたファイルはダウンロードできません。
+            </p>
+
+            <.form
+              for={@attachment_form}
+              id="attachment-form"
+              phx-change="validate_attachment"
+              phx-submit="upload_attachment"
+              class="mt-4"
+            >
+              <.live_file_input
+                upload={@uploads.attachment}
+                class="file-input file-input-bordered w-full"
+              />
+
+              <div :for={entry <- @uploads.attachment.entries} class="mt-2 text-xs">
+                {entry.client_name}（{format_bytes(entry.client_size)}）
+                <progress class="progress w-full" value={entry.progress} max="100">
+                  {entry.progress}%
+                </progress>
+              </div>
+
+              <div :for={error <- upload_errors(@uploads.attachment)} class="mt-2 text-xs text-error">
+                {upload_error_message(error)}
+              </div>
+
+              <div :for={entry <- @uploads.attachment.entries}>
+                <div
+                  :for={error <- upload_errors(@uploads.attachment, entry)}
+                  class="text-xs text-error"
+                >
+                  {upload_error_message(error)}
+                </div>
+              </div>
+
+              <div class="mt-3 flex justify-end">
+                <.button type="submit" disabled={@uploads.attachment.entries == []}>
+                  アップロード
+                </.button>
+              </div>
+            </.form>
+
+            <div id="ticket-attachments" class="mt-4 space-y-2">
+              <div
+                :if={@attachments == []}
+                id="ticket-attachments-empty"
+                class="text-sm opacity-70"
+              >
+                添付ファイルはまだありません。
+              </div>
+
+              <div
+                :for={attachment <- @attachments}
+                id={"ticket-attachment-#{attachment.id}"}
+                class="flex flex-wrap items-center justify-between gap-2 rounded-box border border-base-200 p-3 text-sm"
+              >
+                <div>
+                  <div class="font-medium">
+                    <a
+                      :if={Attachments.downloadable?(attachment)}
+                      href={~p"/attachments/#{attachment.id}"}
+                      class="hover:underline"
+                    >
+                      {attachment.filename}
+                    </a>
+                    <span :if={!Attachments.downloadable?(attachment)}>
+                      {attachment.filename}
+                    </span>
+                  </div>
+                  <div class="mt-1 text-xs opacity-60">
+                    {format_bytes(attachment.byte_size)} / {sender_label(@users_by_id, attachment.uploaded_by_id)}
+                  </div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class={[
+                    "badge",
+                    attachment_status_class(attachment.scan_status)
+                  ]}>
+                    {attachment_status_label(attachment.scan_status)}
+                  </span>
+                  <button
+                    :if={can_delete_attachment?(attachment, @current_user)}
+                    type="button"
+                    class="link text-error"
+                    phx-click="delete_attachment"
+                    phx-value-id={attachment.id}
+                  >
+                    削除
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
         <div :if={!@current_user_external?} class="card bg-base-100 border border-base-200">
           <div class="card-body">
             <h3 class="font-semibold">関連タスク</h3>

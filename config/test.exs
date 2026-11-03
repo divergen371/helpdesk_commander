@@ -89,3 +89,5 @@ config :phoenix_live_view,
 # Sort query params output of verified routes for robust url comparisons
 config :phoenix,
   sort_verified_routes_query_params: true
+
+config :helpdesk_commander, :attachment_root, Path.join(System.tmp_dir!(), "helpdesk_commander_attachments_test")

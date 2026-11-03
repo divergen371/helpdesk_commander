@@ -68,6 +68,14 @@ if config_env() == :prod do
     chat_webhook_url: slack_webhook_url,
     from_email: System.get_env("NOTIFICATION_FROM_EMAIL") || "noreply@helpdesk.local"
 
+  if attachment_root = System.get_env("ATTACHMENTS_ROOT") do
+    config :helpdesk_commander, :attachment_root, Path.expand(attachment_root)
+  end
+
+  if scan_command = System.get_env("ATTACHMENT_SCAN_COMMAND") do
+    config :helpdesk_commander, :attachment_scan_command, scan_command
+  end
+
   cloak_key =
     System.get_env("CLOAK_KEY") ||
       raise """

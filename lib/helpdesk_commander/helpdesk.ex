@@ -1,3 +1,5 @@
+# ドメインは複数リソースを束ねるため依存数が増える。個別に許可する。
+# credo:disable-for-next-line Credo.Check.Refactor.ModuleDependencies
 defmodule HelpdeskCommander.Helpdesk do
   @moduledoc false
 
@@ -29,6 +31,7 @@ defmodule HelpdeskCommander.Helpdesk do
     resource HelpdeskCommander.Helpdesk.SlaPolicy
     resource HelpdeskCommander.Helpdesk.Product
     resource HelpdeskCommander.Helpdesk.Ticket
+    resource HelpdeskCommander.Helpdesk.TicketAttachment
     resource HelpdeskCommander.Helpdesk.TicketEvent
     resource HelpdeskCommander.Helpdesk.TicketNotification
     resource HelpdeskCommander.Helpdesk.TicketVerification
