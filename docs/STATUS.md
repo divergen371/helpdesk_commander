@@ -24,12 +24,12 @@
 | コマンド | 結果 |
 | --- | --- |
 | `mix precommit` | 成功 |
-| `mix test` | **13 properties, 326 tests, 0 failures** |
+| `mix test` | **13 properties, 335 tests, 0 failures** |
 | `mix credo --strict` | 指摘なし（111 files / 95 checks） |
 | `mix dialyzer` | **0 errors** |
 | `mix compile --warnings-as-errors` | 成功（プロジェクト側の警告 0） |
 | `mix format` | 差分なし |
-| `MIX_ENV=test mix coveralls` | **81.9%**（最低基準 80% を満たす） |
+| `MIX_ENV=test mix coveralls` | **82.0%**（最低基準 80% を満たす） |
 
 ### 環境
 
@@ -56,9 +56,9 @@
 | `workers/create_ticket_notifications_worker.ex` | 81.8% |
 | `live/ticket_live/show.ex` | 77.1% |
 | `accounts/auth.ex` | 85.6% |
-| **合計** | **81.9%**（3126 / 3814 行） |
+| **合計** | **82.0%**（3229 / 3935 行） |
 
-基準 80% に対して 1.9pt の余裕がある。新規コード追加時はテストも同時に追加する。
+基準 80% に対して 2.0pt の余裕がある。新規コード追加時はテストも同時に追加する。
 
 ---
 
@@ -67,12 +67,14 @@
 | 領域 | 状態 | 根拠・補足 |
 | --- | --- | --- |
 | 認証 | 実装済み | 会社コード + login_id/email + パスワード（bcrypt）。`Accounts.Auth` と `AuthController` による実装。仮ユーザー（pending）→ 管理者承認。 |
+| SSO | 実装済み | OIDC（Assent）。`/auth/sso/start/:company_code` → callback で state/nonce 検証、email_hash でユーザー特定、自動プロビジョニングとロールマッピング。設計は `DESIGN_SSO.md`。 |
 | アカウント状態 | 実装済み | `pending` / `active` / `suspended` / `anonymized`。停止・匿名化アクションと Oban 日次匿名化。 |
 | 管理者の承認 UI | 実装済み | `/admin/pending-users`。admin のみ。 |
 | ユーザー削除方針 | 実装済み | 物理削除せず `suspended` → 30日後に `anonymized`。設計は `DESIGN_USER_DELETION.md`。 |
 | チケット | 実装済み | 一覧（フィルタ/ソート/ページング）・新規作成・詳細。`public_id`、楽観ロック、関連タスクの紐付け。 |
 | チケット状態遷移 | 実装済み | `new`〜`closed` の許可遷移、タイムスタンプ更新、`status_changed` イベント。 |
 | チケット認可 | 一部実装 | `Ash.Policy.Authorizer` で `update` / `set_status` / `destroy` を制御。read/create は全許可。 |
+| 運用手順 | 実装済み | バックアップ/復元と鍵のローテーション手順は `OPERATIONS_BACKUP.md`。復号検証スクリプト `priv/verify/verify_restore.exs`。 |
 | JSON API | 実装済み | `/api/v1`、Phoenix.Token の Bearer 認証、チケット CRUD、OpenAPI 仕様、会社境界は Ash ポリシーと tenant で強制。 |
 | 監視連携 | 実装済み | Webhook 受信、fingerprint 重複抑止、重大度別のチケット自動起票、復旧メッセージ。 |
 | チケットチャット | 実装済み | 公開（`internal_public`）と内部メモ（`internal_private`）。依頼者以外の社外ユーザーには内部メモ非表示。Slack のスレッドと双方向同期。 |
@@ -101,7 +103,7 @@
 
 ### 3.2 品質・セキュリティ
 
-- **カバレッジの余裕は 1.9pt**（81.9% / 基準 80%）。新規コード追加時はテストを同時に追加する。
+- **カバレッジの余裕は 2.0pt**（82.0% / 基準 80%）。新規コード追加時はテストを同時に追加する。
 - **ツールチェーンは固定済み**（`.tool-versions`: Erlang 29.1.2 / Elixir `ref:v1.20.4`）。CI も同一バージョン。
 - **企業（テナント）境界は company 単位に統一済み**
   - チケット一覧・詳細は自社 company の範囲に制限（`visibility_scope: "global"` は全体公開として例外）。
@@ -125,7 +127,6 @@
 
 - レポート・統計の拡充（定期配信・帳票）
 - 添付検査の検出力強化（シグネチャ鮮度・深掘り設定・YARA・評価基盤、HC-22〜HC-27）
-- SSO
 - LiquidAI D1 / D1 Ultra による意思決定支援（フェーズ7）
 
 ---
@@ -143,7 +144,7 @@
 | タスクの CRUD 操作 | 作成・更新・削除 UI も実装済み |
 | ユーザー管理 | 仮ユーザー承認画面のみ |
 | ダッシュボード / レポート | 簡易ダッシュボード、分析、CSV 出力は実装済み。帳票は未実装 |
-| ユーザー認証（AshAuthentication） | `ash_authentication` の部品は使うが、認証フローは `Accounts.Auth` の独自実装 |
+| ユーザー認証 | 認証フローは `Accounts.Auth` の独自実装（一本化判断は `AUTH_STACK.md`）。SSO は Assent で導入予定 |
 
 本レポート作成時に README の該当箇所を実態に合わせて修正し、[ROADMAP.md](ROADMAP.md) へリンクした。
 

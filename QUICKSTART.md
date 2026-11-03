@@ -87,7 +87,8 @@ make server
 
 - `public_id` を使ったチケット/タスクのUI（LiveView）実装  
   - 例: `/tickets/:public_id`
-- 認証（AshAuthentication）導入
+- SSO 運用前の IdP 本番接続試験（Assent / OIDC は実装済み）
+- ステージングでの本鍵復元演習（手順は `docs/OPERATIONS_BACKUP.md`）
 - 追加リソース（inquiries / conversations / events など）
 - 変更したら `docs/DB_SCHEMA.md`・`docs/ERD.md` を更新
 

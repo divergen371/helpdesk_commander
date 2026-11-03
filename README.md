@@ -32,6 +32,8 @@ Helpdesk Commanderは、社内のタスク管理とヘルプデスク業務を1�
 - チケットチャット（公開/非公開）と Slack 双方向連携（公開メッセージ投稿・スレッド返信取り込み）
 - 監視サービス Webhook（アラート受信、重複抑止、チケット自動起票）
 - JSON API v1（`/api/v1`、Bearer 認証、チケット CRUD、OpenAPI 仕様）
+- SSO（OIDC / Assent。IdP での認証→ state/nonce 検証 → 会社・ロールへのマッピング、未登録ユーザーの自動プロビジョニング）
+- バックアップ / 復元・鍵ローテーションの運用手順（`docs/OPERATIONS_BACKUP.md`、復号検証スクリプト付き）
 - チケット状態遷移とイベントログ
 - チケットとタスクの紐付け（チケット詳細から追加・解除）
 - 検証・承認フロー（resolved → 検証 → verified/closed）
