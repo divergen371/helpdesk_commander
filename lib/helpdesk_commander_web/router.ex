@@ -58,6 +58,7 @@ defmodule HelpdeskCommanderWeb.Router do
     pipe_through :api
 
     post "/slack/events", SlackController, :events
+    post "/monitoring/alerts", MonitoringController, :create
   end
 
   # Other scopes may use custom stacks.

@@ -29,6 +29,11 @@ config :helpdesk_commander, HelpdeskCommander.Chat.Slack,
   channel_id: System.get_env("SLACK_CHAT_CHANNEL_ID"),
   api_base: System.get_env("SLACK_API_BASE") || "https://slack.com/api"
 
+config :helpdesk_commander, HelpdeskCommander.Monitoring.Alerts,
+  token: System.get_env("MONITORING_WEBHOOK_TOKEN"),
+  company_code: System.get_env("MONITORING_COMPANY_CODE") || "A-000001",
+  product_id: System.get_env("MONITORING_PRODUCT_ID")
+
 if config_env() == :prod do
   remote_ip_enabled =
     System.get_env("REMOTE_IP_ENABLED") in ["1", "true", "TRUE", "yes", "YES"]

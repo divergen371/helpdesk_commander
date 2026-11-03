@@ -29,6 +29,7 @@ defmodule HelpdeskCommander.Helpdesk do
     resource HelpdeskCommander.Helpdesk.Conversation
     resource HelpdeskCommander.Helpdesk.ConversationMessage
     resource HelpdeskCommander.Helpdesk.Incident
+    resource HelpdeskCommander.Helpdesk.MonitoringAlert
     resource HelpdeskCommander.Helpdesk.IncidentEvent
     resource HelpdeskCommander.Helpdesk.Inquiry
     resource HelpdeskCommander.Helpdesk.SlaPolicy
