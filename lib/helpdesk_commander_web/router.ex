@@ -22,6 +22,7 @@ defmodule HelpdeskCommanderWeb.Router do
     get "/sign-up", AuthController, :new_registration
     post "/sign-up", AuthController, :create_registration
     delete "/sign-out", AuthController, :delete
+    get "/reports/analytics.csv", ReportController, :analytics_csv
 
     live_session :user_required,
       on_mount: {HelpdeskCommanderWeb.LiveUserAuth, :live_user_required} do

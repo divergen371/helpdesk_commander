@@ -44,6 +44,38 @@ defmodule HelpdeskCommanderWeb.DashboardLiveTest do
     assert assigns.unread_count == 0
   end
 
+  test "internal user sees analytics and can change the period", %{conn: conn} do
+    company = create_company!()
+    user = create_user!(company)
+    _ticket = create_ticket!(user, "Analytics ticket")
+
+    conn = log_in(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    assert has_element?(view, "#analytics")
+    assert has_element?(view, "#analytics-form")
+
+    from = Date.add(Date.utc_today(), -7)
+    to = Date.utc_today()
+
+    view
+    |> form("#analytics-form", analytics: %{"from" => Date.to_iso8601(from), "to" => Date.to_iso8601(to)})
+    |> render_submit()
+
+    assigns = :sys.get_state(view.pid).socket.assigns
+    assert assigns.analytics.period == %{from: from, to: to}
+  end
+
+  test "external user does not see analytics", %{conn: conn} do
+    company = create_company!()
+    external = create_user!(company, role: "customer")
+
+    conn = log_in(conn, external)
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    refute has_element?(view, "#analytics")
+  end
+
   defp create_company! do
     Company
     |> Ash.Changeset.for_create(:create, %{
