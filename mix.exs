@@ -165,7 +165,6 @@ defmodule HelpdeskCommander.MixProject do
       {:ash_cloak, "~> 0.5"},
       {:ash_phoenix, "~> 2.3"},
       {:ash_postgres, "~> 2.15"},
-      {:ash_authentication, "~> 4.15"},
       {:picosat_elixir, "~> 0.2.3"},
       {:igniter, "~> 0.6", only: [:dev, :test]},
       {:phoenix, "~> 1.8"},
