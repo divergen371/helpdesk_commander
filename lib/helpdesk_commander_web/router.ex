@@ -54,6 +54,28 @@ defmodule HelpdeskCommanderWeb.Router do
     end
   end
 
+  scope "/api/v1", HelpdeskCommanderWeb.Api.V1 do
+    pipe_through :api
+
+    post "/sign-in", SessionController, :create
+    get "/openapi.json", SpecController, :show
+  end
+
+  scope "/api/v1", HelpdeskCommanderWeb.Api.V1 do
+    pipe_through :api
+    pipe_through HelpdeskCommanderWeb.Plugs.ApiAuth
+
+    get "/me", SessionController, :me
+    get "/products", ProductController, :index
+    get "/tickets", TicketController, :index
+    post "/tickets", TicketController, :create
+    get "/tickets/:public_id", TicketController, :show
+    patch "/tickets/:public_id", TicketController, :update
+    put "/tickets/:public_id", TicketController, :update
+    put "/tickets/:public_id/status", TicketController, :set_status
+    get "/tickets/:public_id/messages", TicketController, :messages
+  end
+
   scope "/integrations", HelpdeskCommanderWeb do
     pipe_through :api
 

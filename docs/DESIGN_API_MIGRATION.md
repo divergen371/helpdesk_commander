@@ -5,6 +5,7 @@
 ## 結論
 - ドメインは Ash のリソース/アクションに集約済みのため、UIを外しても同じアクションを薄い API レイヤから呼び出すだけで対応できる。
 - 最小変更で始めて、必要に応じて AshJsonApi（JSON:API 準拠）や AshGraphql へ拡張可能。
+- HC-11 として案 A（薄い Phoenix API）を `/api/v1` で実装した。バージョンはパス、認証は Phoenix.Token の Bearer（既存 Cookie セッションも許容）。仕様は `GET /api/v1/openapi.json`。
 
 ## 選択肢（API レイヤ）
 ### A. 薄い Phoenix API コントローラ（最小変更・推奨）
