@@ -21,7 +21,12 @@ defmodule HelpdeskCommanderWeb.AuthController do
 
   @spec new(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def new(conn, _params) do
-    render(conn, :sign_in, form: to_form(%{}, as: "session"))
+    sso_enabled? = HelpdeskCommander.SSO.enabled?()
+
+    conn
+    |> assign(:sso_enabled?, sso_enabled?)
+    |> assign(:sso_company_code, sso_enabled? && HelpdeskCommander.SSO.default_company_code())
+    |> render(:sign_in, form: to_form(%{}, as: "session"))
   end
 
   @spec create(Plug.Conn.t(), map()) :: Plug.Conn.t()

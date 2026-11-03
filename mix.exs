@@ -163,6 +163,7 @@ defmodule HelpdeskCommander.MixProject do
 
     [
       {:ash_cloak, "~> 0.5"},
+      {:assent, "~> 0.2"},
       {:ash_phoenix, "~> 2.3"},
       {:ash_postgres, "~> 2.15"},
       {:picosat_elixir, "~> 0.2.3"},

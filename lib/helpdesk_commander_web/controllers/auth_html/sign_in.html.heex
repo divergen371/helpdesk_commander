@@ -36,7 +36,16 @@
     </div>
   </div>
 
-  <div class="mt-6 text-sm">
+  <div class="mt-4 text-sm">
     アカウントがまだの場合は <.link href={~p"/sign-up"} class="link">初回登録</.link>
   </div>
+
+  <%= if assigns[:sso_enabled?] do %>
+    <div class="divider text-base-400">SSO</div>
+    <div class="flex justify-end">
+      <.link href={~p"/auth/sso/start/#{assigns[:sso_company_code]}"} class="btn btn-outline">
+        SSO でログイン
+      </.link>
+    </div>
+  <% end %>
 </Layouts.app>

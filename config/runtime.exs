@@ -29,6 +29,18 @@ config :helpdesk_commander, HelpdeskCommander.Chat.Slack,
   channel_id: System.get_env("SLACK_CHAT_CHANNEL_ID"),
   api_base: System.get_env("SLACK_API_BASE") || "https://slack.com/api"
 
+config :helpdesk_commander, :sso,
+  enabled: System.get_env("SSO_ENABLED") in ["1", "true", "TRUE", "yes", "YES"],
+  base_url: System.get_env("SSO_ISSUER_URL"),
+  client_id: System.get_env("SSO_CLIENT_ID"),
+  client_secret: System.get_env("SSO_CLIENT_SECRET"),
+  redirect_uri: System.get_env("SSO_REDIRECT_URI"),
+  company_code: System.get_env("SSO_COMPANY_CODE"),
+  auto_provision: System.get_env("SSO_AUTO_PROVISION") || "pending",
+  role_claim: System.get_env("SSO_ROLE_CLAIM"),
+  admin_group: System.get_env("SSO_ADMIN_GROUP"),
+  display_name_claim: System.get_env("SSO_DISPLAY_NAME_CLAIM")
+
 config :helpdesk_commander, HelpdeskCommander.Monitoring.Alerts,
   token: System.get_env("MONITORING_WEBHOOK_TOKEN"),
   company_code: System.get_env("MONITORING_COMPANY_CODE") || "A-000001",

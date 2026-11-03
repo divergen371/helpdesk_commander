@@ -20,6 +20,8 @@ defmodule HelpdeskCommanderWeb.Router do
     pipe_through :browser
 
     get "/sign-in", AuthController, :new
+    get "/auth/sso/start/:company_code", SSOController, :new
+    get "/auth/sso/callback", SSOController, :callback
     post "/sign-in", AuthController, :create
     get "/sign-up", AuthController, :new_registration
     post "/sign-up", AuthController, :create_registration
