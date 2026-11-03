@@ -36,9 +36,10 @@ Helpdesk Commanderは、社内のタスク管理とヘルプデスク業務を1�
 - Impact × Urgency からの優先度自動算出（手動確定は管理者/リーダーのみ）
 - 優先度・担当者の確定（管理者/リーダーのみ）
 - 通知（`/notifications` の一覧・未読管理、クールダウン、メール / Slack Webhook 配信）
-- チケット関連リンク（登録・解除）と Sigma.js 関係グラフ PoC
+- チケット関連リンク（登録・解除）、関連候補の提示（類似度・自動リンクなし）、Sigma.js 関係グラフ PoC
 - 製品マスタ管理（作成・編集・有効化/無効化）
 - SLA 管理（優先度別目標、達成/逸脱判定、設定画面、ダッシュボード集計）
+- 分析（未対応・滞留・担当者別負荷、期間指定、CSV 出力）
 
 #### 👥 共通機能
 
@@ -349,7 +350,7 @@ backlog board               # ターミナルの Kanban
 backlog browser             # ローカル Web UI
 ```
 
-- 現在: フェーズ1〜4の主要機能は実装済み（添付ファイル・関連チケットの自動提案は未着手）。関係グラフの調整が残り
+- 現在: フェーズ1〜4の主要機能は実装済み（添付ファイルは未着手）。関係グラフの調整が残り
 - フェーズ5以降: SLA・分析・外部連携・AI 意思決定支援は Backlog.md の M2〜M5 で管理
 - テスト・カバレッジの現状は [docs/STATUS.md](docs/STATUS.md)、作業履歴は [docs/Walkthrough.md](docs/Walkthrough.md)
 - エージェント向けの運用は [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md)

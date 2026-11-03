@@ -24,12 +24,12 @@
 | コマンド | 結果 |
 | --- | --- |
 | `mix precommit` | 成功 |
-| `mix test` | **13 properties, 249 tests, 0 failures** |
+| `mix test` | **13 properties, 268 tests, 0 failures** |
 | `mix credo --strict` | 指摘なし（65 files / 95 checks） |
 | `mix dialyzer` | **0 errors** |
 | `mix compile --warnings-as-errors` | 成功（プロジェクト側の警告 0） |
 | `mix format` | 差分なし |
-| `MIX_ENV=test mix coveralls` | **82.9%**（最低基準 80% を満たす） |
+| `MIX_ENV=test mix coveralls` | **83.3%**（最低基準 80% を満たす） |
 
 ### 環境
 
@@ -56,9 +56,9 @@
 | `workers/create_ticket_notifications_worker.ex` | 81.8% |
 | `live/ticket_live/show.ex` | 77.1% |
 | `accounts/auth.ex` | 85.6% |
-| **合計** | **82.9%**（2279 / 2748 行） |
+| **合計** | **83.3%**（2443 / 2932 行） |
 
-基準 80% に対して 2.9pt の余裕がある。新規コード追加時はテストも同時に追加する。
+基準 80% に対して 3.3pt の余裕がある。新規コード追加時はテストも同時に追加する。
 
 ---
 
@@ -81,8 +81,8 @@
 | 問い合わせ（Inquiry） | 実装済み | `/inquiries/new` から送信し、Ticket を自動生成。製品選択・依頼者指定・サーバ側検証・テナント検証を含む。 |
 | 製品マスタ | 実装済み | `/products` で作成・編集・有効化/無効化。チケット・問い合わせでは有効な製品のみ選択可能。 |
 | タスク | 実装済み | 一覧・作成・詳細・編集・削除、優先度変更（`set_priority`）と履歴表示。担当者の company 検証付き。 |
-| チケット関連リンク | 実装済み | チケット詳細から関連/再起票/重複/依存を登録・解除。`/relations` で Sigma.js の関係グラフを俯瞰表示。 |
-| ダッシュボード | 一部実装 | `/` にチケット・タスク・製品・通知の概要と最近の項目を表示。分析・レポートは未実装。 |
+| チケット関連リンク | 実装済み | チケット詳細から関連/再起票/重複/依存を登録・解除。文字2-gram類似度で関連候補を提示（自動リンクなし）。`/relations` で Sigma.js の関係グラフを俯瞰表示。 |
+| ダッシュボード | 実装済み | `/` に概要、最近の項目、SLA 逸脱、期間指定の分析（未対応・滞留・担当者別負荷）と CSV 出力を表示。 |
 | レート制限・攻撃耐性 | 実装済み | Hammer / PlugAttack / RemoteIp。 |
 | 基盤 | 実装済み | Oban、Cachex、Telemetry、Docker（PostgreSQL 18）、CI（test / quality / dialyzer / assets）。 |
 | テスト | 実装済み | ExUnit 160 件 + PropCheck 13 プロパティ（StateM / FSM / negative を含む）。 |
@@ -97,7 +97,7 @@
 
 ### 3.2 品質・セキュリティ
 
-- **カバレッジの余裕は 2.9pt**（82.9% / 基準 80%）。新規コード追加時はテストを同時に追加する。
+- **カバレッジの余裕は 3.3pt**（83.3% / 基準 80%）。新規コード追加時はテストを同時に追加する。
 - **ツールチェーンは固定済み**（`.tool-versions`: Erlang 29.1.2 / Elixir `ref:v1.20.4`）。CI も同一バージョン。
 - **企業（テナント）境界は company 単位に統一済み**
   - チケット一覧・詳細は自社 company の範囲に制限（`visibility_scope: "global"` は全体公開として例外）。
@@ -121,7 +121,7 @@
 
 - P1 かつ SEV=P1 の全体公開候補と手動承認
 - 添付ファイル、ウイルススキャン、保存先設計
-- ダッシュボードの分析機能、レポート、統計
+- レポート・統計の拡充（定期配信・帳票）
 - 監視連携、SSO、会話チャット連携（通知のメール/Webhook は実装済み）
 - LiquidAI D1 / D1 Ultra による意思決定支援（フェーズ7）
 - JSON API（`DESIGN_API_MIGRATION.md` は設計のみ）
@@ -140,7 +140,7 @@
 | 担当者自動アサイン | 未実装 |
 | タスクの CRUD 操作 | 作成・更新・削除 UI も実装済み |
 | ユーザー管理 | 仮ユーザー承認画面のみ |
-| ダッシュボード / レポート | 簡易ダッシュボードは実装済み。レポートは未実装 |
+| ダッシュボード / レポート | 簡易ダッシュボード、分析、CSV 出力は実装済み。帳票は未実装 |
 | ユーザー認証（AshAuthentication） | `ash_authentication` の部品は使うが、認証フローは `Accounts.Auth` の独自実装 |
 
 本レポート作成時に README の該当箇所を実態に合わせて修正し、[ROADMAP.md](ROADMAP.md) へリンクした。

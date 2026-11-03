@@ -13,6 +13,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   alias HelpdeskCommander.Helpdesk.Ticket
   alias HelpdeskCommander.Helpdesk.TicketEvent
   alias HelpdeskCommander.Helpdesk.TicketRelations
+  alias HelpdeskCommander.Helpdesk.TicketSimilarity
   alias HelpdeskCommander.Helpdesk.TicketVerification
   alias HelpdeskCommander.Support.Error, as: ErrorLog
   alias HelpdeskCommander.Tasks
@@ -89,7 +90,8 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
           task_links: task_links,
           linkable_tasks: linkable_tasks,
           ticket_links: ticket_links,
-          linkable_tickets: linkable_tickets
+          linkable_tickets: linkable_tickets,
+          ticket_suggestions: load_ticket_suggestions(ticket, ticket_links, external_user?)
         }
       )
     else
@@ -228,6 +230,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
        task_link_form: to_form(%{"task_id" => ""}, as: "link"),
        ticket_links: relations.ticket_links,
        linkable_tickets: relations.linkable_tickets,
+       ticket_suggestions: relations.ticket_suggestions,
        ticket_link_form: to_form(%{"related_ticket_id" => "", "relation_type" => "related"}, as: "link"),
        warnings: warnings
      }}
@@ -269,6 +272,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     |> assign(:task_link_form, data.task_link_form)
     |> assign(:ticket_links, data.ticket_links)
     |> assign(:linkable_tickets, data.linkable_tickets)
+    |> assign(:ticket_suggestions, data.ticket_suggestions)
     |> assign(:ticket_link_form, data.ticket_link_form)
     |> stream(:public_messages, data.public_messages)
     |> stream(:private_messages, data.private_messages)
@@ -465,6 +469,34 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
           ErrorLog.log_error("ticket_live.show.link_ticket", error, ticket_id: socket.assigns.ticket.id)
 
           {:noreply, put_flash(socket, :error, "関連チケットの追加に失敗しました")}
+      end
+    end
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("link_suggested", %{"ticket_id" => related_ticket_id}, socket) do
+    if socket.assigns.current_user_external? do
+      {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
+    else
+      case TicketRelations.create_link(
+             socket.assigns.ticket,
+             related_ticket_id,
+             "related",
+             socket.assigns.current_user
+           ) do
+        {:ok, _link} ->
+          {:noreply,
+           socket
+           |> put_flash(:info, "関連候補を関連付けました")
+           |> reload_ticket_relations()}
+
+        {:error, error} ->
+          ErrorLog.log_error("ticket_live.show.link_suggested", error,
+            ticket_id: socket.assigns.ticket.id,
+            related_ticket_id: related_ticket_id
+          )
+
+          {:noreply, put_flash(socket, :error, "関連候補の追加に失敗しました")}
       end
     end
   end
@@ -995,12 +1027,39 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     end
   end
 
+  defp load_ticket_suggestions(_ticket, _links, true), do: []
+
+  defp load_ticket_suggestions(ticket, links, false) do
+    linked_ids =
+      links
+      |> Enum.flat_map(&[&1.link.ticket_id, &1.link.related_ticket_id])
+      |> MapSet.new()
+
+    case TicketSimilarity.suggest(ticket) do
+      {:ok, suggestions} ->
+        Enum.reject(suggestions, &MapSet.member?(linked_ids, &1.ticket.id))
+
+      {:error, error} ->
+        ErrorLog.log_error("ticket_live.show.load_ticket_suggestions", error, ticket_id: ticket.id)
+
+        []
+    end
+  end
+
   defp reload_ticket_relations(socket) do
     case load_ticket_relations(socket.assigns.ticket, socket.assigns.current_user) do
       {:ok, links, linkable_tickets} ->
         socket
         |> assign(:ticket_links, links)
         |> assign(:linkable_tickets, linkable_tickets)
+        |> assign(
+          :ticket_suggestions,
+          load_ticket_suggestions(
+            socket.assigns.ticket,
+            links,
+            socket.assigns.current_user_external?
+          )
+        )
         |> assign(
           :ticket_link_form,
           to_form(%{"related_ticket_id" => "", "relation_type" => "related"}, as: "link")
@@ -1012,6 +1071,8 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
         put_flash(socket, :error, "関連チケットの取得に失敗しました")
     end
   end
+
+  defp similarity_percent(score), do: round(score * 100)
 
   defp relation_options do
     [
@@ -1660,6 +1721,41 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
                     phx-value-link_id={entry.link.id}
                   >
                     解除
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div :if={@ticket_suggestions != []} id="ticket-suggestions" class="mt-6">
+              <h4 class="text-sm font-semibold">関連候補</h4>
+              <p class="mt-1 text-xs opacity-60">
+                件名と本文の類似度です。自動では関連付けません。
+              </p>
+
+              <div class="mt-3 space-y-2">
+                <div
+                  :for={suggestion <- @ticket_suggestions}
+                  id={"ticket-suggestion-#{suggestion.ticket.id}"}
+                  class="flex flex-wrap items-center justify-between gap-2 rounded-box border border-base-200 p-3 text-sm"
+                >
+                  <div>
+                    <.link
+                      class="font-medium hover:underline"
+                      navigate={~p"/tickets/#{suggestion.ticket.public_id}"}
+                    >
+                      {suggestion.ticket.subject}
+                    </.link>
+                    <div class="mt-1 text-xs opacity-60">
+                      {suggestion.ticket.public_id} / 類似度 {similarity_percent(suggestion.score)}%
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    class="btn btn-sm"
+                    phx-click="link_suggested"
+                    phx-value-ticket_id={suggestion.ticket.id}
+                  >
+                    関連付ける
                   </button>
                 </div>
               </div>
