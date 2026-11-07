@@ -57,11 +57,63 @@ defmodule HelpdeskCommander.Attachments.FilePolicyTest do
     end
   end
 
+  test "rejects text content with a binary extension", %{path: path} do
+    assert {:error, :content_magic_mismatch} =
+             FilePolicy.validate(upload(path, "image.png", "plain text", "image/png"))
+
+    assert {:error, :content_magic_mismatch} =
+             FilePolicy.validate(upload(path, "doc.pdf", "plain text", "application/pdf"))
+  end
+
   test "rejects binary content disguised as a text file", %{path: path} do
     for content <- [@exe, @png, @zip] do
       assert {:error, :content_magic_mismatch} =
                FilePolicy.validate(upload(path, "run.txt", content, "text/plain"))
     end
+  end
+
+  test "accepts uppercase extensions and MIME parameters" do
+    path = Path.join(System.tmp_dir!(), "policy-case-#{System.unique_integer([:positive])}")
+    on_exit(fn -> File.rm_rf(path) end)
+
+    assert :ok = FilePolicy.validate(upload(path, "PHOTO.PNG", @png, "IMAGE/PNG"))
+    assert :ok = FilePolicy.validate(upload(path, "note.txt", "text", " TEXT/PLAIN ; charset=utf-8"))
+  end
+
+  test "enforces the exact size boundary", %{path: path} do
+    File.write!(path, :binary.copy("a", FilePolicy.max_file_size()))
+
+    assert :ok =
+             FilePolicy.validate(%Plug.Upload{
+               path: path,
+               filename: "note.txt",
+               content_type: "text/plain"
+             })
+
+    File.write!(path, :binary.copy("a", FilePolicy.max_file_size() + 1))
+
+    assert {:error, :too_large} =
+             FilePolicy.validate(%Plug.Upload{
+               path: path,
+               filename: "note.txt",
+               content_type: "text/plain"
+             })
+  end
+
+  test "reports a missing file as missing_file" do
+    missing = Path.join(System.tmp_dir!(), "missing-#{System.unique_integer([:positive])}")
+
+    assert {:error, :missing_file} =
+             FilePolicy.validate(%Plug.Upload{
+               path: missing,
+               filename: "note.txt",
+               content_type: "text/plain"
+             })
+  end
+
+  test "rejects values that are not uploads" do
+    assert {:error, :invalid_upload} = FilePolicy.validate(:not_upload)
+    assert {:error, :invalid_upload} = FilePolicy.validate(%{})
   end
 
   test "rejects uploads that cannot be read", %{path: path} do

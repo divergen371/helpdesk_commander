@@ -82,16 +82,28 @@ allowlist の書式と更新手順は `docs/QUALITY_DEPENDENCIES.md` を参照�
 
 夜間（毎日 03:00 UTC）は `.github/workflows/quality-nightly.yml` がテスト・カバレッジ・
 メトリクス・Dialyzer・依存監査をまとめて実行する。カバレッジ 0.3pt 超の低下または
-テスト数の減少で失敗し、`quality-metrics.json` を artifact に保存する。Sobelow と依存監査も
-同じジョブで実行する。
+テスト数の減少で失敗し、`quality-metrics.json` を artifact に保存する。Sobelow・依存監査・
+変異テスト（全量）も同じジョブで実行する。
 詳細は `docs/QUALITY_GATES.md`。
 
-### 6. Summary Job
+### 6. Mutation Job
+
+**目的**: 高リスクモジュールのテスト検出力を測る
+
+**実行内容**:
+- `bash priv/ci/run_mutation.sh`
+- 対象: `Authorization` / `Attachments.FilePolicy` / `Support.PiiHash` / `Support.CompanyCode`
+- PR は `--since origin/<base>` で変更行のみ、`main` push と夜間は全量
+- 各モジュールの mutation score が 95% 未満なら失敗（ジョブのタイムアウト 15 分）
+
+詳細は `docs/QUALITY_MUTATION.md` を参照。
+
+### 7. Summary Job
 
 **目的**: 全ゲートの結果を job summary に集約する
 
 **実行内容**:
-- `coverage` / `precommit` / `dialyzer` / `assets` / `audit` の結果を表で `$GITHUB_STEP_SUMMARY` に出力
+- `coverage` / `precommit` / `dialyzer` / `assets` / `audit` / `mutation` の結果を表で `$GITHUB_STEP_SUMMARY` に出力
 - いずれかが失敗・キャンセルなら Summary Job も失敗し、マージを止める
 
 ## 📊 ワークフロー詳細

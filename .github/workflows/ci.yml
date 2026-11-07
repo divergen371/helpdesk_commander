@@ -271,10 +271,65 @@ jobs:
       - name: npm audit (assets, production dependencies)
         run: npm audit --omit=dev --audit-level=high --prefix assets
 
+  mutation:
+    name: Mutation (high-risk modules)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: helpdesk_commander_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+          otp-version: ${{ env.OTP_VERSION }}
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-mutation-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-mutation-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Compile dependencies
+        run: mix deps.compile
+
+      - name: Run mutation tests
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            export MUTATION_SINCE="origin/${{ github.base_ref }}"
+          fi
+          bash priv/ci/run_mutation.sh
+
   summary:
     name: Quality gate summary
     runs-on: ubuntu-latest
-    needs: [coverage, precommit, dialyzer, assets, audit]
+    needs: [coverage, precommit, dialyzer, assets, audit, mutation]
     if: always()
 
     steps:
@@ -290,6 +345,7 @@ jobs:
             echo "| dialyzer | ${{ needs.dialyzer.result }} |"
             echo "| assets | ${{ needs.assets.result }} |"
             echo "| dependency audit | ${{ needs.audit.result }} |"
+            echo "| mutation (high-risk modules) | ${{ needs.mutation.result }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Fail when a gate failed or was cancelled

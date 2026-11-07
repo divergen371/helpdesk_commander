@@ -24,7 +24,7 @@
 | コマンド | 結果 |
 | --- | --- |
 | `mix precommit` | 成功 |
-| `mix test` | **13 properties, 425 tests, 0 failures** |
+| `mix test` | **13 properties, 438 tests, 0 failures** |
 | `mix credo --strict` | 指摘なし（111 files / 95 checks） |
 | `mix dialyzer` | **0 errors** |
 | `mix compile --warnings-as-errors` | 成功（プロジェクト側の警告 0） |
@@ -56,7 +56,7 @@
 | `workers/create_ticket_notifications_worker.ex` | 81.8% |
 | `live/ticket_live/show.ex` | 77.1% |
 | `accounts/auth.ex` | 85.6% |
-| **合計** | **82.6%**（3698 / 4479 行） |
+| **合計** | **82.6%**（3699 / 4479 行） |
 
 基準 80% に対して 2.0pt の余裕がある。新規コード追加時はテストも同時に追加する。
 
@@ -87,7 +87,7 @@
 | タスク | 実装済み | 一覧・作成・詳細・編集・削除、優先度変更（`set_priority`）と履歴表示。担当者の company 検証付き。 |
 | 全体公開 | 実装済み | P1×SEV1 の自動候補化、管理者/リーダーによる承認・却下、決定者と監査イベントを記録。 |
 | 添付ファイル | 実装済み | ローカル保存（隔離→検査→公開）、10MB・3件、拡張子/MIME/マジックバイト検証、感染・失敗は隔離して取得拒否。スキャンは Oban 非同期（再試行・手動再スキャン、HC-18）。シグネチャ更新・鮮度監視・更新後再スキャン（HC-22）、SHA256 許可/拒否リストと clean キャッシュ（HC-24、`/admin/attachment-rules`）、組織固有の YARA 検知（HC-25、`priv/yara`）、感染判定の誤検知解除と監査ログ（HC-20）。clamd サイドカーでのサンドボックス検査（HC-21、`SANDBOX_SCANNER.md`）。 |
-| 品質管理の自動化 | 実装済み | PR 品質ゲート（HC-33）、依存監査（HC-34）、夜間回帰とメトリクス（HC-36）、Sobelow（HC-37）、変異テスト評価（HC-38）。手順は `QUALITY_GATES.md` / `QUALITY_DEPENDENCIES.md` / `QUALITY_SECURITY.md` / `QUALITY_MUTATION.md`。AI レビュー（HC-35、Pullfrog）は検証 PR で運用確認済み。 |
+| 品質管理の自動化 | 実装済み | PR 品質ゲート（HC-33）、依存監査（HC-34）、夜間回帰とメトリクス（HC-36）、Sobelow（HC-37）、変異テスト評価（HC-38）と高リスク 4 モジュールの CI 実行（HC-39）。手順は `QUALITY_GATES.md` / `QUALITY_DEPENDENCIES.md` / `QUALITY_SECURITY.md` / `QUALITY_MUTATION.md`。AI レビュー（HC-35、Pullfrog）は検証 PR で運用確認済み。 |
 | チケット関連リンク | 実装済み | チケット詳細から関連/再起票/重複/依存を登録・解除。文字2-gram類似度で関連候補を提示（自動リンクなし）。`/relations` で Sigma.js の関係グラフを俯瞰表示。 |
 | ダッシュボード | 実装済み | `/` に概要、最近の項目、SLA 逸脱、期間指定の分析（未対応・滞留・担当者別負荷）と CSV 出力を表示。 |
 | レート制限・攻撃耐性 | 実装済み | Hammer / PlugAttack / RemoteIp。 |

@@ -8,11 +8,13 @@ defmodule HelpdeskCommander.Authorization do
 
   @spec privileged_role?(User.t() | String.t() | nil) :: boolean()
   def privileged_role?(%User{role: role}), do: role in @privileged_roles
+  # mutare:ignore[guard_drop] 非バイナリは in で false になり、ガード削除と同値
   def privileged_role?(role) when is_binary(role), do: role in @privileged_roles
   def privileged_role?(_role), do: false
 
   @spec external?(User.t() | String.t() | nil) :: boolean()
   def external?(%User{role: role}), do: role in @external_roles
+  # mutare:ignore[guard_drop] 非バイナリは in で false になり、ガード削除と同値
   def external?(role) when is_binary(role), do: role in @external_roles
   def external?(_role), do: false
 
@@ -22,6 +24,7 @@ defmodule HelpdeskCommander.Authorization do
   def internal?(_role), do: false
 
   @spec same_company?(User.t() | nil, integer() | nil) :: boolean()
+  # mutare:ignore[conditional] company_id はスキーマで必須（allow_nil? false）のため等価
   def same_company?(%User{company_id: company_id}, company_id), do: not is_nil(company_id)
   def same_company?(_user, _company_id), do: false
 

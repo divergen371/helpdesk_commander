@@ -6,6 +6,7 @@ defmodule HelpdeskCommander.Support.CompanyCode do
   @format ~r/^[A-Z]-\d{6}$/
 
   @spec normalize(String.t()) :: {:ok, String.t()} | {:error, :invalid_format}
+  # mutare:ignore[guard_drop] 非バイナリは String.trim で例外になり、挙動が同じ
   def normalize(code) when is_binary(code) do
     normalized =
       code
@@ -20,6 +21,7 @@ defmodule HelpdeskCommander.Support.CompanyCode do
   end
 
   @spec hash(String.t()) :: {:ok, binary()} | {:error, :invalid_format}
+  # mutare:ignore[guard_drop] hash/1 は :crypto.mac が非バイナリを拒否するため等価
   def hash(code) when is_binary(code) do
     with {:ok, normalized} <- normalize(code) do
       {:ok, :crypto.mac(:hmac, :sha256, hmac_secret(), normalized)}
@@ -27,6 +29,7 @@ defmodule HelpdeskCommander.Support.CompanyCode do
   end
 
   @spec hash!(String.t()) :: binary()
+  # mutare:ignore[guard_drop] hash/1 は :crypto.mac が非バイナリを拒否するため等価
   def hash!(code) when is_binary(code) do
     case hash(code) do
       {:ok, hashed} -> hashed

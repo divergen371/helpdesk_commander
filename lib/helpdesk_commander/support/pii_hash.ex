@@ -7,6 +7,7 @@ defmodule HelpdeskCommander.Support.PiiHash do
   """
 
   @spec email(String.t()) :: binary()
+  # mutare:ignore[guard_drop] 非バイナリは String.trim で例外になり、挙動が同じ
   def email(value) when is_binary(value) do
     value
     |> normalize()
@@ -14,6 +15,7 @@ defmodule HelpdeskCommander.Support.PiiHash do
   end
 
   @spec company_name(String.t()) :: binary()
+  # mutare:ignore[guard_drop] 非バイナリは String.trim で例外になり、挙動が同じ
   def company_name(value) when is_binary(value) do
     value
     |> String.trim()
@@ -21,6 +23,7 @@ defmodule HelpdeskCommander.Support.PiiHash do
   end
 
   @spec normalize(String.t()) :: String.t()
+  # mutare:ignore[guard_drop] 非バイナリは String.trim で例外になり、挙動が同じ
   def normalize(value) when is_binary(value) do
     value
     |> String.trim()
