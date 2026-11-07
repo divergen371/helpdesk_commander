@@ -5,7 +5,9 @@
 このプロジェクトでは GitHub Actions を使って CI を実行します。  
 `main` への push と、`main` / `archetype/**` への PR で動作します。
 
-**docs-only（`*.md` / `docs/*.md`）のみ変更の場合は CI をスキップ**します。
+- PR は **paths-ignore を使わず常に実行**する。Ruleset で `Quality gate summary` を必須にしているため、
+  docs-only でスキップされるとチェックが付かずマージできなくなる。
+- `main` への push に限って、docs-only（`*.md` / `docs/*.md`）の変更は CI をスキップする。
 
 ## 🔧 使用技術
 
