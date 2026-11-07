@@ -91,3 +91,4 @@ config :phoenix,
   sort_verified_routes_query_params: true
 
 config :helpdesk_commander, :attachment_root, Path.join(System.tmp_dir!(), "helpdesk_commander_attachments_test")
+config :helpdesk_commander, :attachment_scan_allow_skipped, true

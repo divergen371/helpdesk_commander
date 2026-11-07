@@ -1,5 +1,6 @@
 defmodule HelpdeskCommanderWeb.AttachmentLiveTest do
   use HelpdeskCommanderWeb.ConnCase, async: false
+  use Oban.Testing, repo: HelpdeskCommander.Repo
 
   import Phoenix.LiveViewTest
 
@@ -7,6 +8,7 @@ defmodule HelpdeskCommanderWeb.AttachmentLiveTest do
   alias HelpdeskCommander.Accounts.Company
   alias HelpdeskCommander.Accounts.User
   alias HelpdeskCommander.Helpdesk
+  alias HelpdeskCommander.Helpdesk.Attachments
   alias HelpdeskCommander.Helpdesk.Product
   alias HelpdeskCommander.Helpdesk.Ticket
   alias HelpdeskCommander.Helpdesk.TicketAttachment
@@ -38,11 +40,12 @@ defmodule HelpdeskCommanderWeb.AttachmentLiveTest do
     render_submit(view, "upload_attachment", %{})
 
     assert has_element?(view, "#ticket-attachments", "note.txt")
-    assert has_element?(view, "#ticket-attachments", "未検査")
+    assert has_element?(view, "#ticket-attachments", "検査中")
 
     [attachment] = Ash.read!(TicketAttachment, domain: Helpdesk, tenant: ticket.company_id)
     assert attachment.filename == "note.txt"
-    assert attachment.scan_status == "skipped"
+    assert attachment.scan_status == "pending"
+    assert_enqueued(worker: HelpdeskCommander.Workers.ScanAttachmentWorker, args: %{attachment_id: attachment.id})
 
     view
     |> element("#ticket-attachment-#{attachment.id} button", "削除")
@@ -50,6 +53,34 @@ defmodule HelpdeskCommanderWeb.AttachmentLiveTest do
 
     refute has_element?(view, "#ticket-attachment-#{attachment.id}")
     assert {:ok, []} = Ash.read(TicketAttachment, domain: Helpdesk, tenant: ticket.company_id)
+  end
+
+  test "shows scanner metadata on the attachment", %{conn: conn, ticket: ticket, admin: admin} do
+    Application.put_env(:helpdesk_commander, :attachment_scan_command, {"sh", ["-c", "exit 0"]})
+
+    Application.put_env(
+      :helpdesk_commander,
+      :attachment_scan_version_command,
+      {"sh", ["-c", "echo 'ClamAV 1.4.1/27480/Wed Nov  5 08:12:34 2026'"]}
+    )
+
+    on_exit(fn -> Application.delete_env(:helpdesk_commander, :attachment_scan_version_command) end)
+
+    {:ok, attachment} =
+      Attachments.ingest(ticket, admin, %Plug.Upload{
+        path: tmp_file("report.txt", "hello"),
+        filename: "report.txt",
+        content_type: "text/plain"
+      })
+
+    {:ok, attachment} = Attachments.scan_attachment(attachment)
+
+    conn = log_in(conn, admin)
+    {:ok, view, _html} = live(conn, ~p"/tickets/#{ticket.public_id}")
+
+    assert has_element?(view, "#ticket-attachment-scan-#{attachment.id}")
+    assert render(view) =~ "ClamAV 1.4.1"
+    assert render(view) =~ "2026-11-05 08:12 UTC"
   end
 
   test "external requester sees only downloadable attachments", %{
@@ -63,27 +94,57 @@ defmodule HelpdeskCommanderWeb.AttachmentLiveTest do
 
     Application.put_env(:helpdesk_commander, :attachment_scan_command, {"sh", ["-c", "exit 1"]})
 
-    {:ok, _infected} =
-      Helpdesk.Attachments.ingest(
+    {:ok, infected} =
+      Attachments.ingest(
         ticket,
         admin,
         %Plug.Upload{path: tmp_file("bad.txt", "virus"), filename: "bad.txt", content_type: "text/plain"}
       )
 
+    {:ok, _infected} = Attachments.scan_attachment(infected)
+
     Application.delete_env(:helpdesk_commander, :attachment_scan_command)
 
-    {:ok, _clean} =
-      Helpdesk.Attachments.ingest(
+    {:ok, clean} =
+      Attachments.ingest(
         ticket,
         admin,
         %Plug.Upload{path: tmp_file("good.txt", "hello"), filename: "good.txt", content_type: "text/plain"}
       )
+
+    {:ok, _clean} = Attachments.scan_attachment(clean)
 
     conn = log_in(conn, external)
     {:ok, view, _html} = live(conn, ~p"/tickets/#{ticket.public_id}")
 
     assert has_element?(view, "#ticket-attachments", "good.txt")
     refute has_element?(view, "#ticket-attachments", "bad.txt")
+  end
+
+  test "admin can rescan a failed attachment", %{conn: conn, ticket: ticket, admin: admin} do
+    Application.put_env(:helpdesk_commander, :attachment_scan_command, {"sh", ["-c", "exit 2"]})
+
+    {:ok, attachment} =
+      Attachments.ingest(ticket, admin, %Plug.Upload{
+        path: tmp_file("broken.txt", "hello"),
+        filename: "broken.txt",
+        content_type: "text/plain"
+      })
+
+    {:ok, attachment} = Attachments.scan_attachment(attachment)
+    assert attachment.scan_status == "failed"
+
+    conn = log_in(conn, admin)
+    {:ok, view, _html} = live(conn, ~p"/tickets/#{ticket.public_id}")
+
+    assert has_element?(view, "#ticket-attachment-#{attachment.id} button", "再スキャン")
+
+    view
+    |> element("#ticket-attachment-#{attachment.id} button", "再スキャン")
+    |> render_click()
+
+    assert render(view) =~ "再スキャンを開始しました"
+    assert Ash.get!(TicketAttachment, attachment.id, domain: Helpdesk, authorize?: false).scan_status == "pending"
   end
 
   defp tmp_file(name, content) do

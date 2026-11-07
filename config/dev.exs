@@ -4,6 +4,8 @@ config :helpdesk_commander, :company_code_hmac_secret, "dev-company-code-secret"
 config :helpdesk_commander, :pii_hmac_secret, "dev-pii-hmac-secret"
 config :helpdesk_commander, :notification_cooldown_seconds, 300
 
+config :helpdesk_commander, :attachment_scan_allow_skipped, true
+
 config :helpdesk_commander, HelpdeskCommander.Notifications.External,
   email_enabled: false,
   chat_enabled: false,

@@ -54,10 +54,15 @@ defmodule HelpdeskCommander.Helpdesk.TicketAttachment do
       allow_nil?: false,
       default: "pending",
       public?: true,
-      constraints: [match: ~r/^(pending|clean|infected|failed|skipped)$/]
+      constraints: [match: ~r/^(pending|clean|infected|failed|blocked|skipped)$/]
 
     attribute :scan_note, :string, public?: true
     attribute :scanned_at, :utc_datetime_usec, public?: true
+
+    # スキャン結果のメタデータ（HC-17）
+    attribute :scan_engine, :string, public?: true
+    attribute :scan_version, :string, public?: true
+    attribute :signature_at, :utc_datetime_usec, public?: true
 
     timestamps()
   end
@@ -115,13 +120,16 @@ defmodule HelpdeskCommander.Helpdesk.TicketAttachment do
         :storage_key,
         :scan_status,
         :scan_note,
-        :scanned_at
+        :scanned_at,
+        :scan_engine,
+        :scan_version,
+        :signature_at
       ]
     end
 
     update :mark_scan do
       require_atomic? false
-      accept [:scan_status, :scan_note, :scanned_at]
+      accept [:scan_status, :scan_note, :scanned_at, :scan_engine, :scan_version, :signature_at]
     end
   end
 end

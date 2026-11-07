@@ -95,8 +95,56 @@ if config_env() == :prod do
     config :helpdesk_commander, :attachment_root, Path.expand(attachment_root)
   end
 
+  # 本番では添付スキャナの設定を必須にする（fail-closed）。未設定のまま起動させない。
+  if config_env() == :prod do
+    System.get_env("ATTACHMENT_SCAN_COMMAND") ||
+      raise """
+      environment variable ATTACHMENT_SCAN_COMMAND is missing.
+      Attachments must be virus-scanned before they can be published, e.g.:
+
+          ATTACHMENT_SCAN_COMMAND=clamscan
+
+      The scan runs with a 30 second timeout (ATTACHMENT_SCAN_TIMEOUT_MS) and
+      files are quarantined when the scanner fails or times out.
+      """
+  end
+
   if scan_command = System.get_env("ATTACHMENT_SCAN_COMMAND") do
-    config :helpdesk_commander, :attachment_scan_command, scan_command
+    # clamscan が指定されたときだけ、深掘り検査設定（HC-23）を明示的に付ける。
+    config :helpdesk_commander,
+           :attachment_scan_command,
+           HelpdeskCommander.Attachments.Clamav.scan_command(scan_command)
+  end
+
+  config :helpdesk_commander,
+         :attachment_scan_timeout_ms,
+         String.to_integer(System.get_env("ATTACHMENT_SCAN_TIMEOUT_MS") || "30000")
+
+  # シグネチャ更新と鮮度監視（HC-22）。本番は freshclam を既定にし、開発・テストは無効。
+  config :helpdesk_commander,
+         :attachment_signature_update_command,
+         System.get_env("ATTACHMENT_SIGNATURE_UPDATE_COMMAND") ||
+           if(config_env() == :prod, do: "freshclam")
+
+  config :helpdesk_commander,
+         :attachment_signature_max_age_hours,
+         String.to_integer(System.get_env("ATTACHMENT_SIGNATURE_MAX_AGE_HOURS") || "24")
+
+  config :helpdesk_commander,
+         :attachment_signature_enforce,
+         System.get_env("ATTACHMENT_SIGNATURE_ENFORCE") in ["1", "true", "TRUE", "yes", "YES"]
+
+  config :helpdesk_commander,
+         :attachment_rescan_limit,
+         String.to_integer(System.get_env("ATTACHMENT_RESCAN_LIMIT") || "500")
+
+  # 組織固有の YARA 検査（HC-25）。未設定なら無効。
+  config :helpdesk_commander,
+         :attachment_yara_command,
+         System.get_env("ATTACHMENT_YARA_COMMAND")
+
+  if yara_rules = System.get_env("ATTACHMENT_YARA_RULES") do
+    config :helpdesk_commander, :attachment_yara_rules, yara_rules
   end
 
   cloak_key =

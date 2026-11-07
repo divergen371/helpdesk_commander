@@ -84,11 +84,14 @@ defmodule HelpdeskCommanderWeb.AttachmentControllerTest do
     path = Path.join(System.tmp_dir!(), "download-#{System.unique_integer([:positive])}")
     File.write!(path, content)
 
-    Helpdesk.Attachments.ingest(ticket, user, %Plug.Upload{
-      path: path,
-      filename: filename,
-      content_type: content_type
-    })
+    with {:ok, attachment} <-
+           Helpdesk.Attachments.ingest(ticket, user, %Plug.Upload{
+             path: path,
+             filename: filename,
+             content_type: content_type
+           }) do
+      Helpdesk.Attachments.scan_attachment(attachment)
+    end
   end
 
   defp create_ticket!(product, requester) do

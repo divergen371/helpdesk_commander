@@ -6,9 +6,20 @@ defmodule HelpdeskCommander.Attachments.Scanner do
   ファイルパスを末尾に追加して実行する。終了コード 0 を clean、1 を infected、
   それ以外を失敗として扱う（ClamAV の clamscan と同じ約束）。
 
-  未設定の場合は `:skipped` を返す。開発・テストでは未検査のまま許可し、本番では
-  `ATTACHMENT_SCAN_COMMAND=clamscan` のような設定を必須にする。
+  fail-closed 方針:
+
+  - 未設定で `:attachment_scan_allow_skipped`（既定 false）が false のときは
+    `{:error, :scanner_not_configured}` を返す。開発・テストでは allow_skipped を
+    true にして `:skipped` を許可する。本番では未設定のまま起動できない
+    （`config/runtime.exs` で必須化）ので、実質的に skipped は発生しない。
+  - スキャンは既定 30 秒でタイムアウトし、`{:error, :scan_timeout}` を返す。
+    設定不備は `{:error, :invalid_scanner_config}`。いずれも呼び出し側で
+    `failed` として隔離する。
   """
+
+  alias HelpdeskCommander.Support.CommandRunner
+
+  @default_timeout_ms 30_000
 
   @type result ::
           {:ok, :clean | :infected | :skipped, String.t() | nil}
@@ -18,7 +29,11 @@ defmodule HelpdeskCommander.Attachments.Scanner do
   def scan(path) do
     case Application.get_env(:helpdesk_commander, :attachment_scan_command) do
       nil ->
-        {:ok, :skipped, "scanner not configured"}
+        if allow_skipped?() do
+          {:ok, :skipped, "scanner not configured"}
+        else
+          {:error, :scanner_not_configured}
+        end
 
       {command, args} when is_binary(command) and is_list(args) ->
         run(command, List.insert_at(args, -1, path))
@@ -32,15 +47,27 @@ defmodule HelpdeskCommander.Attachments.Scanner do
   end
 
   defp run(command, args) do
-    env = [{"CLOAK_KEY", ""}, {"PII_HMAC_SECRET", ""}, {"SECRET_KEY_BASE", ""}, {"DATABASE_URL", ""}]
-
-    case System.cmd(command, args, stderr_to_stdout: true, env: env) do
-      {output, 0} -> {:ok, :clean, trim(output)}
-      {output, 1} -> {:ok, :infected, trim(output)}
-      {output, status} -> {:error, {:exit_status, status, trim(output)}}
+    case CommandRunner.run(command, args, timeout: scan_timeout_ms()) do
+      {:ok, output, 0} -> {:ok, :clean, trim(output)}
+      {:ok, output, 1} -> {:ok, :infected, trim(output)}
+      {:ok, output, status} -> {:error, {:exit_status, status, trim(output)}}
+      {:error, :timeout} -> {:error, :scan_timeout}
+      {:error, reason} -> {:error, {:scan_error, reason}}
     end
-  rescue
-    error -> {:error, error}
+  end
+
+  defp allow_skipped? do
+    Application.get_env(:helpdesk_commander, :attachment_scan_allow_skipped, false)
+  end
+
+  defp scan_timeout_ms do
+    timeout = Application.get_env(:helpdesk_commander, :attachment_scan_timeout_ms, @default_timeout_ms)
+
+    if is_integer(timeout) and timeout > 0 do
+      timeout
+    else
+      @default_timeout_ms
+    end
   end
 
   defp trim(output) do

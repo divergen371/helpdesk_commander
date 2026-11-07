@@ -1,3 +1,5 @@
+# 添付まわりはスキャナ・保存・ルールを 1 モジュールで束ねるため依存数が多い。
+# credo:disable-for-next-line Credo.Check.Refactor.ModuleDependencies
 defmodule HelpdeskCommander.Helpdesk.Attachments do
   @moduledoc """
   チケット添付ファイルの保存・スキャン・取得可否を扱う。
@@ -11,12 +13,18 @@ defmodule HelpdeskCommander.Helpdesk.Attachments do
 
   alias HelpdeskCommander.Accounts.User
   alias HelpdeskCommander.Attachments.FilePolicy
+  alias HelpdeskCommander.Attachments.HashRules
+  alias HelpdeskCommander.Attachments.ScanMetadata
   alias HelpdeskCommander.Attachments.Scanner
+  alias HelpdeskCommander.Attachments.Signatures
   alias HelpdeskCommander.Attachments.Storage
+  alias HelpdeskCommander.Attachments.Yara
   alias HelpdeskCommander.Authorization
   alias HelpdeskCommander.Helpdesk
   alias HelpdeskCommander.Helpdesk.Ticket
   alias HelpdeskCommander.Helpdesk.TicketAttachment
+  alias HelpdeskCommander.Support.Error, as: ErrorLog
+  alias HelpdeskCommander.Workers.ScanAttachmentWorker
 
   @downloadable ~w(clean skipped)
 
@@ -32,10 +40,96 @@ defmodule HelpdeskCommander.Helpdesk.Attachments do
   @spec ingest(Ticket.t(), User.t(), Plug.Upload.t()) ::
           {:ok, TicketAttachment.t()} | {:error, term()}
   def ingest(%Ticket{} = ticket, %User{} = user, %Plug.Upload{} = upload) do
-    with :ok <- FilePolicy.validate(upload),
-         {:ok, stored} <- Storage.store(upload, ticket.company_id, ticket.id),
-         {:ok, attachment} <- create_attachment(ticket, user, upload, stored) do
-      scan(attachment)
+    with :ok <- Signatures.ensure_fresh(),
+         :ok <- FilePolicy.validate(upload),
+         {:ok, stored} <- Storage.store(upload, ticket.company_id, ticket.id) do
+      case HashRules.decision(ticket.company_id, stored.sha256) do
+        :deny ->
+          HashRules.audit_decision(:deny, ticket.company_id, stored.sha256)
+          create_with_status(ticket, user, upload, stored, "blocked", "denied by hash rule")
+
+        :allow ->
+          HashRules.audit_decision(:allow, ticket.company_id, stored.sha256)
+          create_with_status(ticket, user, upload, stored, "clean", "allowed by hash rule")
+
+        nil ->
+          if cache_hit?(stored.sha256) do
+            HashRules.audit_decision(:cache_hit, ticket.company_id, stored.sha256)
+            create_with_status(ticket, user, upload, stored, "clean", "cache hit")
+          else
+            with {:ok, attachment} <- create_attachment(ticket, user, upload, stored) do
+              enqueue_scan(attachment)
+            end
+          end
+      end
+    end
+  end
+
+  @doc """
+  スキャンを同期的に実行して結果を保存する。`ScanAttachmentWorker` から呼ばれるほか、
+  テストや手動運用でも使う。既に clean / infected の添付は再検査しない。
+  """
+  @spec scan_attachment(TicketAttachment.t()) :: {:ok, TicketAttachment.t()} | {:error, term()}
+  def scan_attachment(%TicketAttachment{scan_status: status} = attachment)
+      when status in ["clean", "infected"] do
+    {:ok, attachment}
+  end
+
+  def scan_attachment(%TicketAttachment{} = attachment), do: scan(attachment)
+
+  @doc """
+  失敗した添付を再スキャンする。管理者・リーダーまたはアップロード者だけが実行できる。
+  ステータスを pending に戻してから非同期ジョブを積む。
+  """
+  @spec rescan(TicketAttachment.t(), User.t()) ::
+          {:ok, TicketAttachment.t()} | {:error, :forbidden | :not_rescannable | term()}
+  def rescan(%TicketAttachment{scan_status: "failed"} = attachment, %User{} = user) do
+    if can_rescan?(attachment, user) do
+      with {:ok, attachment} <- mark_pending(attachment) do
+        enqueue_scan(attachment)
+      end
+    else
+      {:error, :forbidden}
+    end
+  end
+
+  def rescan(%TicketAttachment{}, %User{}), do: {:error, :not_rescannable}
+
+  @doc "再スキャン可能か（failed かつ管理者・リーダーまたはアップロード者）。"
+  @spec can_rescan?(TicketAttachment.t(), User.t()) :: boolean()
+  def can_rescan?(%TicketAttachment{scan_status: "failed"} = attachment, %User{} = user) do
+    attachment.uploaded_by_id == user.id or user.role in ["admin", "leader"]
+  end
+
+  def can_rescan?(_attachment, _user), do: false
+
+  @doc """
+  既存の clean / skipped 添付を更新後のシグネチャで再スキャンする（HC-22）。
+  `:attachment_rescan_limit`（既定 500）件ずつ処理し、1 件の失敗は他へ波及させない。
+  再スキャンは pending に戻すため冪等（再度呼んでも対象から外れる）。
+  """
+  @spec rescan_outdated(keyword()) :: %{enqueued: non_neg_integer(), failed: non_neg_integer()}
+  def rescan_outdated(opts \\ []) do
+    limit = Keyword.get(opts, :limit, rescan_limit())
+
+    query =
+      TicketAttachment
+      |> filter(scan_status in ["clean", "skipped"])
+      |> sort(inserted_at: :asc)
+      |> Ash.Query.limit(limit)
+
+    case Ash.read(query, domain: Helpdesk, authorize?: false) do
+      {:ok, attachments} ->
+        Enum.reduce(attachments, %{enqueued: 0, failed: 0}, fn attachment, stats ->
+          case rescan_existing(attachment) do
+            :ok -> %{stats | enqueued: stats.enqueued + 1}
+            :error -> %{stats | failed: stats.failed + 1}
+          end
+        end)
+
+      {:error, error} ->
+        ErrorLog.log_error("attachments.rescan_outdated", error)
+        %{enqueued: 0, failed: 0}
     end
   end
 
@@ -113,19 +207,74 @@ defmodule HelpdeskCommander.Helpdesk.Attachments do
     |> Ash.read_one(domain: Helpdesk, tenant: user.company_id)
   end
 
-  defp create_attachment(ticket, user, upload, stored) do
+  defp create_with_status(ticket, user, upload, stored, status, note) do
+    attrs = %{
+      scan_status: status,
+      scan_note: note,
+      scanned_at: DateTime.utc_now()
+    }
+
+    case create_attachment(ticket, user, upload, stored, attrs) do
+      {:ok, attachment} ->
+        _promoted = if status == "clean", do: Storage.promote(attachment.storage_key)
+        {:ok, attachment}
+
+      {:error, _error} = error ->
+        error
+    end
+  end
+
+  defp cache_hit?(sha256) do
+    case Signatures.current() do
+      {:ok, %{status: "ok", signature_at: %DateTime{} = signature_at} = signature} ->
+        clean_match?(sha256, signature.engine, signature.version, signature_at) and
+          not infected_exists?(sha256)
+
+      _other ->
+        false
+    end
+  end
+
+  defp clean_match?(sha256, engine, version, signature_at) do
     result =
       TicketAttachment
-      |> Ash.Changeset.for_create(:create, %{
-        company_id: ticket.company_id,
-        ticket_id: ticket.id,
-        uploaded_by_id: user.id,
-        filename: Path.basename(upload.filename),
-        content_type: upload.content_type,
-        byte_size: stored.byte_size,
-        sha256: stored.sha256,
-        storage_key: stored.key
-      })
+      |> filter(
+        sha256 == ^sha256 and scan_status == "clean" and signature_at == ^signature_at and
+          scan_engine == ^engine and scan_version == ^version
+      )
+      |> Ash.read_one(domain: Helpdesk, authorize?: false)
+
+    match?({:ok, %TicketAttachment{}}, result)
+  end
+
+  defp infected_exists?(sha256) do
+    result =
+      TicketAttachment
+      |> filter(sha256 == ^sha256 and scan_status == "infected")
+      |> Ash.read_one(domain: Helpdesk, authorize?: false)
+
+    match?({:ok, %TicketAttachment{}}, result)
+  end
+
+  defp create_attachment(ticket, user, upload, stored, extra_attrs \\ %{}) do
+    attrs =
+      Map.merge(
+        %{
+          company_id: ticket.company_id,
+          ticket_id: ticket.id,
+          uploaded_by_id: user.id,
+          filename: Path.basename(upload.filename),
+          content_type: upload.content_type,
+          byte_size: stored.byte_size,
+          sha256: stored.sha256,
+          storage_key: stored.key
+        },
+        extra_attrs
+      )
+
+    result =
+      TicketAttachment
+      |> Ash.Changeset.for_create(:create, attrs)
       |> Ash.create(domain: Helpdesk, tenant: ticket.company_id, actor: user)
 
     case result do
@@ -138,9 +287,60 @@ defmodule HelpdeskCommander.Helpdesk.Attachments do
     end
   end
 
+  defp rescan_existing(%TicketAttachment{} = attachment) do
+    with {:ok, pending} <- mark_pending(attachment),
+         {:ok, _job} <- ScanAttachmentWorker.enqueue(pending.id) do
+      :ok
+    else
+      {:error, error} ->
+        ErrorLog.log_error("attachments.rescan_existing", error, attachment_id: attachment.id)
+        _result = mark_failed(attachment, "rescan_enqueue_failed")
+        :error
+    end
+  end
+
+  defp mark_failed(%TicketAttachment{} = attachment, note) do
+    attachment
+    |> Ash.Changeset.for_update(:mark_scan, %{
+      scan_status: "failed",
+      scan_note: note,
+      scanned_at: DateTime.utc_now()
+    })
+    |> Ash.update(domain: Helpdesk, tenant: attachment.company_id, authorize?: false)
+  end
+
+  defp rescan_limit do
+    case Application.get_env(:helpdesk_commander, :attachment_rescan_limit) do
+      limit when is_integer(limit) and limit > 0 -> limit
+      _other -> 500
+    end
+  end
+
+  defp enqueue_scan(%TicketAttachment{} = attachment) do
+    case ScanAttachmentWorker.enqueue(attachment.id) do
+      {:ok, _job} ->
+        {:ok, attachment}
+
+      {:error, error} ->
+        ErrorLog.log_error("attachments.enqueue_scan", error, attachment_id: attachment.id)
+        {:error, :scan_enqueue_failed}
+    end
+  end
+
+  defp mark_pending(%TicketAttachment{} = attachment) do
+    attachment
+    |> Ash.Changeset.for_update(:mark_scan, %{
+      scan_status: "pending",
+      scan_note: nil,
+      scanned_at: nil
+    })
+    |> Ash.update(domain: Helpdesk, tenant: attachment.company_id, authorize?: false)
+  end
+
   defp scan(%TicketAttachment{} = attachment) do
     path = Storage.path(:quarantine, attachment.storage_key)
     {status, note} = scan_result(path)
+    metadata = ScanMetadata.collect()
 
     _promoted =
       if status in @downloadable do
@@ -153,16 +353,47 @@ defmodule HelpdeskCommander.Helpdesk.Attachments do
     |> Ash.Changeset.for_update(:mark_scan, %{
       scan_status: status,
       scan_note: note,
-      scanned_at: DateTime.utc_now()
+      scanned_at: DateTime.utc_now(),
+      scan_engine: metadata.engine,
+      scan_version: metadata.version,
+      signature_at: metadata.signature_at
     })
     |> Ash.update(domain: Helpdesk, tenant: attachment.company_id, authorize?: false)
   end
 
   defp scan_result(path) do
     case Scanner.scan(path) do
-      {:ok, status, note} -> {to_string(status), note}
-      {:error, reason} -> {"failed", inspect(reason)}
+      {:ok, status, note} when status in [:clean, :skipped] ->
+        if Yara.enabled?() do
+          yara_result(path, status, note)
+        else
+          {to_string(status), note}
+        end
+
+      {:ok, status, note} ->
+        {to_string(status), note}
+
+      {:error, reason} ->
+        {"failed", inspect(reason)}
     end
+  end
+
+  defp yara_result(path, clam_status, clam_note) do
+    case Yara.scan(path) do
+      {:ok, []} ->
+        {to_string(clam_status), clam_note}
+
+      {:ok, matches} ->
+        {"infected", join_notes(["YARA: " <> Enum.join(matches, ", "), clam_note])}
+
+      {:error, reason} ->
+        {"failed", join_notes(["yara: " <> inspect(reason), clam_note])}
+    end
+  end
+
+  defp join_notes(notes) do
+    joined = notes |> Enum.reject(&is_nil/1) |> Enum.join(" / ")
+    if joined == "", do: nil, else: joined
   end
 
   defp parse_id(id) when is_integer(id), do: {id, ""}

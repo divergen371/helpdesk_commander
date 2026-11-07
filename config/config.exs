@@ -29,10 +29,11 @@ config :helpdesk_commander, Oban,
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
     {Oban.Plugins.Cron,
      crontab: [
-       {"0 3 * * *", HelpdeskCommander.Workers.AnonymizeExpiredUsersWorker}
+       {"0 3 * * *", HelpdeskCommander.Workers.AnonymizeExpiredUsersWorker},
+       {"15 3 * * *", HelpdeskCommander.Workers.UpdateSignaturesWorker}
      ]}
   ],
-  queues: [default: 10, notifications: 10, integrations: 5]
+  queues: [default: 10, notifications: 10, integrations: 5, attachments: 5]
 
 config :helpdesk_commander, :remote_ip,
   enabled?: false,

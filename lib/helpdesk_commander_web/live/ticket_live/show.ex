@@ -507,22 +507,16 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     added = for {:ok, attachment} <- results, do: attachment
     failed_count = Enum.count(results, &match?({:error, _reason}, &1))
 
-    blocked_count =
-      Enum.count(added, &(&1.scan_status in ["infected", "failed"]))
-
-    allowed_count = length(added) - blocked_count
-
     messages =
       [
-        allowed_count > 0 && "#{allowed_count}件を追加しました",
-        blocked_count > 0 && "#{blocked_count}件は検査で隔離しました",
+        added != [] && "#{length(added)}件を追加しました（検査を開始しました）",
         failed_count > 0 && "#{failed_count}件を追加できませんでした"
       ]
 
     flash_messages = Enum.filter(messages, &is_binary/1)
 
     socket =
-      if failed_count > 0 or blocked_count > 0 do
+      if failed_count > 0 do
         put_flash(socket, :error, Enum.join(flash_messages, "。"))
       else
         put_flash(socket, :info, Enum.join(flash_messages, "。"))
@@ -545,6 +539,23 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
 
       _error ->
         {:noreply, put_flash(socket, :error, "添付ファイルの削除に失敗しました")}
+    end
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("rescan_attachment", %{"id" => id}, socket) do
+    attachment =
+      Enum.find(socket.assigns.attachments, &(Integer.to_string(&1.id) == to_string(id)))
+
+    case attachment && Attachments.rescan(attachment, socket.assigns.current_user) do
+      {:ok, _attachment} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "再スキャンを開始しました")
+         |> reload_attachments()}
+
+      _error ->
+        {:noreply, put_flash(socket, :error, "再スキャンを開始できませんでした")}
     end
   end
 
@@ -1170,15 +1181,26 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     )
   end
 
+  defp can_rescan_attachment?(attachment, current_user) do
+    Attachments.can_rescan?(attachment, current_user)
+  end
+
   defp can_delete_attachment?(attachment, current_user) do
     current_user &&
       (attachment.uploaded_by_id == current_user.id or CurrentUser.admin?(current_user))
   end
 
+  defp format_signature_at(%DateTime{} = datetime) do
+    Calendar.strftime(datetime, "%Y-%m-%d %H:%M UTC")
+  end
+
+  defp format_signature_at(_datetime), do: nil
+
   defp attachment_status_label("clean"), do: "検査済み"
   defp attachment_status_label("skipped"), do: "未検査"
   defp attachment_status_label("pending"), do: "検査中"
   defp attachment_status_label("infected"), do: "感染"
+  defp attachment_status_label("blocked"), do: "ブロック"
   defp attachment_status_label("failed"), do: "検査失敗"
   defp attachment_status_label(status), do: status
 
@@ -1187,6 +1209,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   defp attachment_status_class("pending"), do: "badge-warning"
   defp attachment_status_class("infected"), do: "badge-error"
   defp attachment_status_class("failed"), do: "badge-error"
+  defp attachment_status_class("blocked"), do: "badge-error"
   defp attachment_status_class(_status), do: "badge-ghost"
 
   defp format_bytes(bytes) when bytes >= 1024 * 1024 do
@@ -1959,6 +1982,16 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
                   <div class="mt-1 text-xs opacity-60">
                     {format_bytes(attachment.byte_size)} / {sender_label(@users_by_id, attachment.uploaded_by_id)}
                   </div>
+                  <div
+                    :if={attachment.scan_engine}
+                    id={"ticket-attachment-scan-#{attachment.id}"}
+                    class="mt-1 text-xs opacity-60"
+                  >
+                    スキャン: {attachment.scan_engine} {attachment.scan_version}
+                    <span :if={attachment.signature_at}>
+                      / シグネチャ {format_signature_at(attachment.signature_at)}
+                    </span>
+                  </div>
                 </div>
                 <div class="flex items-center gap-2">
                   <span class={[
@@ -1967,6 +2000,15 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
                   ]}>
                     {attachment_status_label(attachment.scan_status)}
                   </span>
+                  <button
+                    :if={can_rescan_attachment?(attachment, @current_user)}
+                    type="button"
+                    class="link"
+                    phx-click="rescan_attachment"
+                    phx-value-id={attachment.id}
+                  >
+                    再スキャン
+                  </button>
                   <button
                     :if={can_delete_attachment?(attachment, @current_user)}
                     type="button"
