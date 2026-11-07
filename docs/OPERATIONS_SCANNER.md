@@ -3,11 +3,20 @@
 ClamAV の検出力はシグネチャの鮮度に依存する。本手順は更新の自動化・鮮度監視・
 更新後の再スキャンの運用手順を定める。
 
+## 0. 実行形態
+
+- clamd サイドカー（推奨、HC-21）: `docs/SANDBOX_SCANNER.md` を参照。サンドボックス化された
+  clamd へ `INSTREAM` で検査を委譲し、DB 更新は egress を持つ updater コンテナが担う。
+- スキャナコマンド（`ATTACHMENT_SCAN_COMMAND`）: clamscan をアプリ環境で直接実行する形態。
+
+本節以下は共通の運用（コマン ド実行時は `freshclam` をアプリ側で実行する）。
+
 ## 1. シグネチャ更新
 
 - `UpdateSignaturesWorker` が毎日 03:15（`config/config.exs` の Cron）に実行される。
 - 実行コマンドは `ATTACHMENT_SIGNATURE_UPDATE_COMMAND`（本番既定 `freshclam`）。
-  開発・テストでは未設定で何もしない。
+  開発・テストでは未設定で何もしない。clamd 構成では `ATTACHMENT_SIGNATURE_UPDATE_COMMAND=""`
+  で無効化し、ワーカーは `RELOAD` と `VERSION` の取得だけを行う（DB 更新は updater コンテナ）。
 - 更新に成功すると:
 
   1. `AttachmentSignature`（`attachment_signatures` テーブル）に

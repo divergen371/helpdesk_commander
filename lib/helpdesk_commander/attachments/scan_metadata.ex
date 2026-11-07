@@ -13,6 +13,7 @@ defmodule HelpdeskCommander.Attachments.ScanMetadata do
   保存する（ClamAV はローカル時刻で出力するため、表示・監査時はその前提で扱う）。
   """
 
+  alias HelpdeskCommander.Attachments.Clamd
   alias HelpdeskCommander.Support.CommandRunner
 
   @timeout_ms 5_000
@@ -39,20 +40,43 @@ defmodule HelpdeskCommander.Attachments.ScanMetadata do
           signature_at: DateTime.t() | nil
         }
 
-  @doc "スキャンエンジンのメタデータを集める。取得できなければすべて nil。"
+  @doc """
+  スキャンエンジンのメタデータを集める。取得できなければすべて nil。
+
+  優先順: 明示の version コマンド → clamd の VERSION → なし。
+  """
   @spec collect() :: metadata()
   def collect do
     empty = %{engine: nil, version: nil, signature_at: nil}
 
-    case version_command() do
+    case version_source() do
       nil ->
         empty
 
-      {command, args} ->
+      {:command, {command, args}} ->
         case run(command, args) do
           {:ok, output} -> parse(output)
           {:error, _reason} -> empty
         end
+
+      {:clamd, config} ->
+        case Clamd.version(config) do
+          {:ok, output} -> parse(output)
+          {:error, _reason} -> empty
+        end
+    end
+  end
+
+  defp version_source do
+    case version_command() do
+      nil ->
+        case Clamd.default_config() do
+          nil -> nil
+          config -> {:clamd, config}
+        end
+
+      command ->
+        {:command, command}
     end
   end
 

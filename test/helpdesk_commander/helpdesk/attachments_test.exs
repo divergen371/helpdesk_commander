@@ -7,6 +7,7 @@ defmodule HelpdeskCommander.Helpdesk.AttachmentsTest do
   alias HelpdeskCommander.Attachments.HashRules
   alias HelpdeskCommander.Attachments.Signatures
   alias HelpdeskCommander.Attachments.Storage
+  alias HelpdeskCommander.ClamdFakeServer
   alias HelpdeskCommander.Helpdesk
   alias HelpdeskCommander.Helpdesk.Attachments
   alias HelpdeskCommander.Helpdesk.Product
@@ -23,6 +24,7 @@ defmodule HelpdeskCommander.Helpdesk.AttachmentsTest do
     on_exit(fn -> Application.delete_env(:helpdesk_commander, :attachment_scan_command) end)
     on_exit(fn -> Application.delete_env(:helpdesk_commander, :attachment_scan_timeout_ms) end)
     on_exit(fn -> Application.delete_env(:helpdesk_commander, :attachment_yara_command) end)
+    on_exit(fn -> Application.delete_env(:helpdesk_commander, :attachment_scan_clamd) end)
 
     %{company: company, admin: admin, product: product, ticket: ticket}
   end
@@ -321,6 +323,50 @@ defmodule HelpdeskCommander.Helpdesk.AttachmentsTest do
       assert status_counts(ticket) == %{"pending" => 3}
 
       assert %{enqueued: 0, failed: 0} = Attachments.rescan_outdated()
+    end
+  end
+
+  describe "clamd sidecar scanning (HC-21)" do
+    test "scans the EICAR file over INSTREAM and quarantines it", %{
+      ticket: ticket,
+      admin: admin
+    } do
+      {:ok, port, _server} = ClamdFakeServer.start(mode: :eicar)
+      Application.put_env(:helpdesk_commander, :attachment_scan_clamd, host: "127.0.0.1", port: port)
+
+      eicar = "X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"
+
+      {:ok, benign} = Attachments.ingest(ticket, admin, upload("ok.txt", "hello", "text/plain"))
+      assert scan!(benign).scan_status == "clean"
+
+      {:ok, malware} = Attachments.ingest(ticket, admin, upload("eicar.txt", eicar, "text/plain"))
+      malware = scan!(malware)
+
+      assert malware.scan_status == "infected"
+      assert malware.scan_note =~ "Eicar-Signature FOUND"
+      refute File.exists?(Storage.path(:clean, malware.storage_key))
+      assert File.exists?(Storage.path(:quarantine, malware.storage_key))
+    end
+
+    test "quarantines as failed when clamd is unreachable", %{ticket: ticket, admin: admin} do
+      Application.delete_env(:helpdesk_commander, :attachment_scan_command)
+
+      Application.put_env(
+        :helpdesk_commander,
+        :attachment_scan_clamd,
+        host: "127.0.0.1",
+        port: 1,
+        timeout_ms: 200
+      )
+
+      {:ok, attachment} =
+        Attachments.ingest(ticket, admin, upload("note.txt", "hello", "text/plain"))
+
+      attachment = scan!(attachment)
+      assert attachment.scan_status == "failed"
+      assert attachment.scan_note =~ "clamd_connect"
+      assert File.exists?(Storage.path(:quarantine, attachment.storage_key))
+      refute Attachments.downloadable?(attachment)
     end
   end
 

@@ -24,7 +24,14 @@
   拡張子だけ・MIME だけでは通さない。
 
 ## ウイルス検査と隔離
+
+実行系統は 2 つ: **clamd サイドカー**（推奨・HC-21）と **スキャナコマンド**（clamscan 等）。
+clamd 設定がある場合はコマンドより優先される。
 - `ATTACHMENT_SCAN_COMMAND` に `clamscan` などを設定すると、保存したファイルを検査する。
+- `ATTACHMENT_SCAN_CLAMD_HOST`（例 `clamd`）を設定すると、コマンドではなく clamd の
+  `INSTREAM` で検査する。アプリは Docker ソケットも共有ボリュームも不要で、
+  clamd 側の接続失敗・タイムアウト・`ERROR` 応答はすべて `failed` として隔離される。
+  構成・起動手順は `docs/SANDBOX_SCANNER.md`。
   - 終了コード 0: `clean` → `clean/` へ移動してダウンロード可
   - 終了コード 1: `infected` → `quarantine/` に残しダウンロード拒否
   - それ以外: `failed` → `quarantine/` に残しダウンロード拒否

@@ -3,18 +3,22 @@ defmodule HelpdeskCommander.Attachments.ScannerTest do
 
   alias HelpdeskCommander.Attachments.Scanner
 
+  alias HelpdeskCommander.ClamdFakeServer
+
   setup do
     original = [
       Application.get_env(:helpdesk_commander, :attachment_scan_command),
       Application.get_env(:helpdesk_commander, :attachment_scan_allow_skipped),
-      Application.get_env(:helpdesk_commander, :attachment_scan_timeout_ms)
+      Application.get_env(:helpdesk_commander, :attachment_scan_timeout_ms),
+      Application.get_env(:helpdesk_commander, :attachment_scan_clamd)
     ]
 
     on_exit(fn ->
-      [command, allow_skipped, timeout] = original
+      [command, allow_skipped, timeout, clamd] = original
       Application.put_env(:helpdesk_commander, :attachment_scan_command, command)
       Application.put_env(:helpdesk_commander, :attachment_scan_allow_skipped, allow_skipped)
       Application.put_env(:helpdesk_commander, :attachment_scan_timeout_ms, timeout)
+      Application.put_env(:helpdesk_commander, :attachment_scan_clamd, clamd)
     end)
 
     :ok
@@ -67,5 +71,38 @@ defmodule HelpdeskCommander.Attachments.ScannerTest do
     scan_timeout(:bad)
 
     assert {:ok, :infected, nil} = Scanner.scan("/tmp/whatever")
+  end
+
+  test "the clamd sidecar takes precedence over the scanner command" do
+    {:ok, port, _server} = ClamdFakeServer.start(mode: :infected)
+    path = temp_path("clamd-priority")
+
+    scan_command({"sh", ["-c", "exit 0"]})
+    Application.put_env(:helpdesk_commander, :attachment_scan_clamd, host: "127.0.0.1", port: port)
+
+    assert {:ok, :infected, detection} = Scanner.scan(path)
+    assert detection =~ "FOUND"
+  end
+
+  test "clamd connection failures stay fail-closed" do
+    path = temp_path("clamd-unreachable")
+    Application.delete_env(:helpdesk_commander, :attachment_scan_command)
+
+    Application.put_env(
+      :helpdesk_commander,
+      :attachment_scan_clamd,
+      host: "127.0.0.1",
+      port: 1,
+      timeout_ms: 200
+    )
+
+    assert {:error, {:clamd_connect, _reason}} = Scanner.scan(path)
+  end
+
+  defp temp_path(label) do
+    path = Path.join(System.tmp_dir!(), "scanner-#{label}-#{System.unique_integer([:positive])}")
+    File.write!(path, "content")
+    on_exit(fn -> File.rm(path) end)
+    path
   end
 end

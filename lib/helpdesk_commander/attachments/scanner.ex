@@ -2,9 +2,15 @@ defmodule HelpdeskCommander.Attachments.Scanner do
   @moduledoc """
   添付ファイルのウイルススキャン。
 
-  `:attachment_scan_command` に `{command, args}` またはコマンド文字列を設定すると、
-  ファイルパスを末尾に追加して実行する。終了コード 0 を clean、1 を infected、
-  それ以外を失敗として扱う（ClamAV の clamscan と同じ約束）。
+  実行先は 2 系統:
+
+  - clamd サイドカー（HC-21）: `:attachment_scan_clamd` を設定すると `INSTREAM` で
+    ファイル内容を送出する。アプリは Docker ソケットもコマンド実行も不要
+  - コマンド実行（clamscan 等）: `:attachment_scan_command` に `{command, args}` または
+    コマンド文字列を設定し、ファイルパスを末尾に追加して実行する。終了コード 0 を
+    clean、1 を infected、それ以外を失敗として扱う
+
+  clamd 設定がある場合はコマンド設定より優先される。
 
   fail-closed 方針:
 
@@ -13,10 +19,11 @@ defmodule HelpdeskCommander.Attachments.Scanner do
     true にして `:skipped` を許可する。本番では未設定のまま起動できない
     （`config/runtime.exs` で必須化）ので、実質的に skipped は発生しない。
   - スキャンは既定 30 秒でタイムアウトし、`{:error, :scan_timeout}` を返す。
-    設定不備は `{:error, :invalid_scanner_config}`。いずれも呼び出し側で
-    `failed` として隔離する。
+    設定不備は `{:error, :invalid_scanner_config}`。clamd の接続失敗・ERROR 応答も
+    `{:error, ...}` になる。いずれも呼び出し側で `failed` として隔離する。
   """
 
+  alias HelpdeskCommander.Attachments.Clamd
   alias HelpdeskCommander.Support.CommandRunner
 
   @default_timeout_ms 30_000
@@ -27,6 +34,13 @@ defmodule HelpdeskCommander.Attachments.Scanner do
 
   @spec scan(Path.t()) :: result()
   def scan(path) do
+    case Clamd.default_config() do
+      nil -> scan_by_command(path)
+      config -> Clamd.scan_file(path, config)
+    end
+  end
+
+  defp scan_by_command(path) do
     case Application.get_env(:helpdesk_commander, :attachment_scan_command) do
       nil ->
         if allow_skipped?() do

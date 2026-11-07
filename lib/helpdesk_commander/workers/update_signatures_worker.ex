@@ -13,6 +13,7 @@ defmodule HelpdeskCommander.Workers.UpdateSignaturesWorker do
     queue: :attachments,
     max_attempts: 3
 
+  alias HelpdeskCommander.Attachments.Clamd
   alias HelpdeskCommander.Attachments.ScanMetadata
   alias HelpdeskCommander.Attachments.Signatures
   alias HelpdeskCommander.Helpdesk.Attachments
@@ -32,25 +33,51 @@ defmodule HelpdeskCommander.Workers.UpdateSignaturesWorker do
 
   @impl Oban.Worker
   def perform(_job) do
-    case update_command() do
-      nil ->
+    case update_mechanism() do
+      :none ->
         :ok
 
-      {command, args} ->
-        run_update(command, args)
+      _mechanism ->
+        run_and_record()
     end
   end
 
-  defp run_update(command, args) do
-    case run(command, args) do
-      {:ok, _output} ->
-        record_success()
-        rescan_outdated()
+  defp run_and_record do
+    with {:ok, _output} <- run_update(),
+         :ok <- reload_signatures() do
+      record_success()
+      rescan_outdated()
+      :ok
+    else
+      {:error, reason} ->
+        record_error(reason)
+        {:error, reason}
+    end
+  end
+
+  defp run_update do
+    case update_command() do
+      nil -> {:ok, "no update command configured"}
+      {command, args} -> run(command, args)
+    end
+  end
+
+  # clamd 利用時は DB 更新後に RELOAD をかける（更新自体は db-updater コンテナが担う）
+  defp reload_signatures do
+    case Clamd.default_config() do
+      nil ->
         :ok
 
-      {:error, reason} = error ->
-        record_error(reason)
-        error
+      config ->
+        case Clamd.reload(config) do
+          {:ok, response} ->
+            if String.starts_with?(response, "ERROR"),
+              do: {:error, {:clamd_reload, response}},
+              else: :ok
+
+          {:error, reason} ->
+            {:error, reason}
+        end
     end
   end
 
@@ -98,6 +125,14 @@ defmodule HelpdeskCommander.Workers.UpdateSignaturesWorker do
     end
 
     :ok
+  end
+
+  defp update_mechanism do
+    cond do
+      update_command() != nil -> :command
+      Clamd.default_config() != nil -> :clamd
+      true -> :none
+    end
   end
 
   defp update_command do

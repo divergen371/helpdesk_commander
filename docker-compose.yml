@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     build:
@@ -23,6 +21,79 @@ services:
     networks:
       - helpdesk_network
 
+  # ---------------------------------------------------------------------------
+  # clamd サイドカー（HC-21）
+  #
+  # - 外部ネットワークなし（scanner_internal は internal: true）
+  # - 読み取り専用 rootfs・非 root・cap_drop ALL・no-new-privileges
+  # - メモリ / CPU / pids のリソース制限
+  # - アプリは TCP（INSTREAM）だけで話しかける。Docker ソケットは渡さない
+  #
+  # アプリ側の設定:
+  #   ATTACHMENT_SCAN_CLAMD_HOST=clamd   # compose ネットワーク内
+  #   ATTACHMENT_SCAN_CLAMD_HOST=127.0.0.1  # ホスト実行の dev（ports 公開のため）
+  # ---------------------------------------------------------------------------
+  clamd:
+    build:
+      context: ./docker/clamav
+      dockerfile: Dockerfile
+    image: helpdesk_commander_clamd:1
+    container_name: helpdesk_commander_clamd
+    user: "100:101"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+      - /var/run/clamav:size=8m,uid=100,gid=101,mode=0750
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    cpus: "1.0"
+    pids_limit: 128
+    volumes:
+      - clamav_signatures:/var/lib/clamav
+      - ./docker/clamav/clamd.conf:/etc/clamav/clamd.conf:ro
+    ports:
+      - "127.0.0.1:${CLAMD_HOST_PORT:-3310}:3310"
+    networks:
+      - scanner_internal
+    restart: unless-stopped
+
+  # シグネチャDB の更新専用コンテナ。ここだけが外部ネットワークを持つ。
+  # clamd とは named volume（clamav_signatures）だけで共有する。
+  clamav-db-updater:
+    build:
+      context: ./docker/clamav
+      dockerfile: Dockerfile
+    image: helpdesk_commander_clamd:1
+    container_name: helpdesk_commander_clamav_db_updater
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        while true; do
+          freshclam --config-file=/etc/clamav/freshclam.conf || true
+          sleep "${CLAMD_UPDATE_INTERVAL:-3600}"
+        done
+    user: "100:101"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    cpus: "0.5"
+    pids_limit: 64
+    volumes:
+      - clamav_signatures:/var/lib/clamav
+      - ./docker/clamav/freshclam.conf:/etc/clamav/freshclam.conf:ro
+    networks:
+      - helpdesk_network
+    restart: unless-stopped
+
   # Elixirアプリケーション（オプション）
   # 後でDockerでアプリも動かしたい場合に使用
   # app:
@@ -45,7 +116,12 @@ services:
 
 volumes:
   postgres_data_18:
+  clamav_signatures:
 
 networks:
   helpdesk_network:
     driver: bridge
+  # 外部アクセス不可の隔離ネットワーク。clamd はここでしか通信しない
+  scanner_internal:
+    driver: bridge
+    internal: true

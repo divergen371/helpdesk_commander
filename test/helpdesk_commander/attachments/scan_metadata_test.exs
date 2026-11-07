@@ -3,16 +3,20 @@ defmodule HelpdeskCommander.Attachments.ScanMetadataTest do
 
   alias HelpdeskCommander.Attachments.ScanMetadata
 
+  alias HelpdeskCommander.ClamdFakeServer
+
   setup do
     original = [
       Application.get_env(:helpdesk_commander, :attachment_scan_command),
-      Application.get_env(:helpdesk_commander, :attachment_scan_version_command)
+      Application.get_env(:helpdesk_commander, :attachment_scan_version_command),
+      Application.get_env(:helpdesk_commander, :attachment_scan_clamd)
     ]
 
     on_exit(fn ->
-      [command, version] = original
+      [command, version, clamd] = original
       Application.put_env(:helpdesk_commander, :attachment_scan_command, command)
       Application.put_env(:helpdesk_commander, :attachment_scan_version_command, version)
+      Application.put_env(:helpdesk_commander, :attachment_scan_clamd, clamd)
     end)
 
     :ok
@@ -50,6 +54,24 @@ defmodule HelpdeskCommander.Attachments.ScanMetadataTest do
     Application.delete_env(:helpdesk_commander, :attachment_scan_version_command)
 
     assert %{engine: nil, version: nil, signature_at: nil} = ScanMetadata.collect()
+  end
+
+  test "collect reads the version from clamd when configured" do
+    Application.delete_env(:helpdesk_commander, :attachment_scan_command)
+    Application.delete_env(:helpdesk_commander, :attachment_scan_version_command)
+
+    {:ok, port, _server} =
+      ClamdFakeServer.start(
+        mode: :clean,
+        version: "ClamAV 1.4.3/27700/Fri Nov  7 01:02:03 2026"
+      )
+
+    Application.put_env(:helpdesk_commander, :attachment_scan_clamd, host: "127.0.0.1", port: port)
+
+    assert %{engine: "ClamAV", version: "1.4.3", signature_at: signature_at} =
+             ScanMetadata.collect()
+
+    assert DateTime.to_iso8601(signature_at) == "2026-11-07T01:02:03Z"
   end
 
   test "collect returns empty when the version command fails" do

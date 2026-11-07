@@ -46,6 +46,14 @@ config :helpdesk_commander, HelpdeskCommander.Monitoring.Alerts,
   company_code: System.get_env("MONITORING_COMPANY_CODE") || "A-000001",
   product_id: System.get_env("MONITORING_PRODUCT_ID")
 
+# clamd サイドカー設定（HC-21）。全環境で読み、設定するとコマンド実行より優先して INSTREAM で検査する。
+if clamd_host = System.get_env("ATTACHMENT_SCAN_CLAMD_HOST") do
+  config :helpdesk_commander,
+         :attachment_scan_clamd,
+         host: clamd_host,
+         port: String.to_integer(System.get_env("ATTACHMENT_SCAN_CLAMD_PORT") || "3310")
+end
+
 if config_env() == :prod do
   remote_ip_enabled =
     System.get_env("REMOTE_IP_ENABLED") in ["1", "true", "TRUE", "yes", "YES"]
@@ -98,9 +106,15 @@ if config_env() == :prod do
   # 本番では添付スキャナの設定を必須にする（fail-closed）。未設定のまま起動させない。
   if config_env() == :prod do
     System.get_env("ATTACHMENT_SCAN_COMMAND") ||
+      System.get_env("ATTACHMENT_SCAN_CLAMD_HOST") ||
       raise """
-      environment variable ATTACHMENT_SCAN_COMMAND is missing.
-      Attachments must be virus-scanned before they can be published, e.g.:
+      environment variable ATTACHMENT_SCAN_COMMAND or ATTACHMENT_SCAN_CLAMD_HOST is missing.
+      Attachments must be virus-scanned before they can be published. Prefer the
+      clamd sidecar (sandboxed, no Docker socket on the app side):
+
+          ATTACHMENT_SCAN_CLAMD_HOST=clamd
+
+      or run a scanner command directly:
 
           ATTACHMENT_SCAN_COMMAND=clamscan
 
@@ -121,10 +135,16 @@ if config_env() == :prod do
          String.to_integer(System.get_env("ATTACHMENT_SCAN_TIMEOUT_MS") || "30000")
 
   # シグネチャ更新と鮮度監視（HC-22）。本番は freshclam を既定にし、開発・テストは無効。
-  config :helpdesk_commander,
-         :attachment_signature_update_command,
-         System.get_env("ATTACHMENT_SIGNATURE_UPDATE_COMMAND") ||
-           if(config_env() == :prod, do: "freshclam")
+  # clamd + db-updater 構成では ATTACHMENT_SIGNATURE_UPDATE_COMMAND="" で無効化し、
+  # ワーカーの RELOAD に任せる（docs/SANDBOX_SCANNER.md）。
+  signature_update_command =
+    case System.get_env("ATTACHMENT_SIGNATURE_UPDATE_COMMAND") do
+      nil -> if(config_env() == :prod, do: "freshclam")
+      "" -> nil
+      command -> command
+    end
+
+  config :helpdesk_commander, :attachment_signature_update_command, signature_update_command
 
   config :helpdesk_commander,
          :attachment_signature_max_age_hours,

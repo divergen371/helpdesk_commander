@@ -10,6 +10,7 @@ defmodule HelpdeskCommander.Workers.UpdateSignaturesWorkerTest do
   alias HelpdeskCommander.Helpdesk.Attachments
   alias HelpdeskCommander.Helpdesk.Product
   alias HelpdeskCommander.Helpdesk.Ticket
+  alias HelpdeskCommander.ClamdFakeServer
   alias HelpdeskCommander.Helpdesk.TicketAttachment
   alias HelpdeskCommander.Workers.ScanAttachmentWorker
   alias HelpdeskCommander.Workers.UpdateSignaturesWorker
@@ -24,14 +25,16 @@ defmodule HelpdeskCommander.Workers.UpdateSignaturesWorkerTest do
     original = [
       Application.get_env(:helpdesk_commander, :attachment_signature_update_command),
       Application.get_env(:helpdesk_commander, :attachment_scan_version_command),
-      Application.get_env(:helpdesk_commander, :attachment_rescan_limit)
+      Application.get_env(:helpdesk_commander, :attachment_rescan_limit),
+      Application.get_env(:helpdesk_commander, :attachment_scan_clamd)
     ]
 
     on_exit(fn ->
-      [update, version, limit] = original
+      [update, version, limit, clamd] = original
       Application.put_env(:helpdesk_commander, :attachment_signature_update_command, update)
       Application.put_env(:helpdesk_commander, :attachment_scan_version_command, version)
       Application.put_env(:helpdesk_commander, :attachment_rescan_limit, limit)
+      Application.put_env(:helpdesk_commander, :attachment_scan_clamd, clamd)
     end)
 
     %{ticket: ticket, admin: admin, attachment: attachment}
@@ -75,6 +78,37 @@ defmodule HelpdeskCommander.Workers.UpdateSignaturesWorkerTest do
 
     assert :ok = perform_job(UpdateSignaturesWorker, %{})
     assert {:ok, nil} = Signatures.current()
+    assert reload!(attachment).scan_status == "clean"
+  end
+
+  test "reloads clamd signatures without an update command", %{attachment: attachment} do
+    Application.delete_env(:helpdesk_commander, :attachment_signature_update_command)
+
+    {:ok, port, _server} =
+      ClamdFakeServer.start(mode: :clean, version: "ClamAV 1.4.4/27800/Sat Nov  8 00:00:00 2026")
+
+    Application.put_env(:helpdesk_commander, :attachment_scan_clamd, host: "127.0.0.1", port: port)
+
+    assert :ok = perform_job(UpdateSignaturesWorker, %{})
+
+    assert {:ok, signature} = Signatures.current()
+    assert signature.status == "ok"
+    assert signature.engine == "ClamAV"
+    assert signature.version == "1.4.4"
+    assert reload!(attachment).scan_status == "pending"
+  end
+
+  test "records an error when clamd rejects the reload", %{attachment: attachment} do
+    Application.delete_env(:helpdesk_commander, :attachment_signature_update_command)
+
+    {:ok, port, _server} = ClamdFakeServer.start(reload_response: "ERROR: database problem")
+    Application.put_env(:helpdesk_commander, :attachment_scan_clamd, host: "127.0.0.1", port: port)
+
+    assert {:error, {:clamd_reload, "ERROR: database problem"}} =
+             perform_job(UpdateSignaturesWorker, %{})
+
+    assert {:ok, signature} = Signatures.current()
+    assert signature.status == "error"
     assert reload!(attachment).scan_status == "clean"
   end
 

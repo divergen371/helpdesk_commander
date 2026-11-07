@@ -1,0 +1,20 @@
+# ローカル開発・検証用のオーバーライド（HC-21）
+#
+# 本番構成（docker-compose.yml）では clamd を internal: true のネットワークに閉じこめるため、
+# ホストの 127.0.0.1:3310 には届かない（Docker の internal ネットワークはホスト向け
+# ポート公開が無効）。ホストで `mix phx.server` を動かす開発・EICAR 検証用に限り、
+# clamd を通常のブリッジネットワークにも接続してポートを公開する。
+#
+#   docker compose -f docker-compose.yml -f docker-compose.clamd-dev.yml up -d clamd
+#
+# read_only / cap_drop / 非 root / no-new-privileges / リソース制限は本番と同じ。
+# 注意: このオーバーライドは egress を解禁する「開発専用」の緩和策。本番では使わない。
+# アプリコンテナを同じ compose で動かす場合は internal ネットワークだけで足りる
+# （コンテナ間通信は internal でも可）。
+services:
+  clamd:
+    networks:
+      - scanner_internal
+      - helpdesk_network
+    ports:
+      - "127.0.0.1:${CLAMD_HOST_PORT:-3310}:3310"
