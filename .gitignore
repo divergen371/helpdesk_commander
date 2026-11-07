@@ -104,4 +104,5 @@ xref_graph.png
 
 # Local Serena tooling
 .serena/
+.commandcode/
 /priv/uploads/
