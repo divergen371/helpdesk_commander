@@ -92,6 +92,8 @@ JSON
 
 - `pullfrog` は Pullfrog の実行状態、`Quality gate summary` は CI の全ゲート集約ジョブ
 - 必須化したため、**レビューが走る・CI が通るまで main にマージできない**
+- 直接 push も ruleset に阻まれるため、変更は PR 経由にする
+- Ruleset は CI の `pull_request` から paths-ignore を外すことを前提にしている（docs-only でもチェックが付く）
 - 管理者による回避（bypass）は設定していない。緊急時は `gh api ... --method DELETE` で外す
 
 ## 検証状況（2026-11-07）
