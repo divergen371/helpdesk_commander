@@ -1,0 +1,10 @@
+# 依存関係の監査 allowlist（HC-34）
+#
+# 形式: package|version(*可)|identifier|reason|review_by(YYYY-MM-DD)
+# - identifier は advisory ID（EEF-...）または retired:<package>@<version>
+# - review_by を過ぎた entry は失敗する（見直しを強制する）
+# - allowlist に無い検出は失敗する
+#
+# 更新時は reason に「なぜ影響しないか」を書き、review_by を 6 か月以内にする。
+
+cloak|1.1.4|EEF-CVE-2026-95105|AES-CTR を使用していない（Vault は AES.GCM のみ）。Cloak 1.1.4 が最新で修正版が存在しない|2027-05-01

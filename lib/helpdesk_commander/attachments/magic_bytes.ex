@@ -19,6 +19,8 @@ defmodule HelpdeskCommander.Attachments.MagicBytes do
 
   @doc "先頭 512 バイトを読んで形式を推定する。読めないときは read_error。"
   @spec sniff(String.t()) :: {:ok, format()} | {:error, {:read_error, term()}}
+  # sobelow_skip ["Traversal.FileModule"]
+  # path は Plug.Upload の一時ファイルか、Storage の検証済みキーから作る。
   def sniff(path) do
     case File.open(path, [:read, :binary], &IO.binread(&1, @head_bytes)) do
       {:ok, data} -> {:ok, classify(data)}

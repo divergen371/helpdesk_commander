@@ -31,6 +31,8 @@ defmodule HelpdeskCommanderWeb.AttachmentController do
     end
   end
 
+  # sobelow_skip ["XSS.ContentType", "Traversal.SendFile"]
+  # content_type はアップロード時に許可リストと照合済み。
   defp send_attachment(conn, attachment) do
     case Attachments.download_path(attachment) do
       {:ok, path} ->

@@ -60,7 +60,7 @@ defmodule HelpdeskCommander.ClamdFakeServer do
       {:ok, _body} = read_stream(socket, rest, "")
       :ok
     else
-      respond(socket, String.trim_trailing(line, "\n"), rest, opts)
+      _ = respond(socket, String.trim_trailing(line, "\n"), rest, opts)
       :gen_tcp.close(socket)
     end
   end

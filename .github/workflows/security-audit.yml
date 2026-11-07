@@ -1,0 +1,65 @@
+name: Weekly dependency audit
+
+on:
+  schedule:
+    # 毎週月曜 04:00 UTC
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MIX_ENV: test
+  ELIXIR_VERSION: "1.20.4"
+  OTP_VERSION: "29.1.2"
+
+jobs:
+  audit:
+    name: Weekly dependency audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+          otp-version: ${{ env.OTP_VERSION }}
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-audit-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-audit-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Hex audit (retired / advisories)
+        run: mix hex.audit
+
+      - name: mix_audit (GitHub advisories)
+        run: mix deps.audit
+
+      - name: Enforce audit allowlist
+        run: mix run --no-start priv/ci/check_audit.exs
+
+      - name: npm audit (assets, production dependencies)
+        run: npm audit --omit=dev --audit-level=high --prefix assets
+
+      - name: Write job summary
+        if: always()
+        run: |
+          {
+            echo "## Weekly dependency audit"
+            echo ""
+            echo "See the job logs for hex.audit / deps.audit / npm audit results."
+            echo "Allowlist: \\`priv/ci/audit_allowlist.txt\\`"
+          } >> "$GITHUB_STEP_SUMMARY"

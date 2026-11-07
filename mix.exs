@@ -122,6 +122,8 @@ defmodule HelpdeskCommander.MixProject do
     [
       preferred_envs: [
         precommit: :test,
+        quality: :test,
+        "quality.coverage": :test,
         coveralls: :test,
         "coveralls.detail": :test,
         "coveralls.json": :test,
@@ -163,7 +165,7 @@ defmodule HelpdeskCommander.MixProject do
 
     [
       {:ash_cloak, "~> 0.5"},
-      {:assent, "~> 0.2"},
+      {:assent, "~> 0.3"},
       {:ash_phoenix, "~> 2.3"},
       {:ash_postgres, "~> 2.15"},
       {:picosat_elixir, "~> 0.2.3"},
@@ -205,6 +207,9 @@ defmodule HelpdeskCommander.MixProject do
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       # Code quality
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
+      {:sobelow, "~> 0.18", only: [:dev, :test], runtime: false},
+      {:mutare, "~> 0.5", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
     ]
   end
@@ -254,6 +259,8 @@ defmodule HelpdeskCommander.MixProject do
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ash.setup --quiet", "test"],
+      quality: ["precommit", "ash.codegen --check", "dialyzer"],
+      "quality.coverage": ["coveralls.json", "run --no-start priv/ci/check_coverage.exs"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing", "cmd --cd assets npm install"],
       "assets.build": ["compile", "tailwind helpdesk_commander", "esbuild helpdesk_commander"],
       "assets.deploy": [

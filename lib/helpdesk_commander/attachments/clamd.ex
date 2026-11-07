@@ -74,6 +74,8 @@ defmodule HelpdeskCommander.Attachments.Clamd do
 
   def scan_file(_path, nil), do: {:error, :clamd_not_configured}
 
+  # sobelow_skip ["Traversal.FileModule"]
+  # path は Storage の検証済みキーから作るか、検証スクリプトの一時ファイル。
   def scan_file(path, config) do
     case File.open(path, [:read, :binary], &instream(&1, config)) do
       {:ok, result} -> result
