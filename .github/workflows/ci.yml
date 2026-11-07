@@ -10,9 +10,8 @@ on:
     branches:
       - main
       - 'archetype/**'
-    paths-ignore:
-      - '*.md'
-      - 'docs/*.md'
+    # PR では paths-ignore を使わない。必須チェック（Quality gate summary）が
+    # 付かない PR があるとマージできなくなるため、docs-only でも必ずゲートを通す。
 
 env:
   MIX_ENV: test
