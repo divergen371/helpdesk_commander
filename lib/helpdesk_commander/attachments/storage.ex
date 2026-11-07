@@ -19,6 +19,8 @@ defmodule HelpdeskCommander.Attachments.Storage do
   @spec store(Plug.Upload.t(), integer(), integer()) ::
           {:ok, %{key: String.t(), byte_size: non_neg_integer(), sha256: String.t()}}
           | {:error, term()}
+  # sobelow_skip ["Traversal.FileModule"]
+  # パスは整数 ID とランダム 32 桁のキーから組み立て、ユーザー入力のファイル名は使わない。
   def store(%Plug.Upload{} = upload, company_id, ticket_id) do
     key = "#{company_id}/#{ticket_id}/#{random_key()}"
     destination = path(:quarantine, key)
@@ -32,6 +34,8 @@ defmodule HelpdeskCommander.Attachments.Storage do
   end
 
   @spec promote(String.t()) :: :ok | {:error, atom()}
+  # sobelow_skip ["Traversal.FileModule"]
+  # key は呼び出し前に validate_key/1（^\d+/\d+/[a-f0-9]{32}$）を通した保存キー。
   def promote(key) do
     quarantine_path = path(:quarantine, key)
     clean_path = path(:clean, key)
@@ -48,6 +52,8 @@ defmodule HelpdeskCommander.Attachments.Storage do
   def path(:clean, key), do: Path.join([root(), "clean", key])
 
   @spec delete(String.t()) :: :ok
+  # sobelow_skip ["Traversal.FileModule"]
+  # key は DB に保存された storage_key（^\d+/\d+/[a-f0-9]{32}$ 形式）。
   def delete(key) do
     Enum.each([:quarantine, :clean], fn status ->
       path = path(status, key)
@@ -58,6 +64,8 @@ defmodule HelpdeskCommander.Attachments.Storage do
   end
 
   @spec read(String.t(), :quarantine | :clean) :: {:ok, binary()} | {:error, atom()}
+  # sobelow_skip ["Traversal.FileModule"]
+  # key は DB に保存された storage_key（^\d+/\d+/[a-f0-9]{32}$ 形式）。
   def read(key, status) do
     file_path = path(status, key)
     File.read(file_path)
@@ -72,6 +80,7 @@ defmodule HelpdeskCommander.Attachments.Storage do
     Base.encode16(bytes, case: :lower)
   end
 
+  # sobelow_skip ["Traversal.FileModule"]
   defp sha256(path) do
     path
     |> File.stream!(2048)

@@ -9,7 +9,12 @@ defmodule HelpdeskCommanderWeb.Router do
     plug :fetch_live_flash
     plug :put_root_layout, html: {HelpdeskCommanderWeb.Layouts, :root}
     plug :protect_from_forgery
-    plug :put_secure_browser_headers
+    # CSP: 外部スクリプト・object 埋め込みを禁止し、LiveView の ws/wss と
+    # インラインスタイルだけを許可する。
+    plug :put_secure_browser_headers, %{
+      "content-security-policy" =>
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+    }
   end
 
   pipeline :api do

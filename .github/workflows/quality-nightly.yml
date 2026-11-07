@@ -1,0 +1,136 @@
+name: Nightly quality regression
+
+on:
+  schedule:
+    # 毎日 03:00 UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MIX_ENV: test
+  ELIXIR_VERSION: "1.20.4"
+  OTP_VERSION: "29.1.2"
+
+jobs:
+  regression:
+    name: Nightly regression
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: helpdesk_commander_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+          otp-version: ${{ env.OTP_VERSION }}
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-nightly-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-nightly-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-
+
+      - name: Cache PLT
+        uses: actions/cache@v4
+        with:
+          path: priv/plts
+          key: ${{ runner.os }}-plt-nightly-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-plt-nightly-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Compile dependencies
+        run: mix deps.compile
+
+      - name: Run tests and record the count
+        run: |
+          set -o pipefail
+          mix test 2>&1 | tee test_output.log
+          TEST_COUNT=$(grep -oE '[0-9]+ tests' test_output.log | tail -1 | grep -oE '[0-9]+')
+          echo "TEST_COUNT=$TEST_COUNT" >> "$GITHUB_ENV"
+
+      - name: Formatter check
+        run: mix format --check-formatted
+
+      - name: Credo
+        run: mix credo --strict
+
+      - name: Verify migrations match resources
+        run: mix ash.codegen --check
+
+      - name: Sobelow (Phoenix security static analysis)
+        run: mix sobelow
+
+      - name: Coverage
+        run: mix coveralls.json
+
+      - name: Coverage ratchet
+        run: mix run --no-start priv/ci/check_coverage.exs
+
+      - name: Quality metrics (coverage / test count)
+        run: mix run --no-start priv/ci/quality_metrics.exs
+
+      - name: Dialyzer
+        run: |
+          mix dialyzer --format github || (rm -f priv/plts/dialyzer.plt priv/plts/dialyzer.plt.hash && mix dialyzer --plt && mix dialyzer --format github)
+
+      - name: Dependency audit
+        run: |
+          # hex.audit は検出時に exit 1 になるため、合否は allowlist ゲートで判定する
+          mix hex.audit || true
+          mix deps.audit
+          mix run --no-start priv/ci/check_audit.exs
+
+      - name: npm audit (assets, production dependencies)
+        run: npm audit --omit=dev --audit-level=high --prefix assets
+
+      - name: Upload metrics and coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-quality-metrics
+          path: |
+            quality-metrics.json
+            test_output.log
+            cover/
+
+      - name: Write job summary
+        if: always()
+        run: |
+          {
+            echo "## Nightly quality regression"
+            echo ""
+            if [ -f quality-metrics.json ]; then
+              echo '```json'
+              cat quality-metrics.json
+              echo '```'
+            else
+              echo "metrics were not produced (an earlier gate failed)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

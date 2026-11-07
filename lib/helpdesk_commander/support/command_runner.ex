@@ -11,6 +11,8 @@ defmodule HelpdeskCommander.Support.CommandRunner do
 
   @type result :: {:ok, String.t(), integer()} | {:error, term()}
 
+  # sobelow_skip ["CI.System"]
+  # command は運用設定（信頼済み）、args は argv 配列でシェル補間されない。
   @spec run(String.t(), [String.t()], keyword()) :: result()
   def run(command, args, opts \\ []) when is_binary(command) and is_list(args) do
     timeout = Keyword.get(opts, :timeout, @default_timeout)
