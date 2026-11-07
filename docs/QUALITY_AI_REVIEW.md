@@ -52,17 +52,17 @@ Public のため branch protection ではなく **Ruleset** を使う。
 | 帰属不明変更の追加承認 | Off（bot の PR で詰まらないように） |
 | マージ方法 | squash / merge / rebase |
 
-再適用（設定を変えたいとき）は **DELETE してから POST** する。`PATCH /repos/.../rulesets/{id}`
-は この環境では 404 を返して使えなかった。
+設定を変えるときは `PUT /repos/{owner}/{repo}/rulesets/{ruleset_id}` で更新する
+（`PATCH` は未対応で 404 になる）。DELETE → POST は、作り直しに失敗した瞬間に
+`main` が無保護になるため使わない。ID は必ず name で特定する。
 
 ```bash
 # 現状確認
 gh api repos/divergen371/helpdesk_commander/rulesets --jq '.[] | {id, name}'
 
-# 作り直し
-RULESET_ID=$(gh api repos/divergen371/helpdesk_commander/rulesets --jq '.[0].id')
-gh api "repos/divergen371/helpdesk_commander/rulesets/$RULESET_ID" --method DELETE
-gh api repos/divergen371/helpdesk_commander/rulesets --method POST --input - <<'JSON'
+# 更新（対象は name で特定する）
+RULESET_ID=$(gh api repos/divergen371/helpdesk_commander/rulesets --jq '.[] | select(.name == "protect-main") | .id')
+gh api "repos/divergen371/helpdesk_commander/rulesets/$RULESET_ID" --method PUT --input - <<'JSON'
 {
   "name": "protect-main",
   "target": "branch",
@@ -95,6 +95,7 @@ JSON
 - 直接 push も ruleset に阻まれるため、変更は PR 経由にする
 - Ruleset は CI の `pull_request` から paths-ignore を外すことを前提にしている（docs-only でもチェックが付く）
 - 管理者による回避（bypass）は設定していない。緊急時は `gh api ... --method DELETE` で外す
+- 更新は `PUT`。`PATCH` は未対応なので 404 になる
 
 ## 検証状況（2026-11-07）
 
