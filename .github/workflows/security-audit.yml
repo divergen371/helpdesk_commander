@@ -43,7 +43,9 @@ jobs:
         run: mix deps.get
 
       - name: Hex audit (retired / advisories)
-        run: mix hex.audit
+        # 検出があっても exit 1 になるため、ここでは情報表示に留める。
+        # 合否は次の allowlist ゲートで判定する。
+        run: mix hex.audit || true
 
       - name: mix_audit (GitHub advisories)
         run: mix deps.audit
