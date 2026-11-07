@@ -30,6 +30,8 @@ mix quality.coverage   # coveralls.json + ラチェット判定
 ```
 
 `mix precommit` は compile（`--warnings-as-errors`）/ format / credo strict / test を実行する。
+ローカルの format は書き込みモードなので、CI では別途 `mix format --check-formatted` を
+実行して未整形をブロックする。
 
 ## カバレッジのラチェット
 

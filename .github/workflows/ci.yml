@@ -124,6 +124,9 @@ jobs:
       - name: Compile dependencies
         run: mix deps.compile
 
+      - name: Check formatting (blocking)
+        run: mix format --check-formatted
+
       - name: Run precommit gates
         run: mix precommit
 
