@@ -17,8 +17,8 @@ defmodule HelpdeskCommander.Support.CompanyCodeTest do
     assert byte_size(hashed) == 32
   end
 
-  test "hash! raises on invalid format" do
-    assert_raise ArgumentError, fn ->
+  test "hash! raises on invalid format with a helpful message" do
+    assert_raise ArgumentError, "company_code must be like A-123456", fn ->
       CompanyCode.hash!("bad")
     end
   end
