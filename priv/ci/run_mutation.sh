@@ -20,7 +20,7 @@ for entry in "${MODULES[@]}"; do
 
   echo "== mutation: ${file} (min score ${min_score}%)"
 
-  args=(--only "${file}" --min-score "${min_score}" --max-mutants 500)
+  args=(--only "${file}" --min-score "${min_score}" --max-mutants 500 --max-no-coverage 0)
 
   # PR では変更行に限定する（MUTATION_SINCE=origin/main など）。夜間・main は全量。
   if [ -n "${MUTATION_SINCE:-}" ]; then
