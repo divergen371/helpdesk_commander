@@ -12,6 +12,7 @@ defmodule HelpdeskCommander.Helpdesk.AttachmentsTest do
   alias HelpdeskCommander.Helpdesk.Product
   alias HelpdeskCommander.Helpdesk.Ticket
   alias HelpdeskCommander.Helpdesk.TicketAttachment
+  alias HelpdeskCommander.Helpdesk.TicketEvent
 
   setup do
     company = create_company!()
@@ -448,6 +449,82 @@ defmodule HelpdeskCommander.Helpdesk.AttachmentsTest do
 
       {:ok, second} = Attachments.ingest(ticket, admin, upload("second.txt", content, "text/plain"))
       assert second.scan_status == "pending"
+    end
+  end
+
+  describe "false-positive override (HC-20)" do
+    test "allows admin and leader to override an infected attachment with reason and audit event", %{
+      company: company,
+      ticket: ticket,
+      admin: admin
+    } do
+      leader = create_user!(company.id, "leader")
+      Application.put_env(:helpdesk_commander, :attachment_scan_command, {"sh", ["-c", "echo 'EICAR FOUND'; exit 1"]})
+
+      {:ok, infected} =
+        Attachments.ingest(ticket, admin, upload("false_alarm.txt", "benign body", "text/plain"))
+
+      infected = scan!(infected)
+      assert infected.scan_status == "infected"
+      assert Attachments.can_override_infected?(infected, admin)
+      assert Attachments.can_override_infected?(infected, leader)
+
+      assert {:ok, overridden} =
+               Attachments.override_infected(infected, leader, "  社内検証ツールとして確認済み  ")
+
+      assert overridden.scan_status == "clean"
+      assert overridden.scan_note =~ "false_positive_override: 社内検証ツールとして確認済み"
+      assert overridden.scan_note =~ "previous: EICAR FOUND"
+      assert File.exists?(Storage.path(:clean, overridden.storage_key))
+      refute File.exists?(Storage.path(:quarantine, overridden.storage_key))
+      assert Attachments.downloadable?(overridden)
+
+      events =
+        TicketEvent
+        |> Ash.read!(domain: Helpdesk, tenant: ticket.company_id)
+        |> Enum.filter(&(&1.event_type == "attachment_quarantine_overridden"))
+
+      assert [event] = events
+      assert event.actor_id == leader.id
+      assert event.ticket_id == ticket.id
+      assert event.data["attachment_id"] == infected.id or event.data[:attachment_id] == infected.id
+      assert (event.data["reason"] || event.data[:reason]) == "社内検証ツールとして確認済み"
+      assert (event.data["from_status"] || event.data[:from_status]) == "infected"
+      assert (event.data["to_status"] || event.data[:to_status]) == "clean"
+      assert (event.data["previous_scan_note"] || event.data[:previous_scan_note]) =~ "EICAR FOUND"
+    end
+
+    test "requires a non-blank reason and restricts to same-company admin/leader", %{
+      company: company,
+      ticket: ticket,
+      admin: admin
+    } do
+      member = create_user!(company.id, "user")
+      customer = create_user!(company.id, "customer")
+      other_admin = create_user_in_new_company!()
+
+      Application.put_env(:helpdesk_commander, :attachment_scan_command, {"sh", ["-c", "exit 1"]})
+
+      {:ok, infected} =
+        Attachments.ingest(ticket, member, upload("suspect.txt", "body", "text/plain"))
+
+      infected = scan!(infected)
+
+      refute Attachments.can_override_infected?(infected, member)
+      refute Attachments.can_override_infected?(infected, customer)
+      refute Attachments.can_override_infected?(infected, other_admin)
+
+      assert {:error, :forbidden} = Attachments.override_infected(infected, member, "valid reason")
+      assert {:error, :forbidden} = Attachments.override_infected(infected, customer, "valid reason")
+      assert {:error, :forbidden} = Attachments.override_infected(infected, other_admin, "valid reason")
+      assert {:error, :reason_required} = Attachments.override_infected(infected, admin, "   ")
+      assert {:error, :reason_required} = Attachments.override_infected(infected, admin, nil)
+
+      Application.put_env(:helpdesk_commander, :attachment_scan_command, {"sh", ["-c", "exit 0"]})
+      {:ok, clean} = Attachments.ingest(ticket, admin, upload("ok.txt", "ok", "text/plain"))
+      clean = scan!(clean)
+
+      assert {:error, :not_infected} = Attachments.override_infected(clean, admin, "reason")
     end
   end
 

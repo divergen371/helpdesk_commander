@@ -147,6 +147,54 @@ defmodule HelpdeskCommanderWeb.AttachmentLiveTest do
     assert Ash.get!(TicketAttachment, attachment.id, domain: Helpdesk, authorize?: false).scan_status == "pending"
   end
 
+  test "admin can override an infected attachment with a required reason and see the audit event", %{
+    conn: conn,
+    company: company,
+    ticket: ticket,
+    admin: admin
+  } do
+    Application.put_env(:helpdesk_commander, :attachment_scan_command, {"sh", ["-c", "echo 'EICAR'; exit 1"]})
+
+    {:ok, attachment} =
+      Attachments.ingest(ticket, admin, %Plug.Upload{
+        path: tmp_file("flagged.txt", "hello"),
+        filename: "flagged.txt",
+        content_type: "text/plain"
+      })
+
+    {:ok, attachment} = Attachments.scan_attachment(attachment)
+    assert attachment.scan_status == "infected"
+
+    member = create_user!(company.id, "user")
+    member_conn = log_in(conn, member)
+    {:ok, member_view, _html} = live(member_conn, ~p"/tickets/#{ticket.public_id}")
+    refute has_element?(member_view, "#override-attachment-form-#{attachment.id}")
+
+    conn = log_in(conn, admin)
+    {:ok, view, _html} = live(conn, ~p"/tickets/#{ticket.public_id}")
+
+    assert has_element?(view, "#override-attachment-form-#{attachment.id}")
+
+    view
+    |> form("#override-attachment-form-#{attachment.id}", %{"override" => %{"reason" => "   "}})
+    |> render_submit()
+
+    assert render(view) =~ "解除理由を入力してください"
+    assert Ash.get!(TicketAttachment, attachment.id, domain: Helpdesk, authorize?: false).scan_status == "infected"
+
+    view
+    |> form("#override-attachment-form-#{attachment.id}", %{
+      "override" => %{"reason" => "社内ツールの誤検知を確認"}
+    })
+    |> render_submit()
+
+    html = render(view)
+    assert html =~ "誤検知として隔離を解除しました"
+    assert html =~ "感染判定の誤検知解除"
+    assert html =~ "社内ツールの誤検知を確認"
+    assert Ash.get!(TicketAttachment, attachment.id, domain: Helpdesk, authorize?: false).scan_status == "clean"
+  end
+
   defp tmp_file(name, content) do
     path = Path.join(System.tmp_dir!(), "#{name}-#{System.unique_integer([:positive])}")
     File.write!(path, content)

@@ -95,7 +95,7 @@
   - `code_interface` と Domain API（`Accounts` / `Helpdesk` / `Tasks`）を導入
   - aggregates: 未読通知数・チケット検証数・最新イベント時刻
 - ✅ **`multitenancy`（company 境界の強制）**（HC-2: attribute tenant + actor scope + write guard）
-- ✅ **カバレッジの余裕確保**（82.4%）
+- ✅ **カバレッジの余裕確保**（82.6%）
 
 ### 添付検査の検出力強化（2026-11-03 追加）
 

@@ -560,6 +560,32 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   end
 
   @impl Phoenix.LiveView
+  def handle_event("override_infected_attachment", %{"id" => id} = params, socket) do
+    attachment =
+      Enum.find(socket.assigns.attachments, &(Integer.to_string(&1.id) == to_string(id)))
+
+    reason = get_in(params, ["override", "reason"]) || Map.get(params, "reason", "")
+
+    case attachment && Attachments.override_infected(attachment, socket.assigns.current_user, reason) do
+      {:ok, _attachment} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "誤検知として隔離を解除しました")
+         |> reload_attachments()
+         |> reload_events()}
+
+      {:error, :reason_required} ->
+        {:noreply, put_flash(socket, :error, "解除理由を入力してください")}
+
+      {:error, :forbidden} ->
+        {:noreply, put_flash(socket, :error, "誤検知解除の権限がありません")}
+
+      _error ->
+        {:noreply, put_flash(socket, :error, "誤検知解除に失敗しました")}
+    end
+  end
+
+  @impl Phoenix.LiveView
   def handle_event("link_suggested", %{"ticket_id" => related_ticket_id}, socket) do
     if socket.assigns.current_user_external? do
       {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
@@ -1181,8 +1207,22 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     )
   end
 
+  defp reload_events(socket) do
+    {events, has_more?, oldest_id, _warnings} =
+      load_events(socket.assigns.current_user_external?, socket.assigns.ticket.id)
+
+    socket
+    |> assign(:events_has_more?, has_more?)
+    |> assign(:events_oldest_id, oldest_id)
+    |> stream(:events, events, reset: true)
+  end
+
   defp can_rescan_attachment?(attachment, current_user) do
     Attachments.can_rescan?(attachment, current_user)
+  end
+
+  defp can_override_attachment?(attachment, current_user) do
+    Attachments.can_override_infected?(attachment, current_user)
   end
 
   defp can_delete_attachment?(attachment, current_user) do
@@ -1681,6 +1721,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   defp event_label(%TicketEvent{event_type: "global_publication_withdrawn"}), do: "全体公開候補の取り下げ"
   defp event_label(%TicketEvent{event_type: "global_publication_approved"}), do: "全体公開の承認"
   defp event_label(%TicketEvent{event_type: "global_publication_rejected"}), do: "全体公開の却下"
+  defp event_label(%TicketEvent{event_type: "attachment_quarantine_overridden"}), do: "感染判定の誤検知解除"
 
   defp event_label(%TicketEvent{event_type: "message_posted", data: data}) do
     case event_conversation_kind(data) do
@@ -1993,7 +2034,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
                     </span>
                   </div>
                 </div>
-                <div class="flex items-center gap-2">
+                <div class="flex flex-wrap items-center gap-2">
                   <span class={[
                     "badge",
                     attachment_status_class(attachment.scan_status)
@@ -2009,6 +2050,25 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
                   >
                     再スキャン
                   </button>
+                  <.form
+                    :if={can_override_attachment?(attachment, @current_user)}
+                    for={to_form(%{"reason" => ""}, as: "override")}
+                    id={"override-attachment-form-#{attachment.id}"}
+                    phx-submit="override_infected_attachment"
+                    phx-value-id={attachment.id}
+                    class="flex items-center gap-2"
+                  >
+                    <input
+                      type="text"
+                      name="override[reason]"
+                      id={"override-attachment-reason-#{attachment.id}"}
+                      placeholder="誤検知解除の理由"
+                      class="input input-bordered input-xs w-44"
+                    />
+                    <.button type="submit" class="btn btn-xs">
+                      誤検知として解除
+                    </.button>
+                  </.form>
                   <button
                     :if={can_delete_attachment?(attachment, @current_user)}
                     type="button"

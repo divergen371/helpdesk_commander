@@ -23,6 +23,7 @@ defmodule HelpdeskCommander.Helpdesk.Attachments do
   alias HelpdeskCommander.Helpdesk
   alias HelpdeskCommander.Helpdesk.Ticket
   alias HelpdeskCommander.Helpdesk.TicketAttachment
+  alias HelpdeskCommander.Helpdesk.TicketEvent
   alias HelpdeskCommander.Support.Error, as: ErrorLog
   alias HelpdeskCommander.Workers.ScanAttachmentWorker
 
@@ -102,6 +103,37 @@ defmodule HelpdeskCommander.Helpdesk.Attachments do
   end
 
   def can_rescan?(_attachment, _user), do: false
+
+  @doc "感染判定を誤検知として解除できるか（infected かつ同一会社の管理者・リーダー）。"
+  @spec can_override_infected?(TicketAttachment.t(), User.t() | nil) :: boolean()
+  def can_override_infected?(%TicketAttachment{scan_status: "infected"} = attachment, %User{} = user) do
+    Authorization.same_company?(user, attachment.company_id) and user.role in ["admin", "leader"]
+  end
+
+  def can_override_infected?(_attachment, _user), do: false
+
+  @doc """
+  感染判定された添付を、管理者・リーダーが理由付きで誤検知として解除する（HC-20）。
+
+  - 同一会社の `admin` / `leader` だけが実行できる
+  - 理由は必須（空白のみは `:reason_required`）
+  - 隔離ファイルを `clean/` へ移動し、状態を `clean` に更新する
+  - 実行者・理由・変更前後の状態を `TicketEvent`（`attachment_quarantine_overridden`）に記録する
+  """
+  @spec override_infected(TicketAttachment.t(), User.t(), String.t() | nil) ::
+          {:ok, TicketAttachment.t()}
+          | {:error, :forbidden | :not_infected | :reason_required | term()}
+  def override_infected(%TicketAttachment{scan_status: "infected"} = attachment, %User{} = user, reason) do
+    with :ok <- authorize_override(attachment, user),
+         {:ok, normalized_reason} <- normalize_override_reason(reason),
+         :ok <- Storage.promote(attachment.storage_key),
+         {:ok, updated} <- mark_overridden_clean(attachment, normalized_reason),
+         :ok <- record_override_audit(attachment, updated, user, normalized_reason) do
+      {:ok, updated}
+    end
+  end
+
+  def override_infected(%TicketAttachment{}, %User{}, _reason), do: {:error, :not_infected}
 
   @doc """
   既存の clean / skipped 添付を更新後のシグネチャで再スキャンする（HC-22）。
@@ -394,6 +426,60 @@ defmodule HelpdeskCommander.Helpdesk.Attachments do
   defp join_notes(notes) do
     joined = notes |> Enum.reject(&is_nil/1) |> Enum.join(" / ")
     if joined == "", do: nil, else: joined
+  end
+
+  defp authorize_override(attachment, user) do
+    if can_override_infected?(attachment, user), do: :ok, else: {:error, :forbidden}
+  end
+
+  defp normalize_override_reason(reason) when is_binary(reason) do
+    trimmed = String.trim(reason)
+    if trimmed == "", do: {:error, :reason_required}, else: {:ok, trimmed}
+  end
+
+  defp normalize_override_reason(_reason), do: {:error, :reason_required}
+
+  defp mark_overridden_clean(attachment, reason) do
+    note =
+      join_notes([
+        "false_positive_override: #{reason}",
+        attachment.scan_note && "previous: #{attachment.scan_note}"
+      ])
+
+    attachment
+    |> Ash.Changeset.for_update(:mark_scan, %{
+      scan_status: "clean",
+      scan_note: note,
+      scanned_at: attachment.scanned_at || DateTime.utc_now()
+    })
+    |> Ash.update(domain: Helpdesk, tenant: attachment.company_id, authorize?: false)
+  end
+
+  defp record_override_audit(before_attachment, after_attachment, user, reason) do
+    data = %{
+      attachment_id: before_attachment.id,
+      filename: before_attachment.filename,
+      sha256: before_attachment.sha256,
+      reason: reason,
+      from_status: before_attachment.scan_status,
+      to_status: after_attachment.scan_status,
+      previous_scan_note: before_attachment.scan_note,
+      scan_engine: before_attachment.scan_engine,
+      scan_version: before_attachment.scan_version
+    }
+
+    case TicketEvent
+         |> Ash.Changeset.for_create(:create, %{
+           event_type: "attachment_quarantine_overridden",
+           data: data,
+           ticket_id: before_attachment.ticket_id,
+           actor_id: user.id,
+           company_id: before_attachment.company_id
+         })
+         |> Ash.create(domain: Helpdesk, actor: user, tenant: before_attachment.company_id) do
+      {:ok, _event} -> :ok
+      {:error, error} -> {:error, error}
+    end
   end
 
   defp parse_id(id) when is_integer(id), do: {id, ""}

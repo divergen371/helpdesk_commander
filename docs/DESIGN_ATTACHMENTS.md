@@ -126,6 +126,19 @@
   `failed` として隔離する。
 - ルール追加・更新と再スキャンの手順は `docs/OPERATIONS_SCANNER.md` を参照。
 
+## 感染判定の誤検知解除と監査ログ（HC-20）
+
+- `scan_status == "infected"` の添付は、同一会社の**管理者（`admin`）またはリーダー（`leader`）**
+  だけが誤検知として解除できる（`Attachments.override_infected/3`）。一般ユーザー・社外ユーザー・
+  他社ユーザーは解除できない。
+- 解除には理由（`reason`）の入力を必須とする（空白のみは `:reason_required` で拒否）。
+- 解除時は隔離ファイル（`quarantine/`）を `clean/` へ移動し、`scan_status` を `clean`、
+  `scan_note` に `false_positive_override: <理由> / previous: <元ノート>` を記録する。
+- 監査イベントとして `TicketEvent`（`event_type: "attachment_quarantine_overridden"`）を作成し、
+  実行者（`actor_id`）、対象添付 ID・ファイル名・SHA256、解除理由、変更前後の状態
+  （`from_status: "infected"`, `to_status: "clean"`, `previous_scan_note`, `scan_engine`, `scan_version`）
+  を永続化する。チケット詳細のイベントログから確認できる。
+
 ## 取得権限
 - 社内ユーザー: 同一会社のチケット添付を取得できる。
 - 外部ユーザー: 自分が依頼者のチケット添付だけ取得できる。
