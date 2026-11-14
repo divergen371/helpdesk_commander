@@ -1,0 +1,54 @@
+{
+  "samples": [
+    {
+      "path": "malicious/eicar.txt",
+      "label": "malicious",
+      "description": "EICAR standard test file"
+    },
+    {
+      "path": "malicious/eicar.zip",
+      "label": "malicious",
+      "description": "ZIP containing the EICAR test file"
+    },
+    {
+      "path": "malicious/eicar.pdf",
+      "label": "malicious",
+      "description": "PDF containing the EICAR test payload"
+    },
+    {
+      "path": "benign/hello.txt",
+      "label": "benign",
+      "description": "plain text"
+    },
+    {
+      "path": "benign/empty.txt",
+      "label": "benign",
+      "description": "empty file"
+    },
+    {
+      "path": "benign/note.pdf",
+      "label": "benign",
+      "description": "minimal PDF"
+    },
+    {
+      "path": "benign/image.png",
+      "label": "benign",
+      "description": "minimal PNG header"
+    },
+    {
+      "path": "benign/archive.zip",
+      "label": "benign",
+      "description": "ZIP with a text file"
+    },
+    {
+      "path": "benign/config.json",
+      "label": "benign",
+      "description": "JSON text"
+    },
+    {
+      "path": "benign/report.csv",
+      "label": "benign",
+      "description": "CSV text"
+    }
+  ]
+}

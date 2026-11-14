@@ -104,6 +104,9 @@ jobs:
       - name: Mutation tests (high-risk modules)
         run: bash priv/ci/run_mutation.sh
 
+      - name: Detection corpus
+        run: EVAL_SCANNER=stub mix run --no-start priv/eval/run_corpus.exs
+
       - name: Dependency audit
         run: |
           # hex.audit は検出時に exit 1 になるため、合否は allowlist ゲートで判定する
@@ -123,6 +126,7 @@ jobs:
             quality-metrics.json
             test_output.log
             cover/
+            eval/
 
       - name: Write job summary
         if: always()
