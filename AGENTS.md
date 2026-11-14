@@ -406,3 +406,10 @@ Do not edit Backlog task, draft, document, decision, or milestone markdown files
 - Backlog の Markdown を直接編集せず、必ず `backlog` CLI を使う。
 - 詳細な手順と Hermes Agent 向けプロンプトは `docs/AGENT_WORKFLOW.md` を参照する。
 - コミット・push はユーザーが明示的に指示するまで行わない。
+
+## ルールと強制手段の対応表
+
+| ルール | 強制手段 |
+| --- | --- |
+| `clamd` の `mem_limit` は `3g` 以上（`ConcurrentDatabaseReload` ピーク対策） | `test/helpdesk_commander/attachments/compose_config_test.exs`（`mix test` / CI） |
+| `clamav-db-updater` の `mem_limit` は `2g` 以上（`freshclam` DB テスト対策） | `test/helpdesk_commander/attachments/compose_config_test.exs`（`mix test` / CI） |
