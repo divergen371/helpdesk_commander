@@ -76,10 +76,24 @@ defmodule Eval.Detection do
     path = System.get_env("EVAL_BASELINE") || Path.join(@root, "baseline.json")
 
     with {:ok, body} <- File.read(path),
-         {:ok, baseline} when is_map(baseline) <- Jason.decode(body) do
+         {:ok, baseline} when is_map(baseline) <- Jason.decode(body),
+         :ok <- validate_baseline(baseline) do
       {:ok, baseline}
     else
+      {:error, reason} -> {:error, reason}
       _other -> {:error, "cannot read baseline #{path}"}
+    end
+  end
+
+  @baseline_keys ["min_detection_rate", "max_false_positive_rate", "max_error_rate", "max_p95_ms"]
+
+  defp validate_baseline(baseline) do
+    missing = Enum.reject(@baseline_keys, fn key -> is_number(baseline[key]) end)
+
+    if missing == [] do
+      :ok
+    else
+      {:error, "baseline must define numeric #{Enum.join(missing, ", ")}"}
     end
   end
 

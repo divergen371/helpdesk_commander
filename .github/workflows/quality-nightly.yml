@@ -125,6 +125,7 @@ jobs:
             quality-metrics.json
             test_output.log
             cover/
+            eval/
 
       - name: Write job summary
         if: always()
