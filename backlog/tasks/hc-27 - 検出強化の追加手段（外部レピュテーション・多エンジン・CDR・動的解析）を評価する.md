@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@codex'
 created_date: '2026-11-03T09:14:00Z'
-updated_date: '2026-11-14T15:40:00Z'
+updated_date: '2026-11-14T15:47:00Z'
 labels:
   - security
   - ai
@@ -57,5 +57,5 @@ ClamAV 単体では未知のマルウェアや標的型文書の検出力に限�
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-ClamAV 単体の限界を補う追加手段を評価し、決定を記録した。外部レピュテーションはファイル本体を送らない SHA256 照合を採用（HC-41）、オンプレミス CDR は PoC（HC-42）、ファイル送信を伴う多エンジンと動的解析は PII 方針と両立しないため既定で見送り、再検討条件を明記した。決定は decision-1 と docs/DECISION_DETECTION_METHODS.md に残し、実装は行っていない。
+ClamAV 単体の限界を補う追加手段を評価し、決定を記録した。外部レピュテーションはファイル本体を送らない SHA256 照合を採用（HC-41、主候補は MalwareBazaar。VT は有償枠のみ）、オンプレミス CDR は PoC（HC-42）、ファイル送信を伴う多エンジンと動的解析は PII 方針と両立しないため既定で見送り、再検討条件を明記した。判定の優先順位（deny > 外部 infected > allow > clean キャッシュ）と会社単位の無効化も決定に含めた。決定記録は docs/DECISION_DETECTION_METHODS.md を正本とし、実装は行っていない。
 <!-- SECTION:FINAL_SUMMARY:END -->
