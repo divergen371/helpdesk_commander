@@ -326,10 +326,51 @@ jobs:
           fi
           bash priv/ci/run_mutation.sh
 
+  detection-corpus:
+    name: Detection corpus
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+          otp-version: ${{ env.OTP_VERSION }}
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-eval-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-eval-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Compile dependencies
+        run: mix deps.compile
+
+      - name: Run detection corpus
+        run: EVAL_SCANNER=stub mix run --no-start priv/eval/run_corpus.exs
+
+      - name: Upload detection report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: detection-report
+          path: eval/
+
   summary:
     name: Quality gate summary
     runs-on: ubuntu-latest
-    needs: [coverage, precommit, dialyzer, assets, audit, mutation]
+    needs: [coverage, precommit, dialyzer, assets, audit, mutation, detection-corpus]
     if: always()
 
     steps:
@@ -346,6 +387,7 @@ jobs:
             echo "| assets | ${{ needs.assets.result }} |"
             echo "| dependency audit | ${{ needs.audit.result }} |"
             echo "| mutation (high-risk modules) | ${{ needs.mutation.result }} |"
+            echo "| detection corpus | ${{ needs.detection-corpus.result }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Fail when a gate failed or was cancelled

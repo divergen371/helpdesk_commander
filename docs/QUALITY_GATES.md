@@ -19,9 +19,10 @@ PR とローカルで同じ判定になるよう、品質ゲートを一本化�
 | 品質メトリクス（夜間） | `TEST_COUNT=<n> mix run --no-start priv/ci/quality_metrics.exs` | quality-nightly | ブロック |
 | Phoenix セキュリティ（Sobelow） | `mix sobelow` | precommit / quality-nightly | ブロック |
 | 変異テスト（高リスク 4 モジュール） | `bash priv/ci/run_mutation.sh` | mutation / quality-nightly | ブロック（下限 95%） |
+| 検出品質コーパス | `EVAL_SCANNER=stub mix run --no-start priv/eval/run_corpus.exs` | detection-corpus / quality-nightly | ブロック（検出率・誤検知率・p95） |
 
 依存監査の詳細は `docs/QUALITY_DEPENDENCIES.md`、Sobelow のトリアージ方針は
-`docs/QUALITY_SECURITY.md`。
+`docs/QUALITY_SECURITY.md`、検出品質の評価は `docs/EVAL_DETECTION.md`。
 
 まとめて実行する場合:
 

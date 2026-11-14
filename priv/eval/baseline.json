@@ -1,0 +1,6 @@
+{
+  "min_detection_rate": 95.0,
+  "max_false_positive_rate": 5.0,
+  "max_error_rate": 0.0,
+  "max_p95_ms": 2000.0
+}

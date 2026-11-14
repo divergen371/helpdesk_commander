@@ -98,12 +98,25 @@ allowlist の書式と更新手順は `docs/QUALITY_DEPENDENCIES.md` を参照�
 
 詳細は `docs/QUALITY_MUTATION.md` を参照。
 
-### 7. Summary Job
+### 7. Detection Corpus Job
+
+**目的**: 検出率・誤検知率・スキャン時間の回帰を検出する
+
+**実行内容**:
+- `EVAL_SCANNER=stub mix run --no-start priv/eval/run_corpus.exs`
+- コーパス: EICAR（txt / zip / pdf）と良性ファイル 7 件
+- `priv/eval/baseline.json` の合格基準（検出率 95% 以上、誤検知率 5% 以下、p95 2 秒以下）を
+  下回ると失敗
+- `eval/detection_report.json` を artifact に保存し、job summary にメトリクス表を出す
+
+詳細と実 clamd での評価手順は `docs/EVAL_DETECTION.md` を参照。
+
+### 8. Summary Job
 
 **目的**: 全ゲートの結果を job summary に集約する
 
 **実行内容**:
-- `coverage` / `precommit` / `dialyzer` / `assets` / `audit` / `mutation` の結果を表で `$GITHUB_STEP_SUMMARY` に出力
+- `coverage` / `precommit` / `dialyzer` / `assets` / `audit` / `mutation` / `detection-corpus` の結果を表で `$GITHUB_STEP_SUMMARY` に出力
 - いずれかが失敗・キャンセルなら Summary Job も失敗し、マージを止める
 
 ## 📊 ワークフロー詳細
