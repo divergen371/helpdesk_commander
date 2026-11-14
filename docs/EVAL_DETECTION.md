@@ -75,7 +75,7 @@ mix run --no-start priv/eval/run_corpus.exs
    cp eval/detection_report.json eval/before.json
    ```
 
-2. シグネチャ更新・YARA 追加・設定変更を行う
+2. シグネチャ更新・スキャナ設定変更を行う（YARA はこの手順の対象外。別テストで確認する）
 3. 再度実行し、`detection_rate` / `false_positive_rate` / `p95_ms` を比較する
 4. 合格基準を満たすことと、検出率が下がっていないことを確認する
 
