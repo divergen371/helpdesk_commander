@@ -30,14 +30,16 @@ defmodule HelpdeskCommander.Attachments.ComposeConfigTest do
   end
 
   defp parse_mem_mb!(raw) do
-    cond do
-      String.ends_with?(raw, "g") ->
-        raw |> String.trim_trailing("g") |> String.to_integer() |> Kernel.*(1024)
+    case Regex.run(~r/^(\d+)\s*([gm])b?$/i, String.trim(raw)) do
+      [_, num, unit] ->
+        value = String.to_integer(num)
 
-      String.ends_with?(raw, "m") ->
-        raw |> String.trim_trailing("m") |> String.to_integer()
+        case String.downcase(unit) do
+          "g" -> value * 1024
+          "m" -> value
+        end
 
-      true ->
+      nil ->
         flunk("Unsupported mem_limit unit: #{raw}")
     end
   end
