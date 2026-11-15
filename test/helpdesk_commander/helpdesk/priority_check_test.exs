@@ -98,11 +98,14 @@ defmodule HelpdeskCommander.Helpdesk.PriorityCheckTest do
       assert Enum.any?(eval.reasons, &(&1 =~ "関連タスク"))
     end
 
-    test "returns :ok when priority matches content", %{product: product, admin: admin} do
+    test "returns :ok when priority matches content and ignores substring false positives", %{
+      product: product,
+      admin: admin
+    } do
       ticket =
         create_ticket!(product, admin, %{
           subject: "管理画面の使い方について質問",
-          description: "CSV 出力の手順を確認したいです",
+          description: "CSV をダウンロードしたいのですが手順を確認したいです（noncritical な質問）",
           type: "question",
           priority: "p4"
         })

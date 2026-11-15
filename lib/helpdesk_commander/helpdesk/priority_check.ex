@@ -19,7 +19,10 @@ defmodule HelpdeskCommander.Helpdesk.PriorityCheck do
     "サービス停止",
     "本番停止",
     "障害発生",
-    "ダウン",
+    "サーバーダウン",
+    "サーバダウン",
+    "ダウンして",
+    "ダウンした",
     "接続できない",
     "ログインできない",
     "データ消失",
@@ -68,11 +71,10 @@ defmodule HelpdeskCommander.Helpdesk.PriorityCheck do
         }
 
   @doc """
-  チケットと関連タスク・イベントから優先度齟齬を評価する。
+  チケットと関連タスクから優先度齟齬を評価する。
 
   `opts`:
   - `:task_links` - 紐付いた `TicketTaskLink` 一覧（`:task` preload 済み）
-  - `:events` - チケットの `TicketEvent` 一覧（却下履歴の照合用）
   """
   @spec evaluate(Ticket.t(), keyword()) :: evaluation()
   def evaluate(%Ticket{} = ticket, opts \\ []) do
@@ -92,7 +94,7 @@ defmodule HelpdeskCommander.Helpdesk.PriorityCheck do
 
     dismissed? =
       reasons != [] and
-        dismissed_for_fingerprint?(resolve_decision_events(ticket, opts), fingerprint)
+        dismissed_for_fingerprint?(fetch_latest_decision_events(ticket), fingerprint)
 
     needs_review? = reasons != [] and score >= 0.7 and not dismissed?
 
@@ -287,13 +289,6 @@ defmodule HelpdeskCommander.Helpdesk.PriorityCheck do
     end
   end
 
-  defp resolve_decision_events(ticket, opts) do
-    case Keyword.fetch(opts, :events) do
-      {:ok, events} -> events
-      :error -> fetch_latest_decision_events(ticket)
-    end
-  end
-
   defp fetch_latest_decision_events(%Ticket{id: ticket_id, company_id: company_id}) do
     TicketEvent
     |> Ash.Query.filter(
@@ -327,7 +322,15 @@ defmodule HelpdeskCommander.Helpdesk.PriorityCheck do
   end
 
   defp matched_keywords(text, keywords) do
-    Enum.filter(keywords, fn kw -> String.contains?(text, String.downcase(kw)) end)
+    Enum.filter(keywords, fn kw ->
+      downcased = String.downcase(kw)
+
+      if Regex.match?(~r/^[a-z0-9\s]+$/, downcased) do
+        Regex.match?(~r/\b#{Regex.escape(downcased)}\b/, text)
+      else
+        String.contains?(text, downcased)
+      end
+    end)
   end
 
   defp normalize_text(text) do

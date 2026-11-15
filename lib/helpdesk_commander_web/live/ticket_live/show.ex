@@ -1249,6 +1249,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
         |> assign(:task_links, links)
         |> assign(:linkable_tasks, tasks)
         |> assign(:task_link_form, to_form(%{"task_id" => ""}, as: "link"))
+        |> assign(:priority_check, PriorityCheck.evaluate(socket.assigns.ticket, task_links: links))
 
       {:error, error} ->
         ErrorLog.log_error("ticket_live.show.reload_task_links", error, ticket_id: socket.assigns.ticket.id)
@@ -1800,6 +1801,8 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   defp event_label(%TicketEvent{event_type: "global_publication_approved"}), do: "全体公開の承認"
   defp event_label(%TicketEvent{event_type: "global_publication_rejected"}), do: "全体公開の却下"
   defp event_label(%TicketEvent{event_type: "attachment_quarantine_overridden"}), do: "感染判定の誤検知解除"
+  defp event_label(%TicketEvent{event_type: "priority_check_accepted"}), do: "優先度提案を採用"
+  defp event_label(%TicketEvent{event_type: "priority_check_dismissed"}), do: "優先度提案を却下"
 
   defp event_label(%TicketEvent{event_type: "message_posted", data: data}) do
     case event_conversation_kind(data) do
