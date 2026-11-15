@@ -25,6 +25,7 @@ defmodule HelpdeskCommander.Helpdesk do
 
   resources do
     resource HelpdeskCommander.Helpdesk.AttachmentHashRule
+    resource HelpdeskCommander.Helpdesk.AttachmentReputationCache
     resource HelpdeskCommander.Helpdesk.AttachmentSignature
     resource HelpdeskCommander.Helpdesk.ChatThread
     resource HelpdeskCommander.Helpdesk.ChatMessageLink

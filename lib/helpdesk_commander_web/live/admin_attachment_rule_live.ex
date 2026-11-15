@@ -6,16 +6,20 @@ defmodule HelpdeskCommanderWeb.AdminAttachmentRuleLive do
   use HelpdeskCommanderWeb, :live_view
 
   alias HelpdeskCommander.Attachments.HashRules
+  alias HelpdeskCommander.Attachments.Reputation
   alias HelpdeskCommander.Support.Error, as: ErrorLog
 
   @empty_form %{"sha256" => "", "action" => "deny", "scope" => "company", "note" => ""}
 
   @impl Phoenix.LiveView
   def mount(_params, _session, socket) do
+    company_id = socket.assigns.current_user.company_id
+
     {:ok,
      socket
      |> assign(:page_title, "添付ハッシュ規則")
      |> assign(:form, to_form(@empty_form, as: "rule"))
+     |> assign(:external_reputation_enabled, Reputation.company_enabled?(company_id))
      |> load_rules()}
   end
 
@@ -62,6 +66,24 @@ defmodule HelpdeskCommanderWeb.AdminAttachmentRuleLive do
     end
   end
 
+  @impl Phoenix.LiveView
+  def handle_event("toggle_reputation", _params, socket) do
+    company_id = socket.assigns.current_user.company_id
+    next = not socket.assigns.external_reputation_enabled
+
+    case Reputation.set_company_enabled(company_id, next) do
+      {:ok, _company} ->
+        {:noreply,
+         socket
+         |> assign(:external_reputation_enabled, next)
+         |> put_flash(:info, "外部レピュテーション設定を更新しました")}
+
+      {:error, error} ->
+        ErrorLog.log_error("admin_attachment_rule.toggle_reputation", error)
+        {:noreply, put_flash(socket, :error, "外部レピュテーション設定の更新に失敗しました")}
+    end
+  end
+
   defp load_rules(socket) do
     case HashRules.list(socket.assigns.current_user.company_id) do
       {:ok, rules} ->
@@ -89,6 +111,28 @@ defmodule HelpdeskCommanderWeb.AdminAttachmentRuleLive do
         添付ハッシュ規則
         <:subtitle>SHA256 の許可・拒否リスト（拒否が優先）</:subtitle>
       </.header>
+
+      <div id="external-reputation-card" class="mb-6 card bg-base-100 border border-base-200">
+        <div class="card-body flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 class="font-semibold text-base-content">外部レピュテーション照会（SHA256 のみ）</h2>
+            <p class="text-sm text-base-content/70">
+              ファイル本体は送信せず SHA256 ハッシュのみを照会します。現在:
+              <span class="font-medium">
+                {if(@external_reputation_enabled, do: "有効", else: "無効")}
+              </span>
+            </p>
+          </div>
+          <.button
+            id="toggle-external-reputation"
+            type="button"
+            phx-click="toggle_reputation"
+            variant={if(@external_reputation_enabled, do: nil, else: "primary")}
+          >
+            {if(@external_reputation_enabled, do: "無効にする", else: "有効にする")}
+          </.button>
+        </div>
+      </div>
 
       <div class="card bg-base-100 border border-base-200">
         <div class="card-body">

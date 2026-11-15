@@ -55,6 +55,23 @@ defmodule HelpdeskCommanderWeb.AdminAttachmentRuleLiveTest do
     assert {:ok, []} = HashRules.list(company.id)
   end
 
+  test "admin can toggle external reputation setting for their company", %{conn: conn} do
+    company = create_company!()
+    admin = create_user!(company, role: "admin")
+
+    conn = log_in(conn, admin)
+    {:ok, view, _html} = live(conn, ~p"/admin/attachment-rules")
+
+    assert has_element?(view, "#external-reputation-card", "無効")
+
+    view
+    |> element("#toggle-external-reputation")
+    |> render_click()
+
+    assert has_element?(view, "#external-reputation-card", "有効")
+    assert HelpdeskCommander.Attachments.Reputation.company_enabled?(company.id)
+  end
+
   defp create_company! do
     suffix = System.unique_integer([:positive]) |> Integer.to_string() |> String.slice(-6, 6)
 

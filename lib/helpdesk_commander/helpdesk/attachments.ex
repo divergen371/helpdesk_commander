@@ -14,6 +14,7 @@ defmodule HelpdeskCommander.Helpdesk.Attachments do
   alias HelpdeskCommander.Accounts.User
   alias HelpdeskCommander.Attachments.FilePolicy
   alias HelpdeskCommander.Attachments.HashRules
+  alias HelpdeskCommander.Attachments.Reputation
   alias HelpdeskCommander.Attachments.ScanMetadata
   alias HelpdeskCommander.Attachments.Scanner
   alias HelpdeskCommander.Attachments.Signatures
@@ -44,27 +45,58 @@ defmodule HelpdeskCommander.Helpdesk.Attachments do
     with :ok <- Signatures.ensure_fresh(),
          :ok <- FilePolicy.validate(upload),
          {:ok, stored} <- Storage.store(upload, ticket.company_id, ticket.id) do
-      case HashRules.decision(ticket.company_id, stored.sha256) do
-        :deny ->
-          HashRules.audit_decision(:deny, ticket.company_id, stored.sha256)
-          create_with_status(ticket, user, upload, stored, "blocked", "denied by hash rule")
+      ingest_by_hash(ticket, user, upload, stored)
+    end
+  end
 
-        :allow ->
-          HashRules.audit_decision(:allow, ticket.company_id, stored.sha256)
-          create_with_status(ticket, user, upload, stored, "clean", "allowed by hash rule")
+  defp ingest_by_hash(ticket, user, upload, stored) do
+    case HashRules.decision(ticket.company_id, stored.sha256) do
+      :deny ->
+        HashRules.audit_decision(:deny, ticket.company_id, stored.sha256)
+        create_with_status(ticket, user, upload, stored, "blocked", "denied by hash rule")
 
-        nil ->
-          if cache_hit?(stored.sha256) do
-            HashRules.audit_decision(:cache_hit, ticket.company_id, stored.sha256)
-            create_with_status(ticket, user, upload, stored, "clean", "cache hit")
-          else
-            with {:ok, attachment} <- create_attachment(ticket, user, upload, stored) do
-              enqueue_scan(attachment)
-            end
-          end
+      rule_decision ->
+        case Reputation.check(ticket.company_id, stored.sha256) do
+          {:infected, detail} ->
+            note = join_notes(["infected by external reputation", detail])
+            create_with_status(ticket, user, upload, stored, "infected", note)
+
+          reputation_result ->
+            continue_after_reputation(
+              ticket,
+              user,
+              upload,
+              stored,
+              rule_decision,
+              reputation_error_note(reputation_result)
+            )
+        end
+    end
+  end
+
+  defp continue_after_reputation(ticket, user, upload, stored, :allow, rep_note) do
+    HashRules.audit_decision(:allow, ticket.company_id, stored.sha256)
+    create_with_status(ticket, user, upload, stored, "clean", join_notes(["allowed by hash rule", rep_note]))
+  end
+
+  defp continue_after_reputation(ticket, user, upload, stored, nil, rep_note) do
+    if cache_hit?(stored.sha256) do
+      HashRules.audit_decision(:cache_hit, ticket.company_id, stored.sha256)
+      create_with_status(ticket, user, upload, stored, "clean", join_notes(["cache hit", rep_note]))
+    else
+      extra = if rep_note, do: %{scan_note: rep_note}, else: %{}
+
+      with {:ok, attachment} <- create_attachment(ticket, user, upload, stored, extra) do
+        enqueue_scan(attachment)
       end
     end
   end
+
+  defp reputation_error_note({:error, reason}) do
+    "reputation_fail_open: #{reason |> inspect() |> String.slice(0, 120)}"
+  end
+
+  defp reputation_error_note(_other), do: nil
 
   @doc """
   スキャンを同期的に実行して結果を保存する。`ScanAttachmentWorker` から呼ばれるほか、
@@ -288,7 +320,7 @@ defmodule HelpdeskCommander.Helpdesk.Attachments do
     match?({:ok, %TicketAttachment{}}, result)
   end
 
-  defp create_attachment(ticket, user, upload, stored, extra_attrs \\ %{}) do
+  defp create_attachment(ticket, user, upload, stored, extra_attrs) do
     attrs =
       Map.merge(
         %{
