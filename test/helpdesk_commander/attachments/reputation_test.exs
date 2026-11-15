@@ -236,6 +236,17 @@ defmodule HelpdeskCommander.Attachments.ReputationTest do
       other_sha256 = String.duplicate("b", 64)
       assert {:error, {:circuit_open, :timeout}} = Reputation.check(company.id, other_sha256)
       refute_receive {:lookup_called, _}
+
+      # Cachex 4 に有効な TTL（:expire）が設定されていることを検証
+      assert {:ok, error_ttl_ms} =
+               Cachex.ttl(HelpdeskCommander.Cache, {:reputation_error, "fake", @sample_sha256})
+
+      assert is_integer(error_ttl_ms) and error_ttl_ms > 0 and error_ttl_ms <= 60_000
+
+      assert {:ok, circuit_ttl_ms} =
+               Cachex.ttl(HelpdeskCommander.Cache, {:reputation_circuit_open, "fake"})
+
+      assert is_integer(circuit_ttl_ms) and circuit_ttl_ms > 0 and circuit_ttl_ms <= 30_000
     end
   end
 

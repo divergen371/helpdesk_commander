@@ -52,6 +52,8 @@ SHA256 ハッシュのみを外部フィードまたは自前フィードへ照�
 
 - API タイムアウト、5xx、429、接続不能、不正レスポンス時は **fail-open** とし、
   既存のローカル規則および ClamAV / YARA の判定を維持する（アップロードの単一障害点にしない）。
+- 一度でも障害が記録されると、サーキットブレーカーにより `circuit_open_sec`（既定 30 秒）の間は
+  全社・全ハッシュの照会を抑止し、同一ハッシュのエラーは `error_ttl_sec`（既定 60 秒）まで再照会しない。
 - すべての判定（`lookup` / `cache_hit` / `disabled` / `error_fail_open` / `company_setting_updated`）は
   `Logger` に `attachment_reputation` プレフィックスで記録する。
 - 障害時は `attachment_reputation error_fail_open` のログと、添付の `scan_note` に記録される

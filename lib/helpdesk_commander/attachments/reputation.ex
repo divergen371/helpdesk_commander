@@ -189,18 +189,26 @@ defmodule HelpdeskCommander.Attachments.Reputation do
     error_ttl = Map.get(config, :error_ttl_sec, @default_error_ttl_sec)
     circuit_ttl = Map.get(config, :circuit_open_sec, @default_circuit_open_sec)
 
-    cond do
-      error_ttl > 0 and match?({:ok, {:error, _reason}}, Cache.get({:reputation_error, provider_name, sha256})) ->
-        {:ok, cached} = Cache.get({:reputation_error, provider_name, sha256})
-        cached
+    with :ok <- check_negative_cache(provider_name, sha256, error_ttl) do
+      check_circuit_breaker(provider_name, circuit_ttl)
+    end
+  end
 
-      circuit_ttl > 0 and
-          match?({:ok, {:open, _reason}}, Cache.get({:reputation_circuit_open, provider_name})) ->
-        {:ok, {:open, reason}} = Cache.get({:reputation_circuit_open, provider_name})
-        {:error, {:circuit_open, reason}}
+  defp check_negative_cache(_provider_name, _sha256, error_ttl) when error_ttl <= 0, do: :ok
 
-      true ->
-        :ok
+  defp check_negative_cache(provider_name, sha256, _error_ttl) do
+    case Cache.get({:reputation_error, provider_name, sha256}) do
+      {:ok, {:error, _reason} = cached} -> cached
+      _other -> :ok
+    end
+  end
+
+  defp check_circuit_breaker(_provider_name, circuit_ttl) when circuit_ttl <= 0, do: :ok
+
+  defp check_circuit_breaker(provider_name, _circuit_ttl) do
+    case Cache.get({:reputation_circuit_open, provider_name}) do
+      {:ok, {:open, reason}} -> {:error, {:circuit_open, reason}}
+      _other -> :ok
     end
   end
 
@@ -213,7 +221,7 @@ defmodule HelpdeskCommander.Attachments.Reputation do
         Cache.put(
           {:reputation_error, provider_name, sha256},
           {:error, reason},
-          ttl: :timer.seconds(error_ttl)
+          expire: :timer.seconds(error_ttl)
         )
       end
 
@@ -222,7 +230,7 @@ defmodule HelpdeskCommander.Attachments.Reputation do
         Cache.put(
           {:reputation_circuit_open, provider_name},
           {:open, reason},
-          ttl: :timer.seconds(circuit_ttl)
+          expire: :timer.seconds(circuit_ttl)
         )
       end
 
