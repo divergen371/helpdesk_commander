@@ -27,6 +27,7 @@ defmodule HelpdeskCommander.Accounts.Company do
     attribute :name_hash, :binary, allow_nil?: false, sensitive?: true, public?: false
     attribute :company_code_hash, :binary, allow_nil?: false
     attribute :status, :string, allow_nil?: false, default: "active", public?: true
+    attribute :external_reputation_enabled, :boolean, allow_nil?: false, default: false, public?: true
 
     timestamps()
   end
@@ -40,7 +41,7 @@ defmodule HelpdeskCommander.Accounts.Company do
     defaults [:read, :destroy]
 
     create :create do
-      accept [:name, :status]
+      accept [:name, :status, :external_reputation_enabled]
       argument :company_code, :string, allow_nil?: false
 
       change HelpdeskCommander.Accounts.Company.Changes.HashCompanyCode
@@ -49,7 +50,7 @@ defmodule HelpdeskCommander.Accounts.Company do
 
     update :update do
       require_atomic? false
-      accept [:name, :status]
+      accept [:name, :status, :external_reputation_enabled]
 
       change HelpdeskCommander.Accounts.Company.Changes.HashName
     end

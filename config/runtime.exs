@@ -163,6 +163,58 @@ if config_env() == :prod do
          :attachment_yara_command,
          System.get_env("ATTACHMENT_YARA_COMMAND")
 
+  # 外部ハッシュレピュテーション照会（HC-41）。既定は無効。
+  reputation_headers =
+    case {System.get_env("ATTACHMENT_REPUTATION_API_KEY_HEADER"), System.get_env("ATTACHMENT_REPUTATION_API_KEY")} do
+      {header, key} when is_binary(header) and header != "" and is_binary(key) and key != "" ->
+        [{header, key}]
+
+      _other ->
+        []
+    end
+
+  reputation_method =
+    case String.downcase(System.get_env("ATTACHMENT_REPUTATION_METHOD") || "get") do
+      "post" -> :post
+      _other -> :get
+    end
+
+  parse_path = fn env_name ->
+    case System.get_env(env_name) do
+      nil -> nil
+      "" -> nil
+      value -> value |> String.split(".", trim: true)
+    end
+  end
+
+  reputation_enabled? =
+    System.get_env("ATTACHMENT_REPUTATION_ENABLED") in ["1", "true", "TRUE", "yes"]
+
+  reputation_url =
+    case System.get_env("ATTACHMENT_REPUTATION_URL") do
+      nil -> nil
+      value -> String.trim(value)
+    end
+
+  if reputation_enabled? and reputation_url in [nil, ""] do
+    raise """
+    ATTACHMENT_REPUTATION_ENABLED is true, but ATTACHMENT_REPUTATION_URL is not configured.
+    Set ATTACHMENT_REPUTATION_URL to a commercial or self-hosted SHA256 reputation endpoint.
+    """
+  end
+
+  config :helpdesk_commander,
+         :attachment_reputation,
+         enabled: reputation_enabled?,
+         url: reputation_url,
+         method: reputation_method,
+         headers: reputation_headers,
+         timeout_ms: String.to_integer(System.get_env("ATTACHMENT_REPUTATION_TIMEOUT_MS") || "3000"),
+         verdict_path: parse_path.("ATTACHMENT_REPUTATION_VERDICT_PATH"),
+         detail_path: parse_path.("ATTACHMENT_REPUTATION_DETAIL_PATH"),
+         infected_ttl_sec: String.to_integer(System.get_env("ATTACHMENT_REPUTATION_INFECTED_TTL_SEC") || "86400"),
+         unknown_ttl_sec: String.to_integer(System.get_env("ATTACHMENT_REPUTATION_UNKNOWN_TTL_SEC") || "3600")
+
   if yara_rules = System.get_env("ATTACHMENT_YARA_RULES") do
     config :helpdesk_commander, :attachment_yara_rules, yara_rules
   end

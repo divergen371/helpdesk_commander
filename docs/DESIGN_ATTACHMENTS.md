@@ -124,6 +124,18 @@ clamd 設定がある場合はコマンドより優先される。
 - ルール変更（created / updated / deleted）と判定結果（decision）は監査ログとして
   `Logger` に `audit: "attachment_hash_rules"` のメタデータ付きで記録する。
 
+## 外部レピュテーション照会（HC-41）
+
+- 既定は無効。グローバル設定（`ATTACHMENT_REPUTATION_ENABLED`）と会社単位設定
+  （`Company.external_reputation_enabled`、`/admin/attachment-rules` で切替）の両方が
+  有効なときのみ、SHA256 ハッシュのみを外部フィードへ照会する（ファイル本体は送信しない）。
+- 判定順は **deny > 外部 infected > allow > clean キャッシュ > 通常スキャン**。
+  外部レピュテーションが `infected` を返した場合は `allow` や `clean` キャッシュより
+  優先して `infected` として隔離する。
+- 同一ハッシュの再照会は `attachment_reputation_cache`（TTL 付き）で抑止する。
+  API 障害・タイムアウト時は fail-open として既存のローカル規則・通常スキャンへ進み、
+  `scan_note` と監査ログに記録する。運用手順は `docs/OPERATIONS_REPUTATION.md` を参照。
+
 ## 組織固有の YARA 検知（HC-25）
 
 - `priv/yara/*.yar` を版管理し、`ATTACHMENT_YARA_COMMAND`（例: `yara`）で有効化する。
