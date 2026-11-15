@@ -1685,15 +1685,8 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     do: CurrentUser.admin?(current_user) and message.sender_id != nil
 
   defp refresh_priority_check(socket, ticket) do
-    {events, _has_more?, _oldest_id, _warnings} =
-      load_events(socket.assigns.current_user_external?, ticket.id)
-
-    priority_check =
-      PriorityCheck.evaluate(ticket, task_links: socket.assigns.task_links)
-
-    socket
-    |> assign(:events, events)
-    |> assign(:priority_check, priority_check)
+    priority_check = PriorityCheck.evaluate(ticket, task_links: socket.assigns.task_links)
+    assign(socket, :priority_check, priority_check)
   end
 
   defp priority_check_status_label(:needs_review), do: "要確認"
