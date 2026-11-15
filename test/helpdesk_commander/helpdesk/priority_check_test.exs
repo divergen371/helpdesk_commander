@@ -139,8 +139,11 @@ defmodule HelpdeskCommander.Helpdesk.PriorityCheckTest do
       product: product,
       admin: admin,
       member: member,
-      external: external
+      external: external,
+      company: company
     } do
+      customer = create_user!(company.id, "customer")
+
       ticket =
         create_ticket!(product, admin, %{
           subject: "至急確認したい事項",
@@ -151,10 +154,24 @@ defmodule HelpdeskCommander.Helpdesk.PriorityCheckTest do
 
       assert {:error, :forbidden} = PriorityCheck.accept(ticket, member)
       assert {:error, :forbidden} = PriorityCheck.dismiss(ticket, external)
+      assert {:error, :forbidden} = PriorityCheck.dismiss(ticket, customer)
 
       assert {:ok, _event} = PriorityCheck.dismiss(ticket, member)
-      events = list_events(ticket.id)
-      eval = PriorityCheck.evaluate(ticket, events: events)
+
+      # 20 件以上の新規イベントが追加されても却下状態が維持される
+      for i <- 1..25 do
+        TicketEvent
+        |> Ash.Changeset.for_create(:create, %{
+          event_type: "comment_added",
+          data: %{index: i},
+          ticket_id: ticket.id,
+          actor_id: admin.id,
+          company_id: company.id
+        })
+        |> Ash.create!(domain: Helpdesk, actor: admin, tenant: company.id)
+      end
+
+      eval = PriorityCheck.evaluate(ticket)
 
       assert eval.status == :dismissed
       assert eval.dismissed?

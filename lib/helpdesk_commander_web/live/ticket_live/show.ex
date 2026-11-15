@@ -207,7 +207,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
       |> to_form(as: "verification")
 
     priority_check =
-      PriorityCheck.evaluate(ticket, task_links: relations.task_links, events: events)
+      PriorityCheck.evaluate(ticket, task_links: relations.task_links)
 
     {:ok,
      %{
@@ -1688,7 +1688,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
       load_events(socket.assigns.current_user_external?, ticket.id)
 
     priority_check =
-      PriorityCheck.evaluate(ticket, task_links: socket.assigns.task_links, events: events)
+      PriorityCheck.evaluate(ticket, task_links: socket.assigns.task_links)
 
     socket
     |> assign(:events, events)

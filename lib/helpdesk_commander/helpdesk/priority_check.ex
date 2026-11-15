@@ -12,6 +12,8 @@ defmodule HelpdeskCommander.Helpdesk.PriorityCheck do
   alias HelpdeskCommander.Helpdesk.Ticket
   alias HelpdeskCommander.Helpdesk.TicketEvent
 
+  require Ash.Query
+
   @critical_keywords [
     "全社停止",
     "サービス停止",
@@ -75,7 +77,6 @@ defmodule HelpdeskCommander.Helpdesk.PriorityCheck do
   @spec evaluate(Ticket.t(), keyword()) :: evaluation()
   def evaluate(%Ticket{} = ticket, opts \\ []) do
     task_links = Keyword.get(opts, :task_links, [])
-    events = Keyword.get(opts, :events, [])
 
     text = normalize_text("#{ticket.subject} #{ticket.description}")
     current = ticket.priority || "p3"
@@ -88,7 +89,11 @@ defmodule HelpdeskCommander.Helpdesk.PriorityCheck do
       |> finalize_signals(current)
 
     fingerprint = build_fingerprint(current, suggested, reasons)
-    dismissed? = reasons != [] and dismissed_for_fingerprint?(events, fingerprint)
+
+    dismissed? =
+      reasons != [] and
+        dismissed_for_fingerprint?(resolve_decision_events(ticket, opts), fingerprint)
+
     needs_review? = reasons != [] and score >= 0.7 and not dismissed?
 
     status =
@@ -116,7 +121,7 @@ defmodule HelpdeskCommander.Helpdesk.PriorityCheck do
   """
   @spec accept(Ticket.t(), User.t(), keyword()) :: {:ok, Ticket.t()} | {:error, term()}
   def accept(%Ticket{} = ticket, %User{} = user, opts \\ []) do
-    if Authorization.same_company?(user, ticket.company_id) and user.role in ["admin", "leader"] do
+    if Authorization.privileged_for_company?(user, ticket.company_id) do
       eval = evaluate(ticket, opts)
 
       with {:ok, updated_ticket} <- maybe_update_priority(ticket, user, eval),
@@ -140,7 +145,7 @@ defmodule HelpdeskCommander.Helpdesk.PriorityCheck do
   """
   @spec dismiss(Ticket.t(), User.t(), keyword()) :: {:ok, TicketEvent.t()} | {:error, term()}
   def dismiss(%Ticket{} = ticket, %User{} = user, opts \\ []) do
-    if Authorization.same_company?(user, ticket.company_id) and user.role != "external" do
+    if Authorization.same_company?(user, ticket.company_id) and Authorization.internal?(user) do
       eval = evaluate(ticket, opts)
 
       data = %{
@@ -280,6 +285,24 @@ defmodule HelpdeskCommander.Helpdesk.PriorityCheck do
       {:ok, _event} -> :ok
       {:error, error} -> {:error, error}
     end
+  end
+
+  defp resolve_decision_events(ticket, opts) do
+    case Keyword.fetch(opts, :events) do
+      {:ok, events} -> events
+      :error -> fetch_latest_decision_events(ticket)
+    end
+  end
+
+  defp fetch_latest_decision_events(%Ticket{id: ticket_id, company_id: company_id}) do
+    TicketEvent
+    |> Ash.Query.filter(
+      ticket_id == ^ticket_id and
+        event_type in ["priority_check_dismissed", "priority_check_accepted"]
+    )
+    |> Ash.Query.sort(inserted_at: :desc)
+    |> Ash.Query.limit(1)
+    |> Ash.read!(domain: Helpdesk, tenant: company_id, authorize?: false)
   end
 
   defp dismissed_for_fingerprint?(events, fingerprint) do
