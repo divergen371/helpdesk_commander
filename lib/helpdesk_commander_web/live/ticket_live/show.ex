@@ -12,6 +12,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   alias HelpdeskCommander.Helpdesk.ConversationMessage
   alias HelpdeskCommander.Helpdesk.Incident
   alias HelpdeskCommander.Helpdesk.Priority
+  alias HelpdeskCommander.Helpdesk.PriorityCheck
   alias HelpdeskCommander.Helpdesk.Product
   alias HelpdeskCommander.Helpdesk.Ticket
   alias HelpdeskCommander.Helpdesk.TicketEvent
@@ -205,9 +206,13 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
       |> AshPhoenix.Form.for_create(:create, domain: Helpdesk)
       |> to_form(as: "verification")
 
+    priority_check =
+      PriorityCheck.evaluate(ticket, task_links: relations.task_links)
+
     {:ok,
      %{
        ticket: ticket,
+       priority_check: priority_check,
        users: users,
        assignable_users: assignable_users,
        users_by_id: users_by_id,
@@ -253,6 +258,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
     socket
     |> assign(:page_title, "Ticket #{data.ticket.public_id}")
     |> assign(:ticket, data.ticket)
+    |> assign(:priority_check, data.priority_check)
     |> assign(:users, data.users)
     |> assign(:assignable_users, data.assignable_users)
     |> assign(:users_by_id, data.users_by_id)
@@ -781,7 +787,8 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
            |> put_flash(:info, "更新しました")
            |> assign(:ticket, ticket)
            |> assign(:status_form, status_form)
-           |> assign(:update_form, update_form)}
+           |> assign(:update_form, update_form)
+           |> refresh_priority_check(ticket)}
 
         {:error, form} ->
           socket =
@@ -795,6 +802,57 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
            socket
            |> put_flash(:error, submit_error_message(form))
            |> assign(:update_form, form)}
+      end
+    end
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("accept_priority_check", _params, socket) do
+    if socket.assigns.current_user_external? or not socket.assigns.can_approve? do
+      {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
+    else
+      opts = [task_links: socket.assigns.task_links]
+
+      case PriorityCheck.accept(socket.assigns.ticket, socket.assigns.current_user, opts) do
+        {:ok, ticket} ->
+          ticket = load_ticket_product(ticket)
+
+          update_form =
+            ticket
+            |> ticket_update_form(socket.assigns.current_user)
+            |> to_form()
+
+          {:noreply,
+           socket
+           |> put_flash(:info, "優先度の提案を採用しました")
+           |> assign(:ticket, ticket)
+           |> assign(:update_form, update_form)
+           |> refresh_priority_check(ticket)}
+
+        {:error, error} ->
+          ErrorLog.log_error("ticket_live.show.accept_priority_check", error)
+          {:noreply, put_flash(socket, :error, "優先度の採用に失敗しました")}
+      end
+    end
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("dismiss_priority_check", _params, socket) do
+    if socket.assigns.current_user_external? do
+      {:noreply, put_flash(socket, :error, "アクセス権限がありません")}
+    else
+      opts = [task_links: socket.assigns.task_links]
+
+      case PriorityCheck.dismiss(socket.assigns.ticket, socket.assigns.current_user, opts) do
+        {:ok, _event} ->
+          {:noreply,
+           socket
+           |> put_flash(:info, "優先度チェックの提案を却下しました")
+           |> refresh_priority_check(socket.assigns.ticket)}
+
+        {:error, error} ->
+          ErrorLog.log_error("ticket_live.show.dismiss_priority_check", error)
+          {:noreply, put_flash(socket, :error, "却下の記録に失敗しました")}
       end
     end
   end
@@ -1191,6 +1249,7 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
         |> assign(:task_links, links)
         |> assign(:linkable_tasks, tasks)
         |> assign(:task_link_form, to_form(%{"task_id" => ""}, as: "link"))
+        |> assign(:priority_check, PriorityCheck.evaluate(socket.assigns.ticket, task_links: links))
 
       {:error, error} ->
         ErrorLog.log_error("ticket_live.show.reload_task_links", error, ticket_id: socket.assigns.ticket.id)
@@ -1625,6 +1684,19 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   defp can_delete_message?(current_user, message),
     do: CurrentUser.admin?(current_user) and message.sender_id != nil
 
+  defp refresh_priority_check(socket, ticket) do
+    priority_check = PriorityCheck.evaluate(ticket, task_links: socket.assigns.task_links)
+    assign(socket, :priority_check, priority_check)
+  end
+
+  defp priority_check_status_label(:needs_review), do: "要確認"
+  defp priority_check_status_label(:dismissed), do: "却下済み"
+  defp priority_check_status_label(_status), do: "OK"
+
+  defp priority_check_badge_class(:needs_review), do: "badge badge-warning"
+  defp priority_check_badge_class(:dismissed), do: "badge badge-ghost"
+  defp priority_check_badge_class(_status), do: "badge badge-success"
+
   defp parse_id(value) when is_integer(value), do: {:ok, value}
 
   defp parse_id(value) when is_binary(value) do
@@ -1722,6 +1794,8 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
   defp event_label(%TicketEvent{event_type: "global_publication_approved"}), do: "全体公開の承認"
   defp event_label(%TicketEvent{event_type: "global_publication_rejected"}), do: "全体公開の却下"
   defp event_label(%TicketEvent{event_type: "attachment_quarantine_overridden"}), do: "感染判定の誤検知解除"
+  defp event_label(%TicketEvent{event_type: "priority_check_accepted"}), do: "優先度提案を採用"
+  defp event_label(%TicketEvent{event_type: "priority_check_dismissed"}), do: "優先度提案を却下"
 
   defp event_label(%TicketEvent{event_type: "message_posted", data: data}) do
     case event_conversation_kind(data) do
@@ -1782,6 +1856,69 @@ defmodule HelpdeskCommanderWeb.TicketLive.Show do
               <h3 class="font-semibold">詳細</h3>
               <p class="mt-2 whitespace-pre-wrap text-sm opacity-80">{@ticket.description}</p>
             </div>
+          </div>
+        </div>
+
+        <div
+          :if={!@current_user_external?}
+          id="priority-check-card"
+          class={[
+            "card bg-base-100 border",
+            if(@priority_check.needs_review?, do: "border-warning/50", else: "border-base-200")
+          ]}
+        >
+          <div class="card-body">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <h3 class="font-semibold">優先度整合性</h3>
+              <span
+                id="priority-check-status"
+                class={priority_check_badge_class(@priority_check.status)}
+              >
+                {priority_check_status_label(@priority_check.status)}
+              </span>
+            </div>
+
+            <%= if @priority_check.needs_review? do %>
+              <ul id="priority-check-reasons" class="mt-2 list-disc space-y-1 pl-5 text-sm opacity-85">
+                <li :for={reason <- @priority_check.reasons}>{reason}</li>
+              </ul>
+
+              <p
+                :if={@priority_check.suggested_priority != @ticket.priority}
+                id="priority-check-suggestion"
+                class="mt-2 text-sm font-medium"
+              >
+                提案優先度: {@priority_check.suggested_priority}（現在: {@ticket.priority}）
+              </p>
+
+              <div class="mt-3 flex flex-wrap gap-2">
+                <button
+                  :if={@can_approve? and @priority_check.suggested_priority != @ticket.priority}
+                  id="accept-priority-check"
+                  type="button"
+                  class="btn btn-primary btn-sm"
+                  phx-click="accept_priority_check"
+                >
+                  提案を採用（{@priority_check.suggested_priority}）
+                </button>
+                <button
+                  id="dismiss-priority-check"
+                  type="button"
+                  class="btn btn-ghost btn-sm"
+                  phx-click="dismiss_priority_check"
+                >
+                  誤検知として却下
+                </button>
+              </div>
+            <% else %>
+              <p class="mt-2 text-sm opacity-70">
+                <%= if @priority_check.dismissed? do %>
+                  この内容に対する優先度提案は却下済みです。
+                <% else %>
+                  本文・種別・関連タスクと現在の優先度に大きな齟齬は見つかりませんでした。
+                <% end %>
+              </p>
+            <% end %>
           </div>
         </div>
 
