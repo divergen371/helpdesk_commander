@@ -69,6 +69,7 @@ defmodule HelpdeskCommanderWeb.AdminAttachmentRuleLiveTest do
     |> render_click()
 
     assert has_element?(view, "#external-reputation-card", "有効")
+    assert has_element?(view, "#reputation-global-disabled-hint")
     assert HelpdeskCommander.Attachments.Reputation.company_enabled?(company.id)
   end
 

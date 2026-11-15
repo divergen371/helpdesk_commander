@@ -416,7 +416,7 @@ defmodule HelpdeskCommander.Helpdesk.Attachments do
     attachment
     |> Ash.Changeset.for_update(:mark_scan, %{
       scan_status: status,
-      scan_note: note,
+      scan_note: preserve_reputation_note(note, attachment.scan_note),
       scanned_at: DateTime.utc_now(),
       scan_engine: metadata.engine,
       scan_version: metadata.version,
@@ -424,6 +424,17 @@ defmodule HelpdeskCommander.Helpdesk.Attachments do
     })
     |> Ash.update(domain: Helpdesk, tenant: attachment.company_id, authorize?: false)
   end
+
+  defp preserve_reputation_note(scan_note, previous_note)
+       when is_binary(previous_note) and previous_note != "" do
+    if String.contains?(previous_note, "reputation_fail_open:") do
+      join_notes([scan_note, previous_note])
+    else
+      scan_note
+    end
+  end
+
+  defp preserve_reputation_note(scan_note, _previous_note), do: scan_note
 
   defp scan_result(path) do
     case Scanner.scan(path) do

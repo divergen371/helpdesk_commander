@@ -187,10 +187,26 @@ if config_env() == :prod do
     end
   end
 
+  reputation_enabled? =
+    System.get_env("ATTACHMENT_REPUTATION_ENABLED") in ["1", "true", "TRUE", "yes"]
+
+  reputation_url =
+    case System.get_env("ATTACHMENT_REPUTATION_URL") do
+      nil -> nil
+      value -> String.trim(value)
+    end
+
+  if reputation_enabled? and reputation_url in [nil, ""] do
+    raise """
+    ATTACHMENT_REPUTATION_ENABLED is true, but ATTACHMENT_REPUTATION_URL is not configured.
+    Set ATTACHMENT_REPUTATION_URL to a commercial or self-hosted SHA256 reputation endpoint.
+    """
+  end
+
   config :helpdesk_commander,
          :attachment_reputation,
-         enabled: System.get_env("ATTACHMENT_REPUTATION_ENABLED") in ["1", "true", "TRUE", "yes"],
-         url: System.get_env("ATTACHMENT_REPUTATION_URL"),
+         enabled: reputation_enabled?,
+         url: reputation_url,
          method: reputation_method,
          headers: reputation_headers,
          timeout_ms: String.to_integer(System.get_env("ATTACHMENT_REPUTATION_TIMEOUT_MS") || "3000"),

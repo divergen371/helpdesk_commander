@@ -19,6 +19,7 @@ defmodule HelpdeskCommanderWeb.AdminAttachmentRuleLive do
      socket
      |> assign(:page_title, "添付ハッシュ規則")
      |> assign(:form, to_form(@empty_form, as: "rule"))
+     |> assign(:global_reputation_enabled, Reputation.global_enabled?())
      |> assign(:external_reputation_enabled, Reputation.company_enabled?(company_id))
      |> load_rules()}
   end
@@ -117,10 +118,21 @@ defmodule HelpdeskCommanderWeb.AdminAttachmentRuleLive do
           <div>
             <h2 class="font-semibold text-base-content">外部レピュテーション照会（SHA256 のみ）</h2>
             <p class="text-sm text-base-content/70">
-              ファイル本体は送信せず SHA256 ハッシュのみを照会します。現在:
+              ファイル本体は送信せず SHA256 ハッシュのみを照会します。自社設定:
               <span class="font-medium">
                 {if(@external_reputation_enabled, do: "有効", else: "無効")}
               </span>
+              / グローバル設定:
+              <span class="font-medium">
+                {if(@global_reputation_enabled, do: "有効", else: "無効")}
+              </span>
+            </p>
+            <p
+              :if={@external_reputation_enabled and not @global_reputation_enabled}
+              id="reputation-global-disabled-hint"
+              class="mt-1 text-xs text-warning"
+            >
+              グローバル設定（ATTACHMENT_REPUTATION_ENABLED）が無効のため、現在は外部照会を実行しません。
             </p>
           </div>
           <.button

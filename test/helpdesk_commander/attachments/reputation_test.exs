@@ -35,11 +35,13 @@ defmodule HelpdeskCommander.Attachments.ReputationTest do
   setup do
     previous_level = Logger.level()
     Logger.configure(level: :info)
+    Cachex.clear(HelpdeskCommander.Cache)
     company = create_company!()
 
     on_exit(fn ->
       Logger.configure(level: previous_level)
       Application.delete_env(:helpdesk_commander, :attachment_reputation)
+      Cachex.clear(HelpdeskCommander.Cache)
     end)
 
     %{company: company}
@@ -206,13 +208,15 @@ defmodule HelpdeskCommander.Attachments.ReputationTest do
       assert_receive {:lookup_called, @sample_sha256}
     end
 
-    test "does not cache errors and logs fail-open warning", %{company: company} do
+    test "negative-caches errors and opens circuit breaker to prevent stall", %{company: company} do
       {:ok, _updated} = Reputation.set_company_enabled(company.id, true)
 
       Application.put_env(:helpdesk_commander, :attachment_reputation,
         enabled: true,
         provider: FakeProvider,
         verdict: {:error, :timeout},
+        error_ttl_sec: 60,
+        circuit_open_sec: 30,
         test_pid: self()
       )
 
@@ -224,9 +228,14 @@ defmodule HelpdeskCommander.Attachments.ReputationTest do
       assert log =~ "attachment_reputation error_fail_open"
       assert_receive {:lookup_called, @sample_sha256}
 
-      # 2 回目もキャッシュされていないため再照会される
+      # 2 回目はネガティブキャッシュにより外部照会せず即座に fail-open
       assert {:error, :timeout} = Reputation.check(company.id, @sample_sha256)
-      assert_receive {:lookup_called, @sample_sha256}
+      refute_receive {:lookup_called, _}
+
+      # 別ハッシュでもサーキットブレーカーにより外部照会しない
+      other_sha256 = String.duplicate("b", 64)
+      assert {:error, {:circuit_open, :timeout}} = Reputation.check(company.id, other_sha256)
+      refute_receive {:lookup_called, _}
     end
   end
 

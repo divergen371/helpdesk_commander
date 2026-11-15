@@ -31,6 +31,7 @@ defmodule HelpdeskCommander.Helpdesk.AttachmentsReputationTest do
   end
 
   setup do
+    Cachex.clear(HelpdeskCommander.Cache)
     company = create_company!()
     {:ok, company} = Reputation.set_company_enabled(company.id, true)
     admin = create_user!(company.id, "admin")
@@ -41,6 +42,7 @@ defmodule HelpdeskCommander.Helpdesk.AttachmentsReputationTest do
     Application.put_env(:helpdesk_commander, :attachment_scan_allow_skipped, true)
 
     on_exit(fn ->
+      Cachex.clear(HelpdeskCommander.Cache)
       Application.delete_env(:helpdesk_commander, :attachment_reputation)
       Application.put_env(:helpdesk_commander, :attachment_scan_allow_skipped, original_allow_skipped)
     end)
@@ -189,6 +191,33 @@ defmodule HelpdeskCommander.Helpdesk.AttachmentsReputationTest do
     assert attachment.scan_status == "clean"
     assert attachment.scan_note =~ "allowed by hash rule"
     assert attachment.scan_note =~ "reputation_fail_open:"
+  end
+
+  test "fail-open note survives async Attachments.scan/1 on normal scan path", %{
+    ticket: ticket,
+    admin: admin
+  } do
+    Cachex.clear(HelpdeskCommander.Cache)
+
+    Application.put_env(:helpdesk_commander, :attachment_reputation,
+      enabled: true,
+      provider: StubProvider,
+      result: {:error, :timeout},
+      test_pid: self()
+    )
+
+    assert {:ok, attachment} =
+             Attachments.ingest(ticket, admin, upload("normal.txt", "normal-scan-content", "text/plain"))
+
+    assert attachment.scan_note =~ "reputation_fail_open:"
+
+    assert :ok =
+             HelpdeskCommander.Workers.ScanAttachmentWorker.perform(%Oban.Job{
+               args: %{"attachment_id" => attachment.id}
+             })
+
+    scanned = Ash.get!(TicketAttachment, attachment.id, domain: Helpdesk, authorize?: false)
+    assert scanned.scan_note =~ "reputation_fail_open:"
   end
 
   test "company disable switch skips external lookup during ingest", %{

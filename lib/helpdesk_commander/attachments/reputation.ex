@@ -12,6 +12,7 @@ defmodule HelpdeskCommander.Attachments.Reputation do
   alias HelpdeskCommander.Accounts
   alias HelpdeskCommander.Accounts.Company
   alias HelpdeskCommander.Attachments.Reputation.HttpProvider
+  alias HelpdeskCommander.Cache
   alias HelpdeskCommander.Helpdesk
   alias HelpdeskCommander.Helpdesk.AttachmentReputationCache
 
@@ -20,6 +21,8 @@ defmodule HelpdeskCommander.Attachments.Reputation do
 
   @default_infected_ttl_sec 86_400
   @default_unknown_ttl_sec 3_600
+  @default_error_ttl_sec 60
+  @default_circuit_open_sec 30
 
   @type check_result ::
           {:infected, String.t() | nil}
@@ -42,6 +45,12 @@ defmodule HelpdeskCommander.Attachments.Reputation do
       audit(:disabled, %{company_id: company_id, sha256: normalized})
       :disabled
     end
+  end
+
+  @doc "グローバルの外部レピュテーション設定が有効かどうかを返す。"
+  @spec global_enabled?() :: boolean()
+  def global_enabled? do
+    Map.get(current_config(), :enabled, false) == true
   end
 
   @doc "会社単位の外部レピュテーション有効/無効を取得する。"
@@ -101,6 +110,28 @@ defmodule HelpdeskCommander.Attachments.Reputation do
         :unknown
 
       :miss ->
+        lookup_with_negative_cache(company_id, sha256, config, now)
+    end
+  end
+
+  defp lookup_with_negative_cache(company_id, sha256, config, now) do
+    provider = Map.get(config, :provider, HttpProvider)
+    provider_name = safe_provider_name(provider)
+
+    case check_error_guard(provider_name, sha256, config) do
+      {:error, reason} ->
+        audit_warning(:error_fail_open, %{
+          company_id: company_id,
+          sha256: sha256,
+          provider: provider_name,
+          verdict: :error,
+          cached: true,
+          reason: inspect(reason)
+        })
+
+        {:error, reason}
+
+      :ok ->
         lookup_remote(company_id, sha256, config, now)
     end
   end
@@ -139,6 +170,8 @@ defmodule HelpdeskCommander.Attachments.Reputation do
         :unknown
 
       {:error, reason} ->
+        store_error_guard(provider_name, sha256, reason, config)
+
         audit_warning(:error_fail_open, %{
           company_id: company_id,
           sha256: sha256,
@@ -150,6 +183,50 @@ defmodule HelpdeskCommander.Attachments.Reputation do
 
         {:error, reason}
     end
+  end
+
+  defp check_error_guard(provider_name, sha256, config) do
+    error_ttl = Map.get(config, :error_ttl_sec, @default_error_ttl_sec)
+    circuit_ttl = Map.get(config, :circuit_open_sec, @default_circuit_open_sec)
+
+    cond do
+      error_ttl > 0 and match?({:ok, {:error, _reason}}, Cache.get({:reputation_error, provider_name, sha256})) ->
+        {:ok, cached} = Cache.get({:reputation_error, provider_name, sha256})
+        cached
+
+      circuit_ttl > 0 and
+          match?({:ok, {:open, _reason}}, Cache.get({:reputation_circuit_open, provider_name})) ->
+        {:ok, {:open, reason}} = Cache.get({:reputation_circuit_open, provider_name})
+        {:error, {:circuit_open, reason}}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp store_error_guard(provider_name, sha256, reason, config) do
+    error_ttl = Map.get(config, :error_ttl_sec, @default_error_ttl_sec)
+    circuit_ttl = Map.get(config, :circuit_open_sec, @default_circuit_open_sec)
+
+    _error_put =
+      if error_ttl > 0 do
+        Cache.put(
+          {:reputation_error, provider_name, sha256},
+          {:error, reason},
+          ttl: :timer.seconds(error_ttl)
+        )
+      end
+
+    _circuit_put =
+      if circuit_ttl > 0 do
+        Cache.put(
+          {:reputation_circuit_open, provider_name},
+          {:open, reason},
+          ttl: :timer.seconds(circuit_ttl)
+        )
+      end
+
+    :ok
   end
 
   defp fetch_valid_cache(sha256, now) do
