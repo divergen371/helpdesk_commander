@@ -37,6 +37,7 @@ defmodule HelpdeskCommander.Helpdesk do
     resource HelpdeskCommander.Helpdesk.Inquiry
     resource HelpdeskCommander.Helpdesk.SlaPolicy
     resource HelpdeskCommander.Helpdesk.Product
+    resource HelpdeskCommander.Helpdesk.ReportSchedule
     resource HelpdeskCommander.Helpdesk.Ticket
     resource HelpdeskCommander.Helpdesk.TicketAttachment
     resource HelpdeskCommander.Helpdesk.TicketEvent
