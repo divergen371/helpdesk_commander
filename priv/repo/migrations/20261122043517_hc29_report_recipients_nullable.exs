@@ -1,4 +1,4 @@
-defmodule HelpdeskCommander.Repo.Migrations.Hc29ScheduledReports do
+defmodule HelpdeskCommander.Repo.Migrations.Hc29ReportRecipientsNullable do
   @moduledoc """
   Updates resources based on their most recent snapshots.
 
