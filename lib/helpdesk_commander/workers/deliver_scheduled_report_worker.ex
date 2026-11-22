@@ -18,18 +18,18 @@ defmodule HelpdeskCommander.Workers.DeliverScheduledReportWorker do
 
   @max_backoff_seconds 300
 
-  @spec enqueue(integer()) :: {:ok, Oban.Job.t()} | {:error, term()}
-  def enqueue(schedule_id) do
-    %{schedule_id: schedule_id}
+  @spec enqueue(integer(), keyword()) :: {:ok, Oban.Job.t()} | {:error, term()}
+  def enqueue(schedule_id, opts \\ []) do
+    %{schedule_id: schedule_id, force: Keyword.get(opts, :force, false)}
     |> new()
     |> Oban.insert()
   end
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"schedule_id" => schedule_id}}) do
+  def perform(%Oban.Job{args: %{"schedule_id" => schedule_id, "force" => force}}) do
     case Ash.get(ReportSchedule, schedule_id, domain: Helpdesk, authorize?: false) do
       {:ok, %ReportSchedule{enabled: true} = schedule} ->
-        case Scheduled.deliver(schedule) do
+        case Scheduled.deliver(schedule, force: force) do
           {:ok, _updated} ->
             :ok
 

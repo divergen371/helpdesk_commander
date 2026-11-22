@@ -49,7 +49,7 @@
       "type": "text"
     },
     {
-      "allow_nil?": false,
+      "allow_nil?": true,
       "default": "\"\"",
       "generated?": false,
       "precision": null,
@@ -172,7 +172,7 @@
   "custom_indexes": [],
   "custom_statements": [],
   "has_create_action": true,
-  "hash": "A04BB0C94161C7BB708F424296C3432F9444D6FF4F760206F3489EA2FDEA51FF",
+  "hash": "37383723BB8583C4D4934229E3BAE266B6BE433FF6D67B1B7DD2672DE3C39AA8",
   "identities": [],
   "multitenancy": {
     "attribute": "company_id",

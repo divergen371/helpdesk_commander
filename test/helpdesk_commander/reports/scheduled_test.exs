@@ -130,7 +130,7 @@ defmodule HelpdeskCommander.Reports.ScheduledTest do
       text = Scheduled.summary_text(summary)
 
       assert text =~ "■ サマリ"
-      assert text =~ "チケット総数: 42"
+      assert text =~ "Total tickets: 42"
       assert text =~ "■ ステータス別"
       assert text =~ "new: 3"
       assert text =~ "■ 担当者別（未対応）"

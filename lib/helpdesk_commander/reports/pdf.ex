@@ -1,8 +1,10 @@
 defmodule HelpdeskCommander.Reports.Pdf do
   @moduledoc """
-  依存なしで単純な PDF（Helvetica・テキストのみ）を生成する（HC-29）。
+  依存なしで単純な PDF（Helvetica・ASCII テキストのみ）を生成する（HC-29）。
 
   運用レポートの添付用であり、図表・フォント埋め込みは扱わない。
+  base-14 Helvetica で表現できる ASCII のみを出力し、非 ASCII は `?` に置換する。
+  日本語ラベルは呼び出し側で ASCII に置き換えること。
   出力はページ数・オフセットを正確に計算した有効な PDF 1.4 である。
   """
 
@@ -12,7 +14,7 @@ defmodule HelpdeskCommander.Reports.Pdf do
   @line_height 16
   @heading_height 30
   @title_height 34
-  @max_chars_per_line 90
+  @max_display_width 180
 
   @doc """
   タイトルと節（`{見出し, [行]}`）から PDF バイト列を返す。
@@ -94,21 +96,78 @@ defmodule HelpdeskCommander.Reports.Pdf do
   end
 
   defp wrap_line(line) when is_binary(line) do
-    case String.length(line) <= @max_chars_per_line do
+    case display_width(line) <= @max_display_width do
       true ->
         [line]
 
       false ->
-        {chunk, rest} = String.split_at(line, @max_chars_per_line)
+        {chunk, rest} = split_by_width(line, @max_display_width)
         [chunk | wrap_line(rest)]
     end
   end
 
   defp wrap_line(other), do: [inspect(other)]
 
-  defp escape(text) do
+  defp display_width(text) do
     text
     |> to_string()
+    |> String.codepoints()
+    |> Enum.reduce(0, fn cp, width -> width + char_width(cp) end)
+  end
+
+  # 基本ラテン文字は半角幅、その他（全角・CJK 等）は 2 倍として概算する。
+  defp char_width(cp) do
+    case byte_size(cp) do
+      1 -> 1
+      _size -> 2
+    end
+  end
+
+  defp split_by_width(text, limit) do
+    text = to_string(text)
+    graphemes = String.graphemes(text)
+
+    taken_rev =
+      graphemes
+      |> Enum.reduce_while({[], 0}, fn grapheme, {acc, width} ->
+        w = char_width(grapheme)
+
+        case acc != [] and width + w > limit do
+          true -> {:halt, {acc, true}}
+          false -> {:cont, {[grapheme | acc], width + w}}
+        end
+      end)
+      |> elem(0)
+
+    taken = taken_rev |> Enum.reverse() |> length()
+
+    {String.slice(text, 0, taken), String.slice(text, taken..-1//1)}
+  end
+
+  @doc """
+  PDF 本文は base-14 Helvetica（WinAnsi 相当）で表現できる ASCII を前提とする。
+
+  非 ASCII の文字は `?` に置換する。日本語ラベルは呼び出し側（`Reports.Scheduled`）で
+  ASCII に置き換えてから渡すこと。
+  """
+  @spec ascii_safe(String.t()) :: String.t()
+  def ascii_safe(text) do
+    text
+    |> to_string()
+    |> String.codepoints()
+    |> Enum.map_join(&ascii_char/1)
+  end
+
+  defp ascii_char(cp) do
+    case byte_size(cp) do
+      1 -> cp
+      _size -> "?"
+    end
+  end
+
+  defp escape(text) do
+    text
+    |> ascii_safe()
     |> String.replace("\\", "\\\\")
     |> String.replace("(", "\\(")
     |> String.replace(")", "\\)")
@@ -155,7 +214,7 @@ defmodule HelpdeskCommander.Reports.Pdf do
   defp emit(objects) do
     header = "%PDF-1.4\n"
     chunks = render_chunks(objects)
-    offsets = compute_offsets(chunks)
+    offsets = compute_offsets(chunks, byte_size(header))
     startxref = byte_size(header) + IO.iodata_length(chunks)
 
     IO.iodata_to_binary([
@@ -178,9 +237,9 @@ defmodule HelpdeskCommander.Reports.Pdf do
     end)
   end
 
-  defp compute_offsets(chunks) do
+  defp compute_offsets(chunks, start) do
     chunks
-    |> Enum.map_reduce(0, fn chunk, cursor ->
+    |> Enum.map_reduce(start, fn chunk, cursor ->
       size = IO.iodata_length(chunk)
       {cursor, cursor + size}
     end)

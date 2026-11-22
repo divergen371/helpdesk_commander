@@ -29,7 +29,7 @@ defmodule HelpdeskCommander.Workers.DeliverScheduledReportWorkerTest do
 
     assert :ok =
              DeliverScheduledReportWorker.perform(%Oban.Job{
-               args: %{"schedule_id" => schedule.id},
+               args: %{"schedule_id" => schedule.id, "force" => false},
                attempt: 1
              })
 
@@ -44,7 +44,7 @@ defmodule HelpdeskCommander.Workers.DeliverScheduledReportWorkerTest do
 
     assert {:error, :email_not_configured} =
              DeliverScheduledReportWorker.perform(%Oban.Job{
-               args: %{"schedule_id" => schedule.id},
+               args: %{"schedule_id" => schedule.id, "force" => false},
                attempt: 1
              })
 
@@ -62,7 +62,7 @@ defmodule HelpdeskCommander.Workers.DeliverScheduledReportWorkerTest do
 
     assert :ok =
              DeliverScheduledReportWorker.perform(%Oban.Job{
-               args: %{"schedule_id" => schedule.id},
+               args: %{"schedule_id" => schedule.id, "force" => false},
                attempt: 1
              })
 

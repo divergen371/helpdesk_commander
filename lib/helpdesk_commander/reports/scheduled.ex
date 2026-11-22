@@ -14,6 +14,7 @@ defmodule HelpdeskCommander.Reports.Scheduled do
   alias HelpdeskCommander.Helpdesk.ReportSchedule
   alias HelpdeskCommander.Notifications.External
   alias HelpdeskCommander.Reports.Pdf
+  alias HelpdeskCommander.Support.Error, as: ErrorLog
 
   @type result :: :ok | {:error, term()}
 
@@ -40,21 +41,56 @@ defmodule HelpdeskCommander.Reports.Scheduled do
 
   @doc "スケジュール 1 件のレポートを生成して配信する。"
   @spec deliver(ReportSchedule.t()) :: {:ok, ReportSchedule.t()} | {:error, term()}
-  def deliver(%ReportSchedule{} = schedule) do
-    with {:ok, summary} <- Analytics.summarize(schedule.company_id),
-         {:ok, _result} <- send_report(schedule, summary) do
-      schedule
-      |> Ash.Changeset.for_update(:mark_sent, %{})
-      |> Ash.update(domain: Helpdesk, tenant: schedule.company_id, authorize?: false)
+  def deliver(%ReportSchedule{} = schedule), do: deliver(schedule, force: false)
+
+  @doc """
+  スケジュール 1 件のレポートを生成して配信する。
+
+  `force: true` の場合は同一期間内の送信済みチェックを省略する（「今すぐ送信」用）。
+  """
+  @spec deliver(ReportSchedule.t(), keyword()) :: {:ok, ReportSchedule.t()} | {:error, term()}
+  def deliver(%ReportSchedule{} = schedule, opts) do
+    with :ok <- check_not_already_sent(schedule, opts),
+         {:ok, summary} <- Analytics.summarize(schedule.company_id),
+         {:ok, _result} <- send_report(schedule, summary),
+         {:ok, updated} <- mark(schedule, :mark_sent) do
+      {:ok, updated}
     else
       {:error, reason} ->
-        {:ok, _failed} =
-          schedule
-          |> Ash.Changeset.for_update(:mark_failed, %{last_error: describe_error(reason)})
-          |> Ash.update(domain: Helpdesk, tenant: schedule.company_id, authorize?: false)
+        case mark(schedule, :mark_failed, %{last_error: describe_error(reason)}) do
+          {:ok, _failed} ->
+            {:error, reason}
 
-        {:error, reason}
+          {:error, bookkeeping_error} ->
+            ErrorLog.log_error("reports.scheduled.mark_failed", bookkeeping_error, schedule_id: schedule.id)
+
+            {:error, reason}
+        end
     end
+  end
+
+  defp mark(schedule, action, attrs \\ %{}) do
+    schedule
+    |> Ash.Changeset.for_update(action, attrs)
+    |> Ash.update(domain: Helpdesk, tenant: schedule.company_id, authorize?: false)
+  end
+
+  # 同一期間内に送信済みなら再送しない（mark_sent が失敗した場合の再試行対策）。
+  defp check_not_already_sent(%ReportSchedule{last_sent_at: nil}, _opts), do: :ok
+  defp check_not_already_sent(%ReportSchedule{}, force: true), do: :ok
+
+  defp check_not_already_sent(%ReportSchedule{period: period, last_sent_at: last_sent_at}, _opts) do
+    today = Date.utc_today()
+    sent_date = DateTime.to_date(last_sent_at)
+
+    already? =
+      case period do
+        "daily" -> Date.compare(sent_date, today) == :eq
+        "weekly" -> Date.beginning_of_week(sent_date, :monday) == Date.beginning_of_week(today, :monday)
+        _period -> false
+      end
+
+    if already?, do: {:error, :already_sent_this_period}, else: :ok
   end
 
   defp send_report(%ReportSchedule{channel: "email"} = schedule, summary) do
@@ -81,7 +117,7 @@ defmodule HelpdeskCommander.Reports.Scheduled do
     else
       pdf =
         Pdf.generate(
-          "運用レポート #{format_period(summary)}",
+          "Operations report #{format_period(summary)}",
           pdf_sections(summary)
         )
 
@@ -129,49 +165,65 @@ defmodule HelpdeskCommander.Reports.Scheduled do
     |> Enum.reject(&(&1 == ""))
   end
 
-  @doc "Analytics の要約を PDF 帳票の節にする。"
+  @doc "Analytics の要約を PDF 帳票の節にする（ASCII のみ、`Reports.Pdf` の制約）。"
   @spec pdf_sections(map()) :: [{String.t(), [String.t()]}]
   def pdf_sections(summary) do
     [
-      {"サマリ", summary_lines(summary)},
-      {"ステータス別", count_lines(summary.by_status)},
-      {"優先度別（未対応）", count_lines(summary.by_priority)},
-      {"担当者別（未対応）", assignee_lines(summary.by_assignee)}
+      {"Summary", summary_lines(summary)},
+      {"By status", count_lines(summary.by_status)},
+      {"By priority (open)", count_lines(summary.by_priority)},
+      {"By assignee (open)", assignee_lines(summary.by_assignee, &pdf_assignee_label/1)}
     ]
   end
 
   @doc "Analytics の要約をチャット投稿用のテキストにする。"
   @spec summary_text(map()) :: String.t()
   def summary_text(summary) do
-    summary
-    |> pdf_sections()
+    [
+      {"サマリ", summary_lines(summary)},
+      {"ステータス別", count_lines(summary.by_status)},
+      {"優先度別（未対応）", count_lines(summary.by_priority)},
+      {"担当者別（未対応）", assignee_lines(summary.by_assignee, & &1.key)}
+    ]
     |> Enum.flat_map(fn {heading, lines} -> ["■ #{heading}" | lines] end)
     |> Enum.join("\n")
   end
 
   defp summary_lines(summary) do
     [
-      "期間: #{summary.period.from} 〜 #{summary.period.to}",
-      "チケット総数: #{summary.total_count}",
-      "未対応: #{summary.open_count}",
-      "未着手: #{summary.untouched_count}",
-      "滞留（#{summary.stalled_hours}時間超）: #{summary.stalled_count}",
-      "平均滞留時間: #{summary.average_open_age_hours}時間"
+      "Period: #{summary.period.from} - #{summary.period.to}",
+      "Total tickets: #{summary.total_count}",
+      "Open: #{summary.open_count}",
+      "Untouched: #{summary.untouched_count}",
+      "Stalled (over #{summary.stalled_hours}h): #{summary.stalled_count}",
+      "Avg open age (h): #{summary.average_open_age_hours}"
     ]
   end
 
-  defp count_lines([]), do: ["該当なし"]
+  defp count_lines([]), do: ["none"]
 
   defp count_lines(rows) when is_list(rows) do
     Enum.map(rows, fn row -> "#{row.key}: #{row.count}" end)
   end
 
-  defp assignee_lines([]), do: ["該当なし"]
+  defp assignee_lines([], _label_fn), do: ["none"]
 
-  defp assignee_lines(rows) when is_list(rows) do
+  defp assignee_lines(rows, label_fn) when is_list(rows) do
     Enum.map(rows, fn row ->
-      "#{row.key}: #{row.count} 件 / 平均 #{row.average_age_hours} 時間"
+      "#{label_fn.(row)}: #{row.count} tickets / avg #{row.average_age_hours}h"
     end)
+  end
+
+  # PDF は ASCII のみのため、日本語の display_name は user-<id> に置き換える。
+  # （チャット・メール本文は UTF-8 でそのまま display_name を使う）
+  defp pdf_assignee_label(row) do
+    key = to_string(row.key)
+
+    if Pdf.ascii_safe(key) == key do
+      key
+    else
+      "user-#{row.assignee_id}"
+    end
   end
 
   defp text_body(summary), do: summary_text(summary)

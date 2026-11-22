@@ -79,15 +79,26 @@ defmodule HelpdeskCommanderWeb.AdminReportScheduleLive do
 
   @impl Phoenix.LiveView
   def handle_event("send_now", %{"id" => id}, socket) do
-    enqueue_result = id |> String.to_integer() |> DeliverScheduledReportWorker.enqueue()
+    case find_schedule(socket, id) do
+      %ReportSchedule{} = schedule ->
+        case DeliverScheduledReportWorker.enqueue(schedule.id, force: true) do
+          {:ok, _job} ->
+            {:noreply, put_flash(socket, :info, "配信ジョブを登録しました")}
 
-    case enqueue_result do
-      {:ok, _job} ->
-        {:noreply, put_flash(socket, :info, "配信ジョブを登録しました")}
+          {:error, error} ->
+            ErrorLog.log_error("admin_report_schedule.send_now", error)
+            {:noreply, put_flash(socket, :error, "配信ジョブの登録に失敗しました")}
+        end
 
-      {:error, error} ->
-        ErrorLog.log_error("admin_report_schedule.send_now", error)
-        {:noreply, put_flash(socket, :error, "配信ジョブの登録に失敗しました")}
+      nil ->
+        {:noreply, put_flash(socket, :error, "指定されたスケジュールが見つかりません")}
+    end
+  end
+
+  defp find_schedule(socket, id) do
+    case Integer.parse(id) do
+      {parsed_id, ""} -> Enum.find(socket.assigns.schedules, &(&1.id == parsed_id))
+      _parsed -> nil
     end
   end
 

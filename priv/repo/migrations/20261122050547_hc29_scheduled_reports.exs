@@ -13,7 +13,7 @@ defmodule HelpdeskCommander.Repo.Migrations.Hc29ScheduledReports do
       add :name, :text, null: false
       add :period, :text, null: false, default: "daily"
       add :channel, :text, null: false, default: "email"
-      add :recipients, :text, null: false, default: ""
+      add :recipients, :text, default: ""
       add :enabled, :boolean, null: false, default: true
       add :last_sent_at, :utc_datetime_usec
       add :last_failed_at, :utc_datetime_usec
