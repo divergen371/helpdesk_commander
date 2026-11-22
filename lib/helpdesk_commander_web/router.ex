@@ -59,6 +59,7 @@ defmodule HelpdeskCommanderWeb.Router do
       on_mount: {HelpdeskCommanderWeb.LiveUserAuth, :admin_required} do
       live "/admin/pending-users", AdminUserLive.Pending, :index
       live "/admin/attachment-rules", AdminAttachmentRuleLive, :index
+      live "/admin/report-schedules", AdminReportScheduleLive, :index
     end
   end
 

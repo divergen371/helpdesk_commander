@@ -30,10 +30,11 @@ config :helpdesk_commander, Oban,
     {Oban.Plugins.Cron,
      crontab: [
        {"0 3 * * *", HelpdeskCommander.Workers.AnonymizeExpiredUsersWorker},
-       {"15 3 * * *", HelpdeskCommander.Workers.UpdateSignaturesWorker}
+       {"15 3 * * *", HelpdeskCommander.Workers.UpdateSignaturesWorker},
+       {"0 8 * * *", HelpdeskCommander.Workers.DispatchScheduledReportsWorker}
      ]}
   ],
-  queues: [default: 10, notifications: 10, integrations: 5, attachments: 5]
+  queues: [default: 10, notifications: 10, integrations: 5, attachments: 5, reports: 5]
 
 config :helpdesk_commander, :remote_ip,
   enabled?: false,

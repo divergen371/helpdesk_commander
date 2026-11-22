@@ -1,14 +1,14 @@
 # リポジトリ現状レポート
 
-最終更新: 2026-11-15
-対象: `main`（HC-41 作業ツリー含む）
+最終更新: 2026-11-22
+対象: `main`（HC-29 作業ツリー含む）
 
 このドキュメントは「今どこまで出来ていて、何が動き、何が足りないか」をスナップショットとして残す。
 残作業は Backlog.md（`backlog/`）、フェーズの方針は [ROADMAP.md](ROADMAP.md) を参照。
 
 ---
 
-## 1. 検証結果（2026-11-15 時点）
+## 1. 検証結果（2026-11-22 時点）
 
 ### 実行環境
 
@@ -88,6 +88,7 @@
 | 全体公開 | 実装済み | P1×SEV1 の自動候補化、管理者/リーダーによる承認・却下、決定者と監査イベントを記録。 |
 | 添付ファイル | 実装済み | ローカル保存（隔離→検査→公開）、10MB・3件、拡張子/MIME/マジックバイト検証、感染・失敗は隔離して取得拒否。スキャンは Oban 非同期（再試行・手動再スキャン、HC-18）。シグネチャ更新・鮮度監視・更新後再スキャン（HC-22）、SHA256 許可/拒否リストと clean キャッシュ（HC-24、`/admin/attachment-rules`）、SHA256 外部レピュテーション照会（HC-41、`OPERATIONS_REPUTATION.md`）、組織固有の YARA 検知（HC-25、`priv/yara`）、感染判定の誤検知解除と監査ログ（HC-20）。clamd サイドカーでのサンドボックス検査（HC-21、`SANDBOX_SCANNER.md`）。検出品質の評価基盤（HC-26、`EVAL_DETECTION.md`）、追加検出手段の判断（HC-27、`DECISION_DETECTION_METHODS.md`）。 |
 | 品質管理の自動化 | 実装済み | PR 品質ゲート（HC-33）、依存監査（HC-34）、夜間回帰とメトリクス（HC-36）、Sobelow（HC-37）、変異テスト評価（HC-38）と高リスク 4 モジュールの CI 実行（HC-39）。手順は `QUALITY_GATES.md` / `QUALITY_DEPENDENCIES.md` / `QUALITY_SECURITY.md` / `QUALITY_MUTATION.md`。AI レビュー（HC-35、Pullfrog）は検証 PR で運用確認済み。 |
+| 定期レポート配信 | 実装済み | 日次/週次で運用統計をメール（PDF 添付）またはチャット Webhook へ配信（HC-29）。`/admin/report-schedules` で設定、Oban Cron + `reports` キュー、失敗は最大 5 回の再試行と `last_error` 記録。手順は `OPERATIONS_REPORTS.md`。 |
 | チケット関連リンク | 実装済み | チケット詳細から関連/再起票/重複/依存を登録・解除。文字2-gram類似度で関連候補を提示（自動リンクなし）。`/relations` で Sigma.js の関係グラフを俯瞰表示。 |
 | ダッシュボード | 実装済み | `/` に概要、最近の項目、SLA 逸脱、期間指定の分析（未対応・滞留・担当者別負荷）と CSV 出力を表示。 |
 | レート制限・攻撃耐性 | 実装済み | Hammer / PlugAttack / RemoteIp。 |
