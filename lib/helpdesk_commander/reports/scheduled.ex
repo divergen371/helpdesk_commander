@@ -47,25 +47,38 @@ defmodule HelpdeskCommander.Reports.Scheduled do
   スケジュール 1 件のレポートを生成して配信する。
 
   `force: true` の場合は同一期間内の送信済みチェックを省略する（「今すぐ送信」用）。
+  同一期間内にすでに送信済みの場合は `{:ok, schedule}`（スキップ）を返す。
   """
   @spec deliver(ReportSchedule.t(), keyword()) :: {:ok, ReportSchedule.t()} | {:error, term()}
   def deliver(%ReportSchedule{} = schedule, opts) do
-    with :ok <- check_not_already_sent(schedule, opts),
-         {:ok, summary} <- Analytics.summarize(schedule.company_id),
+    case check_not_already_sent(schedule, opts) do
+      :skip ->
+        {:ok, schedule}
+
+      :ok ->
+        do_deliver(schedule)
+    end
+  end
+
+  defp do_deliver(%ReportSchedule{} = schedule) do
+    with {:ok, summary} <- Analytics.summarize(schedule.company_id),
          {:ok, _result} <- send_report(schedule, summary),
          {:ok, updated} <- mark(schedule, :mark_sent) do
       {:ok, updated}
     else
-      {:error, reason} ->
-        case mark(schedule, :mark_failed, %{last_error: describe_error(reason)}) do
-          {:ok, _failed} ->
-            {:error, reason}
+      {:error, reason} -> record_failure(schedule, reason)
+    end
+  end
 
-          {:error, bookkeeping_error} ->
-            ErrorLog.log_error("reports.scheduled.mark_failed", bookkeeping_error, schedule_id: schedule.id)
+  defp record_failure(schedule, reason) do
+    case mark(schedule, :mark_failed, %{last_error: describe_error(reason)}) do
+      {:ok, _failed} ->
+        {:error, reason}
 
-            {:error, reason}
-        end
+      {:error, bookkeeping_error} ->
+        ErrorLog.log_error("reports.scheduled.mark_failed", bookkeeping_error, schedule_id: schedule.id)
+
+        {:error, reason}
     end
   end
 
@@ -75,7 +88,9 @@ defmodule HelpdeskCommander.Reports.Scheduled do
     |> Ash.update(domain: Helpdesk, tenant: schedule.company_id, authorize?: false)
   end
 
-  # 同一期間内に送信済みなら再送しない（mark_sent が失敗した場合の再試行対策）。
+  # 同一期間内に送信済みなら配信をスキップする。
+  # 通常の重複起票（cron 二重起動・ジョブ重複）に対する保護であり、
+  # mark_sent 自体の失敗による再送までは防止しない。
   defp check_not_already_sent(%ReportSchedule{last_sent_at: nil}, _opts), do: :ok
   defp check_not_already_sent(%ReportSchedule{}, force: true), do: :ok
 
@@ -90,7 +105,7 @@ defmodule HelpdeskCommander.Reports.Scheduled do
         _period -> false
       end
 
-    if already?, do: {:error, :already_sent_this_period}, else: :ok
+    if already?, do: :skip, else: :ok
   end
 
   defp send_report(%ReportSchedule{channel: "email"} = schedule, summary) do
@@ -216,6 +231,8 @@ defmodule HelpdeskCommander.Reports.Scheduled do
 
   # PDF は ASCII のみのため、日本語の display_name は user-<id> に置き換える。
   # （チャット・メール本文は UTF-8 でそのまま display_name を使う）
+  defp pdf_assignee_label(%{key: nil}), do: "unassigned"
+
   defp pdf_assignee_label(row) do
     key = to_string(row.key)
 
@@ -228,7 +245,7 @@ defmodule HelpdeskCommander.Reports.Scheduled do
 
   defp text_body(summary), do: summary_text(summary)
 
-  defp format_period(summary), do: "#{summary.period.from}〜#{summary.period.to}"
+  defp format_period(summary), do: "#{summary.period.from} - #{summary.period.to}"
 
   defp describe_error(reason) do
     reason

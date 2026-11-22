@@ -14,7 +14,9 @@ defmodule HelpdeskCommander.Reports.Pdf do
   @line_height 16
   @heading_height 30
   @title_height 34
-  @max_display_width 180
+  # 11pt Helvetica の 499pt（595 - 2*48）テキスト列に収まる概算上限。
+  # ASCII（半角）を幅 1、非 ASCII（全角・CJK 等）を幅 2 として数える。
+  @max_display_width 90
 
   @doc """
   タイトルと節（`{見出し, [行]}`）から PDF バイト列を返す。

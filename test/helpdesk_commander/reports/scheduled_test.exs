@@ -135,6 +135,49 @@ defmodule HelpdeskCommander.Reports.ScheduledTest do
       assert text =~ "new: 3"
       assert text =~ "■ 担当者別（未対応）"
     end
+
+    test "pdf sections are ASCII and replace non-ASCII assignee names", %{company: _company} do
+      summary = build_summary()
+
+      [summary_section, _status, _priority, assignee_section] = Scheduled.pdf_sections(summary)
+
+      assert {heading, lines} = summary_section
+      assert heading == "Summary"
+      assert Enum.all?(lines, &(HelpdeskCommander.Reports.Pdf.ascii_safe(&1) == &1))
+
+      assert {assignee_heading, assignee_lines_list} = assignee_section
+      assert assignee_heading == "By assignee (open)"
+      # 太郎 は日本語のため user-<id> に置き換わる
+      assert assignee_lines_list == ["user-101: 5 tickets / avg 8.0h"]
+    end
+
+    test "skips delivery when already sent in the current period and does not record failure", %{
+      company: company
+    } do
+      schedule = create_schedule!(company, "送信済み", "daily", "email", "ops@example.com")
+
+      schedule
+      |> Ash.Changeset.for_update(:mark_sent, %{})
+      |> Ash.update!(domain: Helpdesk, tenant: company.id, authorize?: false)
+
+      assert {:ok, _skipped} = Scheduled.deliver(schedule, force: false)
+
+      skipped = Ash.get!(ReportSchedule, schedule.id, domain: Helpdesk, authorize?: false)
+      refute skipped.last_failed_at
+      refute skipped.last_error
+    end
+
+    test "force: true bypasses the already-sent check and delivers", %{company: company} do
+      schedule = create_schedule!(company, "強制配信", "daily", "email", "ops@example.com")
+
+      schedule
+      |> Ash.Changeset.for_update(:mark_sent, %{})
+      |> Ash.update!(domain: Helpdesk, tenant: company.id, authorize?: false)
+
+      assert {:ok, _delivered} = Scheduled.deliver(schedule, force: true)
+
+      assert_email_sent()
+    end
   end
 
   defp build_summary do
@@ -148,7 +191,7 @@ defmodule HelpdeskCommander.Reports.ScheduledTest do
       stalled_hours: 24,
       by_status: [%{key: "new", count: 3}, %{key: "in_progress", count: 7}],
       by_priority: [%{key: "p2", count: 4}],
-      by_assignee: [%{key: "太郎", count: 5, average_age_hours: 8.0}]
+      by_assignee: [%{key: "太郎", assignee_id: 101, count: 5, average_age_hours: 8.0}]
     }
   end
 
