@@ -147,8 +147,11 @@ defmodule HelpdeskCommander.Reports.ScheduledTest do
 
       assert {assignee_heading, assignee_lines_list} = assignee_section
       assert assignee_heading == "By assignee (open)"
-      # 太郎 は日本語のため user-<id> に置き換わる
-      assert assignee_lines_list == ["user-101: 5 tickets / avg 8.0h"]
+      # 太郎 は日本語のため user-<id>、未割り当て は unassigned に置き換わる
+      assert assignee_lines_list == [
+               "user-101: 5 tickets / avg 8.0h",
+               "unassigned: 5 tickets / avg 12.0h"
+             ]
     end
 
     test "skips delivery when already sent in the current period and does not record failure", %{
@@ -156,13 +159,16 @@ defmodule HelpdeskCommander.Reports.ScheduledTest do
     } do
       schedule = create_schedule!(company, "送信済み", "daily", "email", "ops@example.com")
 
-      schedule
-      |> Ash.Changeset.for_update(:mark_sent, %{})
-      |> Ash.update!(domain: Helpdesk, tenant: company.id, authorize?: false)
+      schedule =
+        schedule
+        |> Ash.Changeset.for_update(:mark_sent, %{})
+        |> Ash.update!(domain: Helpdesk, tenant: company.id, authorize?: false)
 
       assert {:ok, _skipped} = Scheduled.deliver(schedule, force: false)
+      refute_received {:email, _email}
 
       skipped = Ash.get!(ReportSchedule, schedule.id, domain: Helpdesk, authorize?: false)
+      assert skipped.last_sent_at == schedule.last_sent_at
       refute skipped.last_failed_at
       refute skipped.last_error
     end
@@ -170,9 +176,10 @@ defmodule HelpdeskCommander.Reports.ScheduledTest do
     test "force: true bypasses the already-sent check and delivers", %{company: company} do
       schedule = create_schedule!(company, "強制配信", "daily", "email", "ops@example.com")
 
-      schedule
-      |> Ash.Changeset.for_update(:mark_sent, %{})
-      |> Ash.update!(domain: Helpdesk, tenant: company.id, authorize?: false)
+      schedule =
+        schedule
+        |> Ash.Changeset.for_update(:mark_sent, %{})
+        |> Ash.update!(domain: Helpdesk, tenant: company.id, authorize?: false)
 
       assert {:ok, _delivered} = Scheduled.deliver(schedule, force: true)
 
@@ -191,7 +198,10 @@ defmodule HelpdeskCommander.Reports.ScheduledTest do
       stalled_hours: 24,
       by_status: [%{key: "new", count: 3}, %{key: "in_progress", count: 7}],
       by_priority: [%{key: "p2", count: 4}],
-      by_assignee: [%{key: "太郎", assignee_id: 101, count: 5, average_age_hours: 8.0}]
+      by_assignee: [
+        %{key: "太郎", assignee_id: 101, count: 5, average_age_hours: 8.0},
+        %{key: "未割り当て", assignee_id: nil, count: 5, average_age_hours: 12.0}
+      ]
     }
   end
 

@@ -230,8 +230,9 @@ defmodule HelpdeskCommander.Reports.Scheduled do
   end
 
   # PDF は ASCII のみのため、日本語の display_name は user-<id> に置き換える。
+  # 未割り当て（assignee_id: nil、key は "未割り当て"）は unassigned に置き換える。
   # （チャット・メール本文は UTF-8 でそのまま display_name を使う）
-  defp pdf_assignee_label(%{key: nil}), do: "unassigned"
+  defp pdf_assignee_label(%{assignee_id: nil}), do: "unassigned"
 
   defp pdf_assignee_label(row) do
     key = to_string(row.key)
