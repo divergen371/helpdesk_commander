@@ -20,6 +20,31 @@ env:
   POSTGRES_PORT: 5432
 
 jobs:
+  up_to_date:
+    name: Branch is up to date with main
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fail when the base branch moved ahead of this PR
+        # 古い base から分岐した PR は、上流で既に直った修正をやり直したり
+        # 上流の変更を取りこぼしたりする（PR #12 が roadmap ブランチに入って
+        # main に届かず二度手間マージになった事例、PR #17 が #16 の再実行になった事例）。
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --prune origin "${GITHUB_BASE_REF}"
+          behind=$(git rev-list --count "HEAD..origin/${GITHUB_BASE_REF}")
+          echo "behind origin/${GITHUB_BASE_REF}: ${behind} commit(s)"
+          if [ "${behind}" -gt 0 ]; then
+            echo "::error::この PR は base より ${behind} コミット遅れています。最新の base を取り込んでから push し直してください。"
+            exit 1
+          fi
+
   coverage:
     name: Coverage (ratchet)
     runs-on: ubuntu-latest
@@ -370,7 +395,7 @@ jobs:
   summary:
     name: Quality gate summary
     runs-on: ubuntu-latest
-    needs: [coverage, precommit, dialyzer, assets, audit, mutation, detection-corpus]
+    needs: [up_to_date, coverage, precommit, dialyzer, assets, audit, mutation, detection-corpus]
     if: always()
 
     steps:
@@ -381,6 +406,7 @@ jobs:
             echo ""
             echo "| gate | result |"
             echo "| --- | --- |"
+            echo "| branch up to date with main | ${{ needs.up_to_date.result }} |"
             echo "| coverage (ratchet) | ${{ needs.coverage.result }} |"
             echo "| precommit (format / compile / credo / test) | ${{ needs.precommit.result }} |"
             echo "| dialyzer | ${{ needs.dialyzer.result }} |"

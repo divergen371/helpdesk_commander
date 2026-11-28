@@ -90,6 +90,7 @@ custom classes must fully style the input
 - Read the docs and options before using tasks (by using `mix help task_name`)
 - To debug test failures, run tests in a specific file with `mix test test/my_test.exs` or run all previously failed tests with `mix test --failed`
 - `mix deps.clean --all` is **almost never needed**. **Avoid** using it unless you have good reason
+- PR を出す前は `mix verify` を回す（CI と同じ判定。`mix precommit` 単体では dependency audit が入らない）
 
 ## Test guidelines
 
@@ -413,3 +414,6 @@ Do not edit Backlog task, draft, document, decision, or milestone markdown files
 | --- | --- |
 | `clamd` の `mem_limit` は `3g` 以上（`ConcurrentDatabaseReload` ピーク対策） | `test/helpdesk_commander/attachments/compose_config_test.exs`（`mix test` / CI） |
 | `clamav-db-updater` の `mem_limit` は `2g` 以上（`freshclam` DB テスト対策） | `test/helpdesk_commander/attachments/compose_config_test.exs`（`mix test` / CI） |
+| PR を出す前に CI と同じ判定を `mix verify` で回す。赤のまま PR を出さない | `mix verify`（`mix.exs` の alias = `quality` + `mix deps.audit` + `priv/ci/check_audit.exs`）。CI の `Dependency audit` ジョブと同じ判定 |
+| PR は base（`main`）の最新を取り込んでから出す | CI `Branch is up to date with main`（`Quality gate summary` の `needs` に含まれるため required check として落ちる） |
+| `.tool-versions` を変えたら live docs（`QUICKSTART.md` / `docs/STATUS.md` / `docs/ELIXIR_UPGRADE.md`）のツールチェーン表記も同じコミットで更新する | `test/docs_toolchain_test.exs`（`mix test` / CI）。除外は `docs/Walkthrough.md`（歴史的ログ）と `doc/`（ExDoc 生成物）のみ |

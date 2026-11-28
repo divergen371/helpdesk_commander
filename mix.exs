@@ -260,6 +260,7 @@ defmodule HelpdeskCommander.MixProject do
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ash.setup --quiet", "test"],
       quality: ["precommit", "ash.codegen --check", "dialyzer"],
+      verify: ["quality", "deps.audit", "run --no-start priv/ci/check_audit.exs"],
       "quality.coverage": ["coveralls.json", "run --no-start priv/ci/check_coverage.exs"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing", "cmd --cd assets npm install"],
       "assets.build": ["compile", "tailwind helpdesk_commander", "esbuild helpdesk_commander"],
