@@ -413,3 +413,4 @@ Do not edit Backlog task, draft, document, decision, or milestone markdown files
 | --- | --- |
 | `clamd` の `mem_limit` は `3g` 以上（`ConcurrentDatabaseReload` ピーク対策） | `test/helpdesk_commander/attachments/compose_config_test.exs`（`mix test` / CI） |
 | `clamav-db-updater` の `mem_limit` は `2g` 以上（`freshclam` DB テスト対策） | `test/helpdesk_commander/attachments/compose_config_test.exs`（`mix test` / CI） |
+| 添付の検疫ライフサイクル（`scan_status` と `quarantine/`・`clean/` の実体）に触れたら、TLA+ モデルを回す。`scan_source` / `place_bytes` / 再スキャン / 解除の順序や対象を変えた変更は必須 | `.cursor/skills/verify-attachment-quarantine/SKILL.md` のコマンド（`spec/attachment_lifecycle.tla` を TLC で検査）+ `test/helpdesk_commander/helpdesk/attachments_rescan_storage_test.exs` |
