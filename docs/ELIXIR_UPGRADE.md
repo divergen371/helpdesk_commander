@@ -14,14 +14,14 @@
 
 ```text
 erlang 29.1.2
-elixir ref:v1.20.4
+elixir 1.20.4-otp-29
 ```
 
 ### 実施内容
 
 1. **ツールチェーンの更新**
-   - `asdf install erlang 29.1.2`
-   - `asdf install elixir ref:v1.20.4`
+   - `mise install erlang@29.1.2`（asdf 環境なら `asdf install erlang 29.1.2`）
+   - `mise install elixir@1.20.4-otp-29`（asdf 環境なら `asdf install elixir 1.20.4-otp-29`）
    - `.tool-versions` をリポジトリで管理（`.gitignore` から除外）
 
 2. **依存関係の更新**
@@ -103,7 +103,7 @@ mkdir -p "$REBAR_GLOBAL_CONFIG_DIR/.config/rebar3"
 ## 📋 アップグレードチェックリスト
 
 - [x] Erlang/OTP 29.1.2 インストール
-- [x] Elixir ref:v1.20.4 インストール
+- [x] Elixir 1.20.4-otp-29 インストール
 - [x] `.tool-versions` のリポジトリ管理
 - [x] 依存関係の更新
 - [x] Ash 3.37 の必須設定追加

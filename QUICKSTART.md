@@ -5,12 +5,14 @@
 リポジトリの `.tool-versions` に固定しています。
 
 - Erlang/OTP **29.1.2**
-- Elixir **ref:v1.20.4**
+- Elixir **1.20.4-otp-29**
 - PostgreSQL 18（Docker Compose）
 
 ```bash
-asdf install
+mise install
 ```
+
+> バージョン管理は **mise** を標準としています。asdf でも `.tool-versions` はそのまま読めるため `asdf install` でも動きますが、`ref:` 表記は使っていないため asdf 側でタグ解決する場合は注意してください。
 
 ## 現在の実装状況（2026-10-24）
 

@@ -33,7 +33,7 @@
 
 ### 環境
 
-- `.tool-versions` で **Erlang 29.1.2 / Elixir `ref:v1.20.4`** を固定
+- `.tool-versions` で **Erlang 29.1.2 / Elixir `1.20.4-otp-29`** を固定（バージョン管理は mise を標準とする）
 - CI（`.github/workflows/ci.yml`）も同じバージョンに更新
 - 依存関係を Elixir 1.20 対応版へ更新
   - Ash 3.37.0 / AshPostgres 2.15.1 / AshPhoenix 2.3.25
@@ -106,7 +106,7 @@
 ### 3.2 品質・セキュリティ
 
 - **カバレッジの余裕は 2.6pt**（82.6% / 基準 80%）。新規コード追加時はテストを同時に追加する。
-- **ツールチェーンは固定済み**（`.tool-versions`: Erlang 29.1.2 / Elixir `ref:v1.20.4`）。CI も同一バージョン。
+- **ツールチェーンは固定済み**（`.tool-versions`: Erlang 29.1.2 / Elixir `1.20.4-otp-29`、バージョン管理は mise）。CI も同一バージョン。
 - **企業（テナント）境界は company 単位に統一済み**
   - チケット一覧・詳細は自社 company の範囲に制限（`visibility_scope: "global"` は全体公開として例外）。
   - 担当者・投稿者の候補は自社の内部ユーザーに限定。
