@@ -11,6 +11,7 @@ defmodule HelpdeskCommander.Helpdesk.AttachmentsRescanStorageTest do
   alias HelpdeskCommander.Accounts
   alias HelpdeskCommander.Accounts.Company
   alias HelpdeskCommander.Accounts.User
+  alias HelpdeskCommander.Attachments.HashRules
   alias HelpdeskCommander.Attachments.Storage
   alias HelpdeskCommander.Helpdesk
   alias HelpdeskCommander.Helpdesk.Attachments
@@ -111,6 +112,27 @@ defmodule HelpdeskCommander.Helpdesk.AttachmentsRescanStorageTest do
 
     assert %{enqueued: 1, failed: 1} = Attachments.rescan_outdated()
     assert %{"failed" => 1, "pending" => 1} = status_counts(ticket)
+  end
+
+  test "許可リスト一致でも promote に失敗したら failed にして配信しない", %{
+    ticket: ticket,
+    admin: admin
+  } do
+    content = "known clean by hash rule"
+    sha256 = :crypto.hash(:sha256, content) |> Base.encode16(case: :lower)
+    {:ok, _rule} = HashRules.add(ticket.company_id, sha256, :allow, "rescan storage test")
+
+    clean_dir = Path.join(Storage.root(), "clean")
+    File.mkdir_p!(clean_dir)
+    File.chmod!(clean_dir, 0o500)
+    on_exit(fn -> _ = File.chmod(clean_dir, 0o700) end)
+
+    {:ok, attachment} = Attachments.ingest(ticket, admin, upload("e.txt", content, "text/plain"))
+
+    assert attachment.scan_status == "failed", "promote 失敗なのに #{attachment.scan_status} になった"
+    assert attachment.scan_note =~ "storage_promote_failed"
+    refute Attachments.downloadable?(attachment)
+    refute Storage.resident?(attachment.storage_key, :clean)
   end
 
   defp clean_scanner do

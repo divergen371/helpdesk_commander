@@ -278,15 +278,25 @@ defmodule HelpdeskCommander.Helpdesk.Attachments do
       scanned_at: DateTime.utc_now()
     }
 
-    case create_attachment(ticket, user, upload, stored, attrs) do
-      {:ok, attachment} ->
-        _promoted = if status == "clean", do: Storage.promote(attachment.storage_key)
-        {:ok, attachment}
-
-      {:error, _error} = error ->
-        error
+    with {:ok, attachment} <- create_attachment(ticket, user, upload, stored, attrs) do
+      place_created(attachment, status)
     end
   end
+
+  # 許可リスト・キャッシュヒットで既知の clean として作る経路でも、実体を clean/ へ
+  # 移せたときにだけ clean を名乗る。移せなければ failed にして配信しない（scan/1 と同じ扱い）。
+  defp place_created(%TicketAttachment{scan_status: "clean"} = attachment, "clean") do
+    case Storage.promote(attachment.storage_key) do
+      :ok ->
+        {:ok, attachment}
+
+      {:error, reason} ->
+        ErrorLog.log_error("attachments.create.promote", reason, attachment_id: attachment.id)
+        mark_failed(attachment, "storage_promote_failed: #{inspect(reason)}")
+    end
+  end
+
+  defp place_created(%TicketAttachment{} = attachment, _status), do: {:ok, attachment}
 
   defp cache_hit?(sha256) do
     case Signatures.current() do

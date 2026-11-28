@@ -10,8 +10,10 @@
 \* 状態の軸は 2 つ（DB の scan_status と、実バイトの置き場所）＋ バイトに対する判定。
 \* コードでは store/3 が upload を quarantine/ に複製し、promote/1 が
 \* File.rename で clean/ へ「移動」する（複製ではない）。したがって一度 clean に
-\* なった実体は quarantine/ に存在せず、scan/1 は常に quarantine のパスを開くため
-\* 再スキャンは「ファイルが無い」状態を読むことになる。
+\* なった実体は quarantine/ に存在しない。scan/1 は scan_source/1 で実体の場所を
+\* 探してから読む（quarantine/ → clean/ の順）ので、再スキャンは置き場所に依らない。
+\* 許可リスト・キャッシュヒットの経路（create_with_status/6 → place_created/2）は
+\* 最初から clean として作り、同じく promote/1 の結果に clean を依存させる。
 \*
 \* 各アクションはコードの 1 関数に 1 対 1 で対応する。1 つの不可分な処理を
 \* 1 ステップとして書く。
@@ -39,6 +41,21 @@ Init ==
 Ingest ==
   /\ status = "none"
   /\ status'  = "pending"
+  /\ loc'     = "quarantine"
+  /\ verdict' = "none"
+
+\* ingest/3 の許可リスト・キャッシュヒット経路（create_with_status/6 → place_created/2）:
+\* 既知の clean として作り、実体を promote/1 で clean/ へ移す。
+IngestKnownClean ==
+  /\ status = "none"
+  /\ status'  = "clean"
+  /\ loc'     = "clean"
+  /\ verdict' = "clean"
+
+\* 同じ経路で promote/1 が失敗した場合: clean を書かず failed にする。
+IngestKnownCleanPromoteFails ==
+  /\ status = "none"
+  /\ status'  = "failed"
   /\ loc'     = "quarantine"
   /\ verdict' = "none"
 
@@ -118,6 +135,8 @@ Override ==
 
 Next ==
   \/ Ingest
+  \/ IngestKnownClean
+  \/ IngestKnownCleanPromoteFails
   \/ WorkerScanCleanFromQuarantine
   \/ WorkerScanCleanFromClean
   \/ WorkerScanInfectedFromQuarantine
