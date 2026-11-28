@@ -351,15 +351,23 @@ defmodule HelpdeskCommander.Helpdesk.Attachments do
     end
   end
 
-  defp rescan_existing(%TicketAttachment{} = attachment) do
-    with {:ok, pending} <- mark_pending(attachment),
-         {:ok, _job} <- ScanAttachmentWorker.enqueue(pending.id) do
-      :ok
+  defp rescan_existing(%TicketAttachment{storage_key: key} = attachment) do
+    # 実体は clean/ か quarantine/ のどちらかにある。どちらにも無ければ再スキャンは
+    # 不可能なので pending に戻さず failed にして、掃引が同じ添付を繰り返し拾わないようにする。
+    if Storage.resident?(key, :quarantine) or Storage.resident?(key, :clean) do
+      with {:ok, pending} <- mark_pending(attachment),
+           {:ok, _job} <- ScanAttachmentWorker.enqueue(pending.id) do
+        :ok
+      else
+        {:error, error} ->
+          ErrorLog.log_error("attachments.rescan_existing", error, attachment_id: attachment.id)
+          _result = mark_failed(attachment, "rescan_enqueue_failed")
+          :error
+      end
     else
-      {:error, error} ->
-        ErrorLog.log_error("attachments.rescan_existing", error, attachment_id: attachment.id)
-        _result = mark_failed(attachment, "rescan_enqueue_failed")
-        :error
+      ErrorLog.log_error("attachments.rescan_existing", :missing_storage, attachment_id: attachment.id)
+      _result = mark_failed(attachment, "missing_storage")
+      :error
     end
   end
 
@@ -402,27 +410,53 @@ defmodule HelpdeskCommander.Helpdesk.Attachments do
   end
 
   defp scan(%TicketAttachment{} = attachment) do
-    path = Storage.path(:quarantine, attachment.storage_key)
-    {status, note} = scan_result(path)
-    metadata = ScanMetadata.collect()
+    key = attachment.storage_key
 
-    _promoted =
-      if status in @downloadable do
-        Storage.promote(attachment.storage_key)
-      else
-        :ok
-      end
+    case scan_source(key) do
+      {:ok, path, location} ->
+        {status, note} = scan_result(path)
+        metadata = ScanMetadata.collect()
 
-    attachment
-    |> Ash.Changeset.for_update(:mark_scan, %{
-      scan_status: status,
-      scan_note: preserve_reputation_note(note, attachment.scan_note),
-      scanned_at: DateTime.utc_now(),
-      scan_engine: metadata.engine,
-      scan_version: metadata.version,
-      signature_at: metadata.signature_at
-    })
-    |> Ash.update(domain: Helpdesk, tenant: attachment.company_id, authorize?: false)
+        with :ok <- place_bytes(key, location, status) do
+          attachment
+          |> Ash.Changeset.for_update(:mark_scan, %{
+            scan_status: status,
+            scan_note: preserve_reputation_note(note, attachment.scan_note),
+            scanned_at: DateTime.utc_now(),
+            scan_engine: metadata.engine,
+            scan_version: metadata.version,
+            signature_at: metadata.signature_at
+          })
+          |> Ash.update(domain: Helpdesk, tenant: attachment.company_id, authorize?: false)
+        else
+          {:error, reason} ->
+            ErrorLog.log_error("attachments.scan.place_bytes", reason, attachment_id: attachment.id)
+            mark_failed(attachment, "storage_place_failed: #{inspect(reason)}")
+        end
+
+      {:error, :missing_storage} ->
+        mark_failed(attachment, "missing_storage")
+    end
+  end
+
+  # 一度 clean になった実体は promote で clean/ へ移動しており quarantine/ には無い。
+  # 再スキャンは置き場所に依らず実体を探して読む（HC-22 の更新後再スキャンを機能させる）。
+  defp scan_source(key) do
+    cond do
+      Storage.resident?(key, :quarantine) -> {:ok, Storage.path(:quarantine, key), :quarantine}
+      Storage.resident?(key, :clean) -> {:ok, Storage.path(:clean, key), :clean}
+      true -> {:error, :missing_storage}
+    end
+  end
+
+  # 判定に応じて実体を置き直す。配信可能なら clean/、それ以外（infected / failed）は
+  # quarantine/ へ。置き直しに失敗したら状態を書かずに failed にする（clean を書かない）。
+  defp place_bytes(key, location, status) when status in @downloadable do
+    if location == :clean, do: :ok, else: Storage.promote(key)
+  end
+
+  defp place_bytes(key, location, _status) do
+    if location == :quarantine, do: :ok, else: Storage.demote(key)
   end
 
   defp preserve_reputation_note(scan_note, previous_note)

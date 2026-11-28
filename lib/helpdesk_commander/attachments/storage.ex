@@ -47,6 +47,34 @@ defmodule HelpdeskCommander.Attachments.Storage do
     end
   end
 
+  @doc """
+  配信ディレクトリの実体を隔離へ戻す（感染と判定されたときの多層防御）。
+
+  clean へ移した実体を、状態が infected に戻った時点で quarantine へ戻すために使う。
+  すでに quarantine にある場合は何もしない。
+  """
+  @spec demote(String.t()) :: :ok | {:error, atom()}
+  # sobelow_skip ["Traversal.FileModule"]
+  # key は呼び出し前に validate_key/1（^\d+/\d+/[a-f0-9]{32}$）を通した保存キー。
+  def demote(key) do
+    quarantine_path = path(:quarantine, key)
+    clean_path = path(:clean, key)
+    quarantine_directory = Path.dirname(quarantine_path)
+
+    with :ok <- validate_key(key),
+         :ok <- File.mkdir_p(quarantine_directory) do
+      File.rename(clean_path, quarantine_path)
+    end
+  end
+
+  @doc """
+  実体がその置き場所に存在するか。再スキャンの読み先決定と、実体消失の検知に使う。
+  """
+  @spec resident?(String.t(), :quarantine | :clean) :: boolean()
+  def resident?(key, status) when status in [:quarantine, :clean] do
+    Regex.match?(@key_regex, key) and File.exists?(path(status, key))
+  end
+
   @spec path(:quarantine | :clean, String.t()) :: String.t()
   def path(:quarantine, key), do: Path.join([root(), "quarantine", key])
   def path(:clean, key), do: Path.join([root(), "clean", key])
