@@ -6,6 +6,7 @@
 
 - Erlang/OTP **29.1.2**
 - Elixir **1.20.4-otp-29**
+- Java **temurin-25.0.5.1+2.0.LTS** + `tla2tools` **1.7.4**（添付検疫の TLA+ モデルを回すときだけ使う。`spec/` を触らないなら無くても開発はできる）
 - PostgreSQL 18（Docker Compose）
 
 ```bash

@@ -57,6 +57,11 @@ mix run -e 'HelpdeskCommander.Workers.UpdateSignaturesWorker.perform(%Oban.Job{a
   ワーカーを複数回実行すると次のバッチが処理される。
 - 再スキャン中に enqueue が失敗した添付は `failed`（`scan_note = rescan_enqueue_failed`）
   として隔離し、他の添付の処理を止めない。
+- 実体が `quarantine/` にも `clean/` にも無い添付は、enqueue せずに `failed`
+  （`scan_note = missing_storage`）にする。戻り値の `failed` 件数にはこの分も含まれる。
+  **実体が無いため手動再スキャンでも回復しない**（ストレージ側の復旧が必要）。
+- 再スキャンの読み先は置き場所に依らず実体を探す（`quarantine/` → `clean/` の順）。
+  以前は `quarantine/` 固定で読んでいたため、`clean/` にある添付が必ず `failed` に落ちていた。
 
 ## 4. 監視項目
 

@@ -33,8 +33,10 @@ clamd 設定がある場合はコマンドより優先される。
   clamd 側の接続失敗・タイムアウト・`ERROR` 応答はすべて `failed` として隔離される。
   構成・起動手順は `docs/SANDBOX_SCANNER.md`。
   - 終了コード 0: `clean` → `clean/` へ移動してダウンロード可
-  - 終了コード 1: `infected` → `quarantine/` に残しダウンロード拒否
-  - それ以外: `failed` → `quarantine/` に残しダウンロード拒否
+  - 終了コード 1: `infected` → `clean/` にあれば隔離へ戻し（`Storage.demote/1`）、ダウンロード拒否
+  - それ以外: `failed` → 同じく `clean/` から隔離へ戻し、ダウンロード拒否
+  - 置き直し（`promote` / `demote`）に失敗した場合は `clean` を書かず `failed` にする。
+    許可リスト・キャッシュヒットで既知の clean として作る経路も同じ（`storage_promote_failed`）
 - **タイムアウト（HC-16）**: スキャンは既定 30 秒で打ち切り（`ATTACHMENT_SCAN_TIMEOUT_MS` で変更可）、
   `failed` として `quarantine/` に残しダウンロード拒否。
 - **fail-closed（HC-16）**: スキャナ異常・未設定・設定不備のいずれも `skipped` にはならず
