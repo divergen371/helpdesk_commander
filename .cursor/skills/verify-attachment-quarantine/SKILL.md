@@ -25,24 +25,23 @@ description: "Use when a change touches attachment ingest, scanning, storage pro
 
 | ファイル | 関数 |
 | --- | --- |
-| `lib/helpdesk_commander/helpdesk/attachments.ex` | `ingest/3`, `scan_attachment/1`, `scan/1`, `scan_source/1`, `place_bytes/3`, `rescan/2`, `rescan_outdated/1`, `rescan_existing/1`, `override_infected/3`, `downloadable?/1`, `download_path/1` |
+| `lib/helpdesk_commander/helpdesk/attachments.ex` | `ingest/3`, `create_with_status/6`, `place_created/2`, `scan_attachment/1`, `scan/1`, `scan_source/1`, `place_bytes/3`, `rescan/2`, `rescan_outdated/1`, `rescan_existing/1`, `override_infected/3`, `downloadable?/1`, `download_path/1` |
 | `lib/helpdesk_commander/attachments/storage.ex` | `store/3`, `promote/1`, `demote/1`, `resident?/2`, `path/2` |
 | `lib/helpdesk_commander/workers/scan_attachment_worker.ex` | `perform/1`, `backoff/1` |
 
-**sync commit**: `e6c4f93`（再スキャンの読み先と隔離戻しを修正したコミット）
+**sync commit**: `abf6eba`（このスキルを最新化したコミット。修正本体は `e6c4f93`、許可リスト経路とモデルの同期は `abf6eba`）
 このコミット時点で、下のモデルが上記コードを記述していることを確認済み。**covered のコードが変わったら、まずこのスキルの「更新手順」を読む。確認するまで sync commit を進めない。**
 
 ## 実行
 
 ```bash
-cd spec && java -XX:+UseParallelGC \
-  -cp ~/.local/share/mise/installs/http-tla2tools/1.7.4/tla2tools.jar \
-  tlc2.TLC -config attachment_lifecycle.cfg -deadlock attachment_lifecycle.tla
+cd spec && JAR="$(mise where 'http:tla2tools@1.7.4')/tla2tools.jar" && java -XX:+UseParallelGC \
+  -cp "$JAR" tlc2.TLC -config attachment_lifecycle.cfg -deadlock attachment_lifecycle.tla
 ```
 
-- ツールは mise 管理（`mise install tla2tools` → 1.7.4）。jar のパスが違う場合のみ `ls ~/.local/share/mise/installs/http-tla2tools/*/tla2tools.jar` で解決する
-- Java は 23 系で動作確認済み
-- 状態数は 25 程度、実行は 1 秒未満
+- ツールはリポジトリで固定済み: `.tool-versions` に `http:tla2tools 1.7.4` と `java temurin-25.0.5.1+2.0.LTS`。fresh checkout では `mise install` だけで揃う
+- jar のパスを本文に直書きしない（`mise where` で解決する。バージョンを上げたら `.tool-versions` も更新する）
+- 状態数は 27 程度、実行は 1 秒未満
 - 安全性だけを見たいとき: `-config attachment_lifecycle.safety.cfg`（性質 1 のみ。他は全性質の cfg で見る）
 
 TLA+ の結果は必ず `/statechart` スキルで読む。違反は最短経路の手順として、通過時は状態遷移図として出る。`/statechart` のコマンドやパスはリリースごとに変わるので、このスキルに写さない。
@@ -57,6 +56,8 @@ TLA+ の結果は必ず `/statechart` スキルで読む。違反は最短経路
 | `loc` | 実バイトの置き場所。`Storage.store/3` が `quarantine/` に複製し、`Storage.promote/1` が `File.rename` で `clean/` へ**移動**する |
 | `verdict` | 現在 `loc` にあるバイトに対して最後に得られた判定 |
 | `Ingest` | `ingest/3`（`pending` + `quarantine/`） |
+| `IngestKnownClean` | 許可リスト・キャッシュヒット経路（`create_with_status/6` → `place_created/2`）。既知の clean として作り `promote/1` |
+| `IngestKnownCleanPromoteFails` | 同じ経路で `promote/1` が失敗 → `clean` を書かず `failed`（`storage_promote_failed`） |
 | `WorkerScanCleanFromQuarantine` | `scan/1` が clean → `place_bytes/3` が `promote/1` → `mark_scan` で `clean` |
 | `WorkerScanCleanFromClean` | 実体が既に `clean/`（掃引後の再スキャン）。読み直して clean なら置き直しは不要 |
 | `WorkerScanInfectedFromQuarantine` | `scan/1` の感染側。実体は `quarantine/` のまま |
@@ -89,7 +90,9 @@ TLA+ の結果は必ず `/statechart` スキルで読む。違反は最短経路
 
 修正内容: `scan_source/1` が実体を `quarantine/` → `clean/` の順に探す、`place_bytes/3` が非配信時に `Storage.demote/1` で隔離へ戻す、置き直し失敗は `clean` を書かず `failed`、`rescan_existing/1` は実体消失を `failed`（`missing_storage`）にする。
 
-再発防止: `test/helpdesk_commander/helpdesk/attachments_rescan_storage_test.exs`（4 件）。**この所見を再現するコードに戻すと、このテストと TLA+ の `FailedBytesQuarantined` が同時に落ちる。**
+再発防止: `test/helpdesk_commander/helpdesk/attachments_rescan_storage_test.exs`（5 件）。**この所見を再現するコードに戻すと、このテストと TLA+ の `FailedBytesQuarantined` が同時に落ちる。**
+
+**同じクラスの 2 箇所目（`abf6eba` で修正）**: 許可リスト・キャッシュヒットで既知の clean として作る `create_with_status/6` も `Storage.promote/1` の戻り値を捨てていた。promote に失敗しても `clean` を名乗るため、`downloadable?/1` は true、`download_path/1` は存在しない `clean/` パスを返していた。`place_created/2` で `failed`（`storage_promote_failed`）に落とし、回帰テストを 1 件追加（`clean/` を `0o500` にして EACCES を起こす）。モデルにも `IngestKnownClean` / `IngestKnownCleanPromoteFails` として現れている。
 
 ## 更新手順（drift を直すとき）
 
