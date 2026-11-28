@@ -417,20 +417,22 @@ defmodule HelpdeskCommander.Helpdesk.Attachments do
         {status, note} = scan_result(path)
         metadata = ScanMetadata.collect()
 
-        with :ok <- place_bytes(key, location, status) do
-          attachment
-          |> Ash.Changeset.for_update(:mark_scan, %{
-            scan_status: status,
-            scan_note: preserve_reputation_note(note, attachment.scan_note),
-            scanned_at: DateTime.utc_now(),
-            scan_engine: metadata.engine,
-            scan_version: metadata.version,
-            signature_at: metadata.signature_at
-          })
-          |> Ash.update(domain: Helpdesk, tenant: attachment.company_id, authorize?: false)
-        else
+        case place_bytes(key, location, status) do
+          :ok ->
+            attachment
+            |> Ash.Changeset.for_update(:mark_scan, %{
+              scan_status: status,
+              scan_note: preserve_reputation_note(note, attachment.scan_note),
+              scanned_at: DateTime.utc_now(),
+              scan_engine: metadata.engine,
+              scan_version: metadata.version,
+              signature_at: metadata.signature_at
+            })
+            |> Ash.update(domain: Helpdesk, tenant: attachment.company_id, authorize?: false)
+
           {:error, reason} ->
             ErrorLog.log_error("attachments.scan.place_bytes", reason, attachment_id: attachment.id)
+
             mark_failed(attachment, "storage_place_failed: #{inspect(reason)}")
         end
 

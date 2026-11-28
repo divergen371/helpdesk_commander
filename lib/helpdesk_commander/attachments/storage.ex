@@ -72,7 +72,7 @@ defmodule HelpdeskCommander.Attachments.Storage do
   """
   @spec resident?(String.t(), :quarantine | :clean) :: boolean()
   def resident?(key, status) when status in [:quarantine, :clean] do
-    Regex.match?(@key_regex, key) and File.exists?(path(status, key))
+    Regex.match?(@key_regex, key) and status |> path(key) |> File.exists?()
   end
 
   @spec path(:quarantine | :clean, String.t()) :: String.t()
